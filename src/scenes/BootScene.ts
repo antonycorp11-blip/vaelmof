@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { HERO_META_KEY, heroTexture, type HeroMeta } from '../entities/HeroRig';
 
 const S = 'assets/sprites/';
 
@@ -20,15 +19,9 @@ export class BootScene extends Phaser.Scene {
 
     this.load.image('tiles', 'assets/tilesets/vaelmor-tiles.png');
     const sheet = (key: string, file: string, w = 16, h = 16) => this.load.spritesheet(key, S + file, { frameWidth: w, frameHeight: h });
-    // herói em camadas: os atlas listados em hero.json
-    this.load.json(HERO_META_KEY, 'assets/hero/hero.json');
-    this.load.once(`filecomplete-json-${HERO_META_KEY}`, (_key: string, _type: string, meta: HeroMeta) => {
-      for (const layer of meta.layers) {
-        const item = layer === 'fx' ? meta.loadout.weapon : meta.loadout[layer];
-        const file = `assets/hero/${meta.atlases[layer]}`;
-        this.load.atlas(heroTexture(layer, item), `${file}.png`, `${file}.json`);
-      }
-    });
+    // Teren desenhado à mão (scripts/hero2) e a espada em 32 ângulos
+    sheet('teren', 'teren.png', 32, 40);
+    sheet('teren-sword', 'teren-sword.png', 28, 28);
     sheet('bandit', 'bandit.png', 48, 48);
     sheet('slime', 'slime.png');
     sheet('wolf', 'wolf.png');
@@ -51,16 +44,11 @@ export class BootScene extends Phaser.Scene {
     const a = this.anims;
     const range = (key: string, start: number, end: number) => a.generateFrameNumbers(key, { start, end });
     const frames = (key: string, list: number[]) => a.generateFrameNumbers(key, { frames: list });
-    // herói: uma animação por (nome × direção), no atlas da camada base
-    const meta = this.cache.json.get(HERO_META_KEY) as HeroMeta;
-    const bodyKey = heroTexture('body', meta.loadout.body);
-    for (const [name, an] of Object.entries(meta.anims))
-      for (let d = 0; d < meta.dirs; d++)
-        a.create({
-          key: `hero-${name}-${d}`,
-          frames: an.durations.map((duration, i) => ({ key: bodyKey, frame: `${name}_${d}_${i}`, duration })),
-          repeat: an.loop ? -1 : 0,
-        });
+    // Teren: 6 quadros por direção (parado, respira, passo A, passo, passo B, passo)
+    for (let d = 0; d < 4; d++) {
+      a.create({ key: `teren-idle-${d}`, frames: [{ key: 'teren', frame: d * 6, duration: 700 }, { key: 'teren', frame: d * 6 + 1, duration: 500 }], repeat: -1 });
+      a.create({ key: `teren-walk-${d}`, frames: range('teren', d * 6 + 2, d * 6 + 5), frameRate: 9, repeat: -1 });
+    }
     for (let d = 0; d < 4; d++) {
       const br = 16;
       a.create({ key: `bandit-idle-${d}`, frames: range('bandit', d * br, d * br + 3), frameRate: 3, repeat: -1 });

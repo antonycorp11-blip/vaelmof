@@ -8,9 +8,9 @@
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
-    "assets": "node scripts/generate-assets.mjs && node scripts/hero/build.mjs",
+    "assets": "node scripts/generate-assets.mjs && node scripts/hero2/build.mjs",
     "typecheck": "tsc --noEmit",
-    "hero": "node scripts/hero/build.mjs"
+    "hero": "node scripts/hero2/build.mjs"
   },
   "dependencies": {
     "phaser": "3.90.0"

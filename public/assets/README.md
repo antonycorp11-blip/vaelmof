@@ -47,12 +47,11 @@ Os índices estão em `src/systems/Tiles.ts`.
 | ui-icons.png | 16×16 | golpe, esquiva, chama, coração |
 | glow.png, fog.png, pixel.png, raindrop.png, shadow.png | imagem única | luz radial, neblina tileável, partícula, gota, sombra |
 
-## hero/
-O herói (Teren) é gerado por `npm run hero` (`scripts/hero/`) em atlas por
-camada de equipamento. Veja a seção "Herói: pipeline e modularidade" do
-README. Para trocar por arte desenhada à mão, mantenha os nomes de quadro
-(`<animação>_<direção 0–7>_<quadro>`, direções S, SO, O, NO, N, NE, L, SE),
-o quadro de origem 112×112 com os pés em (56, 88) e as durações em `hero.json`.
+## sprites/teren.png e teren-sword.png
+Teren desenhado à mão (`scripts/hero2/`): quadros 32×40, 6 colunas × 4
+linhas (baixo, esquerda, direita, cima; colunas: parado, respira, passo A,
+passo, passo B, passo), pés na linha 37. A espada: 32 quadros 28×28 com a
+empunhadura no centro, ângulo 0° apontando para a direita, sentido horário.
 
 ## tiles/
 `house-*.png`: 48×48, 2 frames (janelas apagadas / acesas). `well.png`: 32×32.

@@ -17,17 +17,17 @@ export const VIEW_TILES_W = 20;
 export const VIEW_TILES_H = 12;
 
 export const PLAYER = {
-  speed: 64, // px/s (casada com a passada da corrida em scripts/hero/anims.mjs)
+  speed: 72, // px/s
   maxHp: 10,
   /**
-   * Combo de 3 golpes. A duração de cada golpe e o instante do impacto vêm
-   * da animação gerada (public/assets/hero/hero.json); `lunge` = avanço
-   * (px/s) no impacto.
+   * Combo de 3 golpes: `dur` = duração (ms), `hit` = instante do impacto,
+   * `from`/`to` = varredura da espada em graus relativos à direção do herói,
+   * `lunge` = avanço (px/s) no impacto.
    */
   combo: [
-    { anim: 'atk1', damage: 2, range: 26, arcDeg: 150, knockback: 150, lunge: 45 },
-    { anim: 'atk2', damage: 2, range: 26, arcDeg: 150, knockback: 150, lunge: 45 },
-    { anim: 'atk3', damage: 3, range: 33, arcDeg: 70, knockback: 260, lunge: 150 },
+    { kind: 'slash', dur: 300, hit: 95, from: -115, to: 75, damage: 2, range: 24, arcDeg: 150, knockback: 150, lunge: 45 },
+    { kind: 'slash', dur: 300, hit: 95, from: 115, to: -75, damage: 2, range: 24, arcDeg: 150, knockback: 150, lunge: 45 },
+    { kind: 'thrust', dur: 380, hit: 135, from: 0, to: 0, damage: 3, range: 31, arcDeg: 70, knockback: 260, lunge: 150 },
   ],
   /** Janela (ms) após um golpe para encadear o próximo do combo. */
   comboWindow: 380,

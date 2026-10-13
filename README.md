@@ -27,7 +27,7 @@ de rede que o `npm run dev` mostra (ex.: `http://192.168.0.10:5173`), com
 celular e computador na mesma rede Wi-Fi. O service worker só é registrado no
 build de produção (`npm run preview` ou deploy).
 
-`npm run assets` regera todos os PNGs (mapa, inimigos e herói); `npm run hero` regera só o herói (já estão versionados; só é
+`npm run assets` regera todos os PNGs (mapa, inimigos e herói); `npm run hero` regera só o Teren (já estão versionados; só é
 preciso rodar se você alterar `scripts/generate-assets.mjs`).
 
 ### Controles
@@ -93,33 +93,27 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - **Pássaros** (7) sobrevoam o mapa em trajetos levemente ondulados, com
   sombra no chão e sem colisão; ao sair do mapa reaparecem numa borda.
 
-### Teren (`src/entities/Player.ts`, `src/entities/HeroRig.ts`)
-- **Sprite "3D → pixel art"** gerado por `scripts/hero/` (ver
-  [Herói: pipeline e modularidade](#herói-pipeline-e-modularidade)) a partir
-  do conceito "aventureiro do Serro": estilo JRPG com ~3 cabeças de altura,
-  cabelo castanho espetado, olhos grandes com brilho, cachecol vermelho, capa
-  azul com barra e emblema dourados e forro vermelho, camisa creme bordada,
-  cintos com fivelas douradas, luvas, calça verde, botas altas e espada de
-  cabo azul. **8 direções de sprite**, luz e volume coerentes, contorno
-  seletivo. A arte tem o dobro da densidade do mapa e é exibida em escala
-  0,5 (≈ 27 px do mundo de altura, perto do tamanho dos outros personagens).
-- A passada da corrida é casada com `PLAYER.speed` (64 px/s) para o pé
-  não "patinar"; com joystick parcial o ritmo dos passos acompanha a
-  velocidade.
-- Animações: respiração parado (8 quadros), corrida (8), combo de 3 golpes
-  (7 + 7 + 8), cambalhota (8), dano (3) e conjuração (5) — 54 quadros por
-  direção, 432 por camada.
+### Teren (`src/entities/Player.ts`)
+- **Sprite desenhado à mão, pixel a pixel** (`scripts/hero2/*.txt`, um
+  caractere por pixel), na **mesma escala de pixel do mapa** (1 px de arte =
+  1 px do mundo), a partir do conceito "aventureiro do Serro": cabelo
+  castanho espetado, olhos grandes com brilho, cachecol vermelho, capa azul
+  com barra e emblema dourados, camisa creme com alça de couro, cinto com
+  fivela dourada, luvas, calça verde e botas com dobra. Quadro 32×40.
+- 4 direções (frente, costas, perfil; o lado direito é espelhado), respiração
+  parado e caminhada de 4 passos com as pernas alternando; o ritmo dos passos
+  acompanha a velocidade do joystick.
 - Movimento em **8 direções** (o joystick é analógico na intensidade, mas a
-  direção é quantizada em 45°), e o sprite acompanha as 8. Velocidade em
-  `PLAYER.speed` (`src/config.ts`).
+  direção é quantizada em 45°). Velocidade em `PLAYER.speed` (`src/config.ts`).
+- **A espada é uma peça separada** (`teren-sword.png`, desenhada à mão e
+  pré-rotacionada em 32 ângulos), que aparece na mão durante os golpes —
+  trocar a textura troca a arma.
 - **HP 10** com barra segmentada no HUD; pisca e fica invulnerável por 0,9 s
   após tomar dano. Ao morrer, volta a Brumavale com HP cheio.
-- **Golpe: combo de 3 movimentos.** Golpe diagonal descendente → revés
-  horizontal → estocada com avanço (dano 2, 2 e 3; a estocada alcança mais
-  longe e empurra mais). Cada golpe tem preparo (giro do tronco e lâmina
-  sobre o ombro), aceleração, impacto, continuação e recuperação; o dano sai
-  no quadro de impacto definido na animação. O rastro branco é a superfície
-  realmente varrida pela lâmina entre os quadros. Apertar de
+- **Golpe: combo de 3 movimentos.** Corte de um lado → corte de volta →
+  estocada com avanço (dano 2, 2 e 3; a estocada alcança mais longe e
+  empurra mais). A espada varre o arco em volta do ombro e o arco de corte
+  aparece no instante do impacto. Apertar de
   novo no fim da recuperação (ou dentro de 380 ms) encadeia o próximo; depois
   do golpe final o combo recomeça. Segurar o botão repete. A esquiva cancela
   qualquer golpe. "Hit stop", faíscas e tremida de câmera ao acertar (mais
@@ -227,20 +221,15 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 4. **Árvores como tiles**: tronco na camada de decoração com colisão de
    1 tile; copa 3×2 numa camada acima das entidades. Barato e sem
    ordenação por objeto.
-5. **Herói por pipeline "3D → pixel art"** (`scripts/hero/`): um modelo de
-   primitivas 3D com esqueleto e cinemática inversa é renderizado em pixel
-   art (ray marching, luz quantizada em rampas de cor, supersampling 2×2,
-   contorno seletivo). É a técnica de jogos como Dead Cells; dá 8 direções
-   coerentes e animação por esqueleto. As proporções são chibi de JRPG
-   (cabeça grande, pernas curtas e retas). **A cabeça (rosto e cabelo) é
-   desenhada à mão**, pixel a pixel, em 5 vistas (`scripts/hero/heads/*.txt`,
-   as outras 3 espelhadas) e encaixada na posição 3D da cabeça a cada quadro,
-   com profundidade para cachecol, capa e espada passarem na frente ou atrás. O Bandoleiro segue no rig 2D
-   simples de `scripts/generate-assets.mjs`.
-6. **Arte do herói com o dobro da densidade** do mapa (exibida a 0,5×):
-   olhos com brilho, fivelas e bordados precisam de ~55 px de arte de
-   altura; isso mistura densidades de pixel (o herói é mais detalhado que o
-   cenário), escolha consciente em favor do personagem.
+5. **Herói desenhado à mão na escala do mundo.** Testei antes um modelo 3D
+   convertido em pixel art (e uma cabeça desenhada colada nele); destoava
+   do cenário por ter outra densidade de pixel e outro sombreado. O sprite
+   atual é pixel art feita à mão em ASCII, com o mesmo tamanho de pixel do
+   mapa, e as animações de passo e respiração saem de pequenas variações
+   do desenho base (`scripts/hero2/build.mjs`).
+6. **Arma como camada separada**: a espada é um sprite próprio rotacionado
+   por quadro (32 ângulos pré-renderizados, sem serrilhado de rotação em
+   tempo real), o que permite trocar de arma sem redesenhar o herói.
 7. **Tempo de jogo único**: jogador e inimigos usam o relógio da cena
    (`this.time.now`); o impacto do golpe é medido no `update`, não com
    `delayedCall`, para não atrasar em quedas de FPS.
@@ -270,62 +259,22 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 
 ---
 
-## Herói: pipeline e modularidade
+## Herói: desenhos e modularidade
 
-`npm run hero` (≈10 s, usa todos os núcleos) gera `public/assets/hero/`:
+`npm run hero` monta o spritesheet a partir dos desenhos em `scripts/hero2/`:
 
 | Arquivo | Conteúdo |
 |---|---|
-| `hero.json` | metadados: tamanho do quadro (112×112), pés (56, 88), escala 0,5, 8 direções, camadas, loadout, atlas por camada e as animações (quadros, duração de cada quadro, quadro de impacto `hit`, quadro de soltar a Chama `release`) |
-| `body-base` | corpo e cabeça desenhada à mão (cabelo espetado, olhos grandes com brilho, bochechas), camisa e calção de linho |
-| `legs-aventureiro` | calça verde e botas altas com dobra e fivela |
-| `torso-aventureiro` | camisa creme com decote de cordão e barra bordada, mangas bufantes, luvas, cinto com fivela grande, bolsa e alça transversal |
-| `cape-serro` | capa azul com barra e emblema dourados e forro vermelho, manto curto nos ombros, cachecol vermelho e broche dourado |
-| `weapon-espada-serro` | espada: lâmina com sulco e fio vivo, guarda dourada com gemas azuis, cabo azul com anéis dourados e pomo dourado |
-| `fx-espada-serro` | rastro dos golpes e o fogo da Chama na mão |
+| `front.txt`, `side.txt`, `back.txt` | Teren parado de frente, de perfil (olhando para a esquerda) e de costas, 32×40, um caractere por pixel |
+| `sword.txt` | espada do Serro na horizontal (empunhadura em 2,2) |
+| `pal.json` | cor de cada caractere |
+| `build.mjs` | gera `teren.png` (4 direções × parado, respiração e 4 passos) e `teren-sword.png` (32 ângulos) |
 
-Cada camada é um atlas recortado (PNG + JSON do Phaser) **com os mesmos nomes
-de quadro** (`<animação>_<direção>_<quadro>`, ex.: `atk1_3_2`).
-
-**Como funciona** (`scripts/hero/`):
-
-1. `rig.mjs` — esqueleto. A pose descreve onde ficam quadril, pés, mãos e a
-   direção da lâmina, mais rotações do tronco e da cabeça; braços e pernas
-   são resolvidos por IK de dois ossos. A capa tem âncora e ângulo próprios
-   (sobe na corrida e nos golpes).
-2. `anims.mjs` — coreografia: quadros-chave por animação, interpolados com
-   Catmull-Rom (mãos e lâmina fazem arcos).
-3. `equipment.mjs` — as peças, por **slot** (`body`, `legs`, `torso`,
-   `cape`, `weapon`). Cada peça é uma função `(juntas) → primitivas 3D`
-   (cones, elipsoides, caixas e formas próprias como lâmina e capa), com
-   material e detalhes (olhos, pregas, sulco da lâmina…).
-4. `render.mjs` — ray marching ortográfico com câmera a 30°, luz vinda do
-   alto à esquerda, oclusão ambiente, cores quantizadas nas rampas de
-   `palette.mjs`, supersampling 2×2 com voto de material e contorno
-   seletivo. **Cada camada só aparece onde está à frente das camadas de
-   baixo** (teste de profundidade), então as camadas empilham corretamente.
-5. `build.mjs` — renderiza tudo (8 direções × 54 quadros × 6 camadas),
-   recorta e empacota os atlas.
-
-**No jogo** (`src/entities/HeroRig.ts`): o sprite físico do Player é a camada
-`body`; as outras camadas são sprites que copiam quadro, posição, ângulo,
-alpha e tint dele antes de cada render. Trocar uma peça é trocar a textura
-da camada: `player.rig.equip('weapon', 'machado')`.
-
-**Para adicionar uma armadura ou arma depois:**
-
-1. Em `scripts/hero/equipment.mjs`, escreva a função da peça no slot certo
-   (ex.: `ITEMS.torso.cotaDeMalha = (J) => [...]`, `ITEMS.weapon.machado = ...`)
-   usando as juntas de `J` (`J.chest`, `J.chestB`, `J.grip`, `J.weaponB`…).
-2. Rode `npm run hero` com o loadout que inclui a peça (hoje o build usa
-   `DEFAULT_LOADOUT`; um próximo passo natural é gerar *todas* as peças de
-   cada slot e listá-las em `hero.json`).
-3. Carregue o atlas no `BootScene` e chame `rig.equip(slot, item)`.
-
-Limites conhecidos do modelo: peças de um slot não "recortam" peças de outro
-slot (uma armadura volumosa não esconde a capa de forma diferente da túnica);
-armas com geometria muito diferente podem pedir um rastro próprio
-(`bladeSegment`).
+Para editar o visual, mude os caracteres nos `.txt` e rode `npm run hero`
+(ou `python3 scripts/hero2/view.py saida.png scripts/hero2/front.txt` para ver
+ampliado). Para uma armadura ou arma nova: desenhe a variação (ex.:
+`front-armadura.txt` ou `machado.txt`) e gere outra textura; no jogo a arma
+é a textura do sprite `player.sword`.
 
 ---
 
@@ -334,7 +283,7 @@ armas com geometria muito diferente podem pedir um rastro próprio
 | Item | Situação |
 |---|---|
 | Todo o tileset (grama, terra, areia, rocha, água, cachoeira, penhascos, estrada, ponte, escadaria, flores, arbustos, cercas, árvores) | placeholder procedural — trocar por Kenney Tiny Town / Roguelike RPG Pack ou arte própria |
-| Teren | gerado por `scripts/hero/` (modelo 3D → pixel art, 8 direções, camadas por slot de equipamento). É arte procedural "final de protótipo": substituível por arte desenhada à mão mantendo os nomes de quadro dos atlas |
+| Teren | desenhado à mão em `scripts/hero2/` (4 direções, parado e caminhada; golpes com a espada como peça separada). Faltam quadros próprios de ataque, cambalhota e dano (hoje o corpo fica parado e gira na esquiva) |
 | Bandoleiro | rig 2D de poses (48×48, ~24 px de altura) em `scripts/generate-assets.mjs` |
 | Limo, Lobo, Ovelha, Cervo, Pássaro | placeholder procedural 16×16 (vista lateral espelhada para quadrúpedes) |
 | Casas (2 estilos por vila), poço, tochas | placeholder procedural |
@@ -439,6 +388,6 @@ public/
   manifest.json, sw.js, icons/
   assets/                 tilesets/, sprites/, tiles/ (PNG placeholder + README de layout)
 scripts/generate-assets.mjs   gerador da pixel art placeholder (mapa, inimigos, efeitos)
-scripts/hero/                 pipeline do herói (modelo 3D → pixel art em camadas)
+scripts/hero2/                Teren desenhado à mão (ASCII) e montagem do spritesheet
 CREDITS.md                fontes e licenças
 ```
