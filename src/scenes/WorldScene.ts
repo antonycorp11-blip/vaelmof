@@ -11,6 +11,7 @@ import { Player } from '../entities/Player';
 import { Sheep } from '../entities/Sheep';
 import { Slime } from '../entities/Slime';
 import { Wolf } from '../entities/Wolf';
+import { Wraith } from '../entities/Wraith';
 import { inputState } from '../input/InputState';
 import { DayNightSystem, mulColor } from '../systems/DayNightSystem';
 import { generateMap, type MapData } from '../systems/MapGenerator';
@@ -111,6 +112,9 @@ export class WorldScene extends Phaser.Scene {
           break;
         case 'bandit':
           this.enemies.push(new Bandit(this, sp.x, sp.y));
+          break;
+        case 'wraith':
+          this.enemies.push(new Wraith(this, sp.x, sp.y));
           break;
       }
     }

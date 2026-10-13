@@ -2,7 +2,7 @@ import { MAP_H, MAP_W, TILE } from '../config';
 import { fbm, mulberry32, valueNoise } from './Noise';
 import { T } from './Tiles';
 
-export type SpawnKind = 'sheep' | 'deer' | 'slime' | 'wolf' | 'bandit';
+export type SpawnKind = 'sheep' | 'deer' | 'slime' | 'wolf' | 'bandit' | 'wraith';
 
 export interface HouseDef {
   tx: number;
@@ -488,6 +488,8 @@ export function generateMap(seed: number): MapData {
   place('bandit', 1, (x, y) => valley(x, y), [BX + 20, BY - 6, 3]);
   place('bandit', 4, (x, y) => !!road[idx(x, y)] && farFromVillages(x, y, 16));
   place('bandit', 2, (x, y) => valley(x, y) && farFromVillages(x, y, 26));
+  // Errantes: seres de outra dimensão nas florestas fechadas
+  place('wraith', 6, (x, y) => ground[idx(x, y)] === T.FOREST && farFromVillages(x, y, 18));
 
   return {
     width: W,

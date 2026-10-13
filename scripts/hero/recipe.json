@@ -1,0 +1,223 @@
+{
+  "_doc": "Receita do Teren (LPC). Ordem = profundidade (z). Trocar uma linha troca a peça.",
+  "layers": [
+    {
+      "z": 5,
+      "part": "capa (atrás)",
+      "file": "cape/solid_behind/forest.png",
+      "authors": "Nila122, JaidynReiman",
+      "licenses": "OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0",
+      "urls": [
+        "https://opengameart.org/content/lpc-curly-hair-elven-ears-white-cape-with-blue-trim-and-more",
+        "https://opengameart.org/content/lpc-roman-armor"
+      ]
+    },
+    {
+      "z": 9,
+      "part": "espada (atrás)",
+      "file": "weapon/sword/arming/universal/bg/steel.png",
+      "authors": "ElizaWy; walk and down by JaidynReiman",
+      "licenses": "OGA-BY 3.0",
+      "urls": [
+        "https://github.com/ElizaWy/LPC/tree/main/Characters/Props/Sword%2001%20-%20Arming%20Sword",
+        "https://opengameart.org/content/expanded-universal-lpc-spritesheet-idle-run-jump-lpc-revised-combat-and-assets"
+      ]
+    },
+    {
+      "z": 10,
+      "part": "corpo",
+      "file": "body/bodies/male/light.png",
+      "authors": "bluecarrot16, Benjamin K. Smith (BenCreating), Evert, Eliza Wyatt (ElizaWy), TheraHedwig, MuffinElZangano, Durrani, Johannes Sj?lund (wulax), Stephen Challener (Redshrike)",
+      "licenses": "CC-BY-SA 3.0, GPL 3.0",
+      "urls": [
+        "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles",
+        "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+        "https://opengameart.org/content/lpc-male-jumping-animation-by-durrani",
+        "https://opengameart.org/content/lpc-runcycle-and-diagonal-walkcycle",
+        "https://opengameart.org/content/lpc-revised-character-basics",
+        "https://opengameart.org/content/lpc-be-seated",
+        "https://opengameart.org/content/lpc-runcycle-for-male-muscular-and-pregnant-character-bases-with-modular-heads",
+        "https://opengameart.org/content/lpc-jump-expanded",
+        "https://opengameart.org/content/lpc-character-bases"
+      ]
+    },
+    {
+      "z": 20,
+      "part": "calça",
+      "file": "legs/pants/male/brown.png",
+      "authors": "bluecarrot16, JaidynReiman, ElizaWy, Matthew Krohn (makrohn), Johannes Sjölund (wulax)",
+      "licenses": "OGA-BY 3.0, GPL 3.0, CC-BY-SA 3.0",
+      "urls": [
+        "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles",
+        "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+        "https://opengameart.org/content/lpc-expanded-pants"
+      ]
+    },
+    {
+      "z": 25,
+      "part": "botas",
+      "file": "feet/boots/male/brown.png",
+      "authors": "bluecarrot16, Nila122",
+      "licenses": "OGA-BY 3.0, CC-BY-SA 3.0, GPL 2.0, GPL 3.0",
+      "urls": [
+        "https://opengameart.org/content/lpc-clothes-and-hair"
+      ]
+    },
+    {
+      "z": 35,
+      "part": "camisa",
+      "file": "torso/clothes/longsleeve/longsleeve/male/white.png",
+      "authors": "JaidynReiman, Johannes Sjölund (wulax)",
+      "licenses": "CC-BY-SA 3.0, GPL 3.0",
+      "urls": [
+        "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+        "http://opengameart.org/content/lpc-clothing-updates"
+      ]
+    },
+    {
+      "z": 60,
+      "part": "colete de couro",
+      "file": "torso/armour/leather/male/brown.png",
+      "authors": "Johannes Sjölund (wulax)",
+      "licenses": "OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0",
+      "urls": [
+        "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+        "http://opengameart.org/content/lpc-clothing-updates"
+      ]
+    },
+    {
+      "z": 61,
+      "part": "ombreiras",
+      "file": "shoulders/leather/male/brown.png",
+      "authors": "Matthew Krohn (makrohn), Johannes Sjölund (wulax)",
+      "licenses": "OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0",
+      "urls": [
+        "https://opengameart.org/content/lpc-medieval-fantasy-character-sprites",
+        "http://opengameart.org/content/lpc-clothing-updates"
+      ]
+    },
+    {
+      "z": 70,
+      "part": "cinto",
+      "file": "torso/waist/belt_leather/male/brown.png",
+      "authors": "bluecarrot16, Johannes Sjölund (wulax), Matthew Krohn (makrohn)",
+      "licenses": "OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0",
+      "urls": [
+        "https://opengameart.org/content/lpc-combat-armor-for-women",
+        "https://opengameart.org/content/lpc-pirates"
+      ]
+    },
+    {
+      "z": 85,
+      "part": "capa (frente)",
+      "file": "cape/solid/female/forest.png",
+      "authors": "bluecarrot16, JaidynReiman",
+      "licenses": "OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0",
+      "urls": [
+        "https://opengameart.org/content/lpc-curly-hair-elven-ears-white-cape-with-blue-trim-and-more",
+        "https://opengameart.org/content/lpc-roman-armor",
+        "http://opengameart.org/content/lpc-clothing-updates"
+      ]
+    },
+    {
+      "z": 90,
+      "part": "laço da capa",
+      "file": "neck/capetie/male/brown.png",
+      "authors": "bluecarrot16, JaidynReiman",
+      "licenses": "OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0",
+      "urls": [
+        "https://opengameart.org/content/lpc-curly-hair-elven-ears-white-cape-with-blue-trim-and-more"
+      ]
+    },
+    {
+      "z": 100,
+      "part": "cabeça",
+      "file": "head/heads/human/male/light.png",
+      "authors": "bluecarrot16, Benjamin K. Smith (BenCreating), Stephen Challener (Redshrike)",
+      "licenses": "OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0",
+      "urls": [
+        "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles",
+        "https://opengameart.org/content/lpc-character-bases"
+      ]
+    },
+    {
+      "z": 105,
+      "part": "olhos",
+      "file": "eyes/human/adult/green.png",
+      "authors": "JaidynReiman, Matthew Krohn (makrohn), Stephen Challener (Redshrike)",
+      "licenses": "OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0",
+      "urls": [
+        "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles"
+      ]
+    },
+    {
+      "z": 105.5,
+      "part": "nariz",
+      "file": "head/nose/straight/adult/light.png",
+      "authors": "Thane Brimhall (pennomi), Matthew Krohn (makrohn)",
+      "licenses": "GPL 3.0, CC-BY-SA 3.0",
+      "urls": [
+        "https://opengameart.org/content/lpc-base-character-expressions"
+      ]
+    },
+    {
+      "z": 106,
+      "part": "sobrancelhas",
+      "file": "eyes/eyebrows/thick/adult/dark_brown.png",
+      "authors": "ElizaWy",
+      "licenses": "OGA-BY 3.0",
+      "urls": [
+        "https://github.com/ElizaWy/LPC/tree/main/Characters/Hair",
+        "https://opengameart.org/content/expanded-universal-lpc-spritesheet-idle-run-jump-lpc-revised-combat-and-assets"
+      ]
+    },
+    {
+      "z": 120,
+      "part": "cabelo",
+      "file": "hair/messy2/male/dark_brown.png",
+      "authors": "Manuel Riecke (MrBeast)",
+      "licenses": "CC-BY-SA 3.0, GPL 3.0",
+      "urls": [
+        "https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles"
+      ]
+    },
+    {
+      "z": 140,
+      "part": "espada (frente)",
+      "file": "weapon/sword/arming/universal/fg/steel.png",
+      "authors": "ElizaWy; walk and down by JaidynReiman",
+      "licenses": "OGA-BY 3.0",
+      "urls": [
+        "https://github.com/ElizaWy/LPC/tree/main/Characters/Props/Sword%2001%20-%20Arming%20Sword",
+        "https://opengameart.org/content/expanded-universal-lpc-spritesheet-idle-run-jump-lpc-revised-combat-and-assets"
+      ]
+    }
+  ],
+  "slash128": {
+    "_doc": "Golpe com a espada (LPC slash_128): quadros de 128×128; as demais camadas usam o golpe normal centralizado. As camadas de espada comuns da folha principal são ignoradas aqui.",
+    "layers": [
+      {
+        "z": 8,
+        "part": "espada no golpe (atrás)",
+        "file": "weapon/sword/arming/attack_slash/bg/steel.png",
+        "authors": "ElizaWy; walk and down by JaidynReiman",
+        "licenses": "OGA-BY 3.0",
+        "urls": [
+          "https://github.com/ElizaWy/LPC/tree/main/Characters/Props/Sword%2001%20-%20Arming%20Sword",
+          "https://opengameart.org/content/expanded-universal-lpc-spritesheet-idle-run-jump-lpc-revised-combat-and-assets"
+        ]
+      },
+      {
+        "z": 150,
+        "part": "espada no golpe (frente)",
+        "file": "weapon/sword/arming/attack_slash/fg/steel.png",
+        "authors": "ElizaWy; walk and down by JaidynReiman",
+        "licenses": "OGA-BY 3.0",
+        "urls": [
+          "https://github.com/ElizaWy/LPC/tree/main/Characters/Props/Sword%2001%20-%20Arming%20Sword",
+          "https://opengameart.org/content/expanded-universal-lpc-spritesheet-idle-run-jump-lpc-revised-combat-and-assets"
+        ]
+      }
+    ]
+  }
+}

@@ -20,6 +20,8 @@ export abstract class Enemy extends Creature {
   readonly homeY: number;
   protected stunUntil = 0;
   private respawnAt = 0;
+  /** Escala normal do sprite (a animação de morte achata a partir dela). */
+  private baseScale = 1;
   abstract readonly fxColor: number;
 
   constructor(scene: WorldScene, x: number, y: number, texture: string, hp: number, bodyW = 10, bodyH = 6) {
@@ -54,10 +56,11 @@ export abstract class Enemy extends Creature {
     this.body.enable = false;
     this.scene.fx.burst(this.x, this.y - 4, this.fxColor, 14);
     this.setTintFill(0xffffff);
+    this.baseScale = this.scaleX;
     this.scene.tweens.add({
       targets: this,
-      scaleX: 1.5,
-      scaleY: 0.1,
+      scaleX: this.baseScale * 1.5,
+      scaleY: this.baseScale * 0.1,
       alpha: 0,
       angle: Phaser.Math.Between(-25, 25),
       duration: 380,
@@ -83,7 +86,7 @@ export abstract class Enemy extends Creature {
     this.body.enable = true;
     this.body.reset(this.homeX, this.homeY);
     this.setPosition(this.homeX, this.homeY);
-    this.setScale(1).setAngle(0).setAlpha(1).setVisible(true);
+    this.setScale(this.baseScale).setAngle(0).setAlpha(1).setVisible(true);
     this.onRespawn();
   }
 

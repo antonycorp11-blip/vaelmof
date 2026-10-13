@@ -5,19 +5,23 @@
 
 ## 0. Premissa
 
-Nesta dimensão **não existem mais humanos**. O protagonista, **Teren**, é o
-equivalente a um humano vindo de **outra dimensão**: um ser encapuzado, de
-rosto escuro e olhos de luz, com um manto que se desfaz em fios de "céu
-estrelado". Ele chegou por uma **Fenda** e o mundo reage a ele.
+> Revisado: o herói voltou a ser **humano**; o ser encapuzado do conceito
+> virou o mob **Errante**.
+
+**Teren** é um aventureiro humano. Por uma **Fenda** no Blackland, seres de
+**outra dimensão** atravessam para este mundo: os **Errantes**, figuras
+encapuzadas de rosto escuro e olhos de luz, com mantos que se desfazem em
+fios de "céu estrelado".
 
 Consequências de jogo que o projeto aproveita:
 
-- **Não há vilas humanas.** As estruturas atuais (Brumavale, Pedrafria) viram
-  **ruínas** de uma civilização extinta: pontos de interesse, abrigos e baús.
-- O **Blackland** é a região ao redor da Fenda: a dimensão de Teren "vaza"
-  para cá, escurecendo a terra e fazendo nascer cristais.
-- A fauna e os inimigos são nativos de cada bioma; alguns são "ecos" da
-  outra dimensão (só no Blackland).
+- As vilas (Brumavale, Pedrafria) seguem habitadas e são os pontos seguros;
+  vilas mais perto do Blackland estão abandonadas e viram **ruínas** com baús.
+- O **Blackland** é a região ao redor da Fenda: a outra dimensão "vaza"
+  para cá, escurecendo a terra e fazendo nascer cristais. É onde os Errantes
+  são mais comuns e mais fortes.
+- A fauna e os inimigos são nativos de cada bioma; Errantes aparecem em
+  florestas fechadas e à noite em qualquer bioma.
 
 ---
 
@@ -293,18 +297,13 @@ interface Inventory {
 
 ## 4. Personagem: Teren (aplicado nesta versão)
 
-- Arte: o conceito enviado (frente, costas e perfil) é reduzido para a escala
-  do jogo por `scripts/hero3/build.py`, que também gera a animação:
-  flutuar (sobe e desce), barra do manto ondulando, caudas ficando para trás
-  ao se mover e olhos pulsando; à noite os olhos ganham um brilho de luz.
-- A esquiva virou um **salto dimensional** (fica translúcido e deixa rastro),
-  coerente com um ser que flutua.
-- A espada atual virou uma **lâmina etérea** azulada (peça separada, pronta
-  para virar slot de arma).
-- Pendências de arte para o futuro: quadros próprios de ataque e de
-  conjuração (hoje o corpo não muda nesses momentos), vistas 3/4.
-
----
+- Arte: camadas **LPC** (Liberated Pixel Cup) montadas por
+  `scripts/hero/build.py` a partir de `scripts/hero/recipe.json` — corpo,
+  rosto, cabelo, roupa, capa e espada como peças. A receita é o embrião dos
+  **slots de equipamento**: equipar uma armadura = trocar a camada de torso.
+- Animações: andar, golpe (128×128 com rastro), magia e queda da arte; giro
+  do finalizador, disparada da esquiva, poeira e recuo feitos em código.
+- O ser encapuzado do conceito é o mob **Errante** (`scripts/wraith/`).
 
 ## 5. Ordem sugerida de implementação
 

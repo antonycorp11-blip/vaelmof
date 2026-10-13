@@ -8,9 +8,10 @@
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
-    "assets": "node scripts/generate-assets.mjs && python3 scripts/hero3/build.py",
+    "assets": "node scripts/generate-assets.mjs && python3 scripts/hero/build.py && python3 scripts/wraith/build.py",
     "typecheck": "tsc --noEmit",
-    "hero": "python3 scripts/hero3/build.py"
+    "hero": "python3 scripts/hero/build.py",
+    "wraith": "python3 scripts/wraith/build.py"
   },
   "dependencies": {
     "phaser": "3.90.0"

@@ -94,38 +94,33 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   sombra no chão e sem colisão; ao sair do mapa reaparecem numa borda.
 
 ### Teren (`src/entities/Player.ts`)
-- **Viajante de outra dimensão** (nesta dimensão os humanos não existem
-  mais): ser encapuzado de rosto escuro e olhos de luz, manto creme
-  esfarrapado com runas, cachecol azul e caudas de "céu estrelado".
-- O sprite vem da **arte conceitual** (`scripts/hero3/concept.png`: frente,
-  costas e perfil), reduzida e animada por `scripts/hero3/build.py`: ele
-  **flutua** sobre a própria sombra (1,5 px), o corpo balança como um pêndulo
-  com a barra atrasada em relação ao capuz, ondas correm pelas tiras do manto
-  e a barra estica e encolhe com a flutuação; ao se mover ele **inclina para a
-  frente** e as tiras **arrastam para trás**, soltando um rastro de partículas
-  de luz. Os olhos pulsam (à noite ganham brilho). 12 quadros parado + 12 em
-  movimento por direção; continua flutuando durante golpes e magia.
-  A arte tem o dobro da densidade do mapa e é exibida pela metade: **24 px do
-  mundo (1,5 tile)**, na escala dos outros personagens (ajustável com
-  `TEREN_H`, que é a altura da arte antes da redução à metade).
-- 4 direções (frente, costas, perfil; o perfil da arte olha para a direita e
-  é espelhado para a esquerda).
+- **Humano**, aventureiro de cabelo escuro bagunçado, olhos verdes, camisa
+  branca, colete e ombreiras de couro, capa verde, botas e espada de aço.
+- Montado em **camadas LPC** (Liberated Pixel Cup — pixel art feita por
+  artistas, ver `CREDITS.md`) por `scripts/hero/build.py`, a partir da receita
+  `scripts/hero/recipe.json`: corpo, cabeça, olhos, nariz, sobrancelhas,
+  cabelo, roupa, capa e espada, cada um numa linha. Trocar uma linha troca a
+  peça em **todas** as animações — é a base para equipar armaduras e armas.
+- Animações de arte: andar (8 quadros), golpe com espada (quadros 128×128 com
+  o rastro da lâmina), magia e queda, nas 4 direções. O código cuida do resto:
+  tempo de cada quadro sincronizado com o impacto, avanço no golpe, giro de
+  360° no finalizador, poeira nos passos, disparada com rastro na esquiva,
+  recuo ao tomar dano. Exibido a 0,56× (~28 px do mundo, a altura dos
+  bandidos).
 - Movimento em **8 direções** (o joystick é analógico na intensidade, mas a
   direção é quantizada em 45°). Velocidade em `PLAYER.speed` (`src/config.ts`).
-- **Lâmina etérea** como peça separada (`teren-sword.png`, 32 ângulos), que
-  aparece nos golpes — trocar a textura troca a arma.
 - **HP 10** com barra segmentada no HUD; pisca e fica invulnerável por 0,9 s
   após tomar dano. Ao morrer, volta a Brumavale com HP cheio.
-- **Golpe: combo de 3 movimentos.** Corte de um lado → corte de volta →
-  estocada com avanço (dano 2, 2 e 3; a estocada alcança mais longe e
-  empurra mais). A espada varre o arco em volta do ombro e o arco de corte
-  aparece no instante do impacto. Apertar de
+- **Golpe: combo de 3 movimentos.** Corte → segundo corte, mais rápido →
+  **giro de 360°** (dano 2, 2 e 3; o giro acerta tudo em volta e empurra
+  mais). Cada golpe tem a duração de cada quadro em `PLAYER.combo`, e o dano
+  sai no quadro em que a lâmina passa. Apertar de
   novo no fim da recuperação (ou dentro de 380 ms) encadeia o próximo; depois
   do golpe final o combo recomeça. Segurar o botão repete. A esquiva cancela
   qualquer golpe. "Hit stop", faíscas e tremida de câmera ao acertar (mais
   fortes no golpe final). Ajustes em `PLAYER.combo` (`src/config.ts`).
-- **Esquiva (salto dimensional)**: 260 ms translúcido e com
-  **invulnerabilidade**, rastro de imagens e cooldown de 650 ms.
+- **Esquiva**: disparada de 260 ms com **invulnerabilidade**, passos
+  acelerados, rastro de imagens e poeira; cooldown de 650 ms.
 - **Chama**: projétil que explode ao tocar um inimigo, um obstáculo ou no fim
   do alcance, causando **dano 3 em área** (raio 30 px); cooldown longo de
   4 s. Atravessa a água (é possível atingir inimigos do outro lado do rio) e
@@ -142,11 +137,16 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - **Bandoleiro** (HP 8): patrulha estradas e arredores; ao detectar (118 px)
   mostra "!", persegue e **ataca de perto** com adaga: ergue a lâmina e pisca
   (aviso), dá um passo e corta (dano 2 no quadro de impacto).
+- **Errante** (HP 6): ser encapuzado de outra dimensão (a arte conceitual do
+  antigo herói, animada por `scripts/wraith/build.py`) que vaga pelas
+  florestas fechadas. Flutua meio translúcido; ao notar o herói (110 px, mais
+  à noite) se aproxima, **para e acende os olhos** (aviso) e avança num toque
+  gélido (dano 2), depois recua quase invisível. À noite os olhos brilham.
 - Todos têm HP (barra aparece quando feridos), recebem dano do golpe e da
   chama, **piscam em branco** ao serem atingidos, sofrem knockback e têm
   **animação de morte** (achatamento + partículas). Renascem no ponto de
   origem após 45 s se o jogador estiver longe.
-- Quantidade: 11 limos, 8 lobos, 7 bandoleiros. Um de cada fica a poucos
+- Quantidade: 11 limos, 8 lobos, 7 bandoleiros, 6 errantes. Um de cada fica a poucos
   passos de Brumavale para teste rápido.
 
 ### Controles mobile e teclado (`src/input/`)
@@ -227,15 +227,16 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 4. **Árvores como tiles**: tronco na camada de decoração com colisão de
    1 tile; copa 3×2 numa camada acima das entidades. Barato e sem
    ordenação por objeto.
-5. **Herói desenhado à mão na escala do mundo.** Testei antes um modelo 3D
-   convertido em pixel art (e uma cabeça desenhada colada nele); destoava
-   do cenário por ter outra densidade de pixel e outro sombreado. O sprite
-   atual é pixel art feita à mão em ASCII, com o mesmo tamanho de pixel do
-   mapa, e as animações de passo e respiração saem de pequenas variações
-   do desenho base (`scripts/hero2/build.mjs`).
-6. **Arma como camada separada**: a espada é um sprite próprio rotacionado
-   por quadro (32 ângulos pré-renderizados, sem serrilhado de rotação em
-   tempo real), o que permite trocar de arma sem redesenhar o herói.
+5. **Herói em camadas LPC.** Antes testei um modelo 3D convertido em pixel
+   art, sprites desenhados à mão em ASCII, um boneco procedural de esferas e
+   cápsulas e a arte conceitual animada por deformação — nenhum ficou com
+   cara de personagem de verdade. As camadas LPC são pixel art de artistas,
+   com anatomia correta e animações coreografadas, no mesmo estilo de
+   contorno e sombreado do mapa; o código só monta as peças e cuida do tempo,
+   dos efeitos e da física.
+6. **Golpe em quadros maiores**: o golpe com espada do LPC usa quadros de
+   128×128 (a lâmina sai do quadro de 64). No jogo ele é um sprite à parte
+   que substitui o corpo durante o golpe, com os pés no mesmo ponto.
 7. **Tempo de jogo único**: jogador e inimigos usam o relógio da cena
    (`this.time.now`); o impacto do golpe é medido no `update`, não com
    `delayedCall`, para não atrasar em quedas de FPS.
@@ -274,30 +275,27 @@ Online. Ainda não implementado.
 
 ## Herói: arte e animação
 
-`python3 scripts/hero3/build.py` (Pillow + numpy) recorta as três vistas de
-`scripts/hero3/concept.png`, anima (flutuar, ondular, inclinar), reduz para a
-escala do jogo com paleta comum e contorno, repinta os olhos e gera
-`public/assets/sprites/teren.png` + `src/entities/terenSheet.ts` (tamanho dos
-quadros). Para trocar o personagem, troque o `concept.png` (frente, costas e
-perfil lado a lado, fundo transparente) e ajuste os cortes e olhos no topo do
-script.
+`npm run hero` (`python3 scripts/hero/build.py`, requer Pillow) junta as
+camadas listadas em `scripts/hero/recipe.json` (em ordem de profundidade `z`)
+e gera:
 
-### Desenhos antigos (`scripts/hero2/`)
+- `public/assets/sprites/hero.png` — folha universal LPC, 64×64 por quadro,
+  13 colunas: magia (linhas 0–3), estocada (4–7), andar (8–11), golpe
+  (12–15), arco (16–19), queda (20); cada animação em 4 direções (cima,
+  esquerda, baixo, direita).
+- `public/assets/sprites/hero-slash.png` — golpe com espada em 128×128
+  (6 colunas × 4 direções).
 
-`npm run hero` monta o spritesheet a partir dos desenhos em `scripts/hero2/`:
+**Trocar uma peça**: baixe a camada do gerador LPC
+(https://github.com/sanderfrenken/Universal-LPC-Spritesheet-Character-Generator,
+pasta `spritesheets/`), coloque em `scripts/hero/layers/` com o mesmo caminho,
+troque o arquivo na receita (com autores e licença, que vão para o
+`CREDITS.md`) e rode `npm run hero`.
 
-| Arquivo | Conteúdo |
-|---|---|
-| `front.txt`, `side.txt`, `back.txt` | Teren parado de frente, de perfil (olhando para a esquerda) e de costas, 32×40, um caractere por pixel |
-| `sword.txt` | espada do Serro na horizontal (empunhadura em 2,2) |
-| `pal.json` | cor de cada caractere |
-| `build.mjs` | gera `teren.png` (4 direções × parado, respiração e 4 passos) e `teren-sword.png` (32 ângulos) |
-
-Para editar o visual, mude os caracteres nos `.txt` e rode `npm run hero`
-(ou `python3 scripts/hero2/view.py saida.png scripts/hero2/front.txt` para ver
-ampliado). Para uma armadura ou arma nova: desenhe a variação (ex.:
-`front-armadura.txt` ou `machado.txt`) e gere outra textura; no jogo a arma
-é a textura do sprite `player.sword`.
+**Errante** (`npm run wraith`): `scripts/wraith/build.py` (Pillow + numpy)
+recorta as três vistas de `scripts/wraith/concept.png`, anima (flutuar,
+ondular, inclinar), reduz com paleta comum e contorno, repinta os olhos e gera
+`public/assets/sprites/wraith.png` + `src/entities/wraithSheet.ts`.
 
 ---
 
@@ -306,7 +304,7 @@ ampliado). Para uma armadura ou arma nova: desenhe a variação (ex.:
 | Item | Situação |
 |---|---|
 | Todo o tileset (grama, terra, areia, rocha, água, cachoeira, penhascos, estrada, ponte, escadaria, flores, arbustos, cercas, árvores) | placeholder procedural — trocar por Kenney Tiny Town / Roguelike RPG Pack ou arte própria |
-| Teren | arte conceitual reduzida e animada por `scripts/hero3/` (flutuar, manto ondulando, olhos). Faltam quadros próprios de ataque, conjuração e dano |
+| Teren | camadas LPC (arte final de terceiros, ver CREDITS). Faltam animações próprias de esquiva e de dano (usa disparada e um quadro da queda) |
 | Bandoleiro | rig 2D de poses (48×48, ~24 px de altura) em `scripts/generate-assets.mjs` |
 | Limo, Lobo, Ovelha, Cervo, Pássaro | placeholder procedural 16×16 (vista lateral espelhada para quadrúpedes) |
 | Casas (2 estilos por vila), poço, tochas | placeholder procedural |
@@ -404,13 +402,14 @@ src/
   config.ts               constantes ajustáveis e parâmetros de URL
   pwa.ts                  service worker, trava de orientação, gestos
   scenes/                 BootScene (carga/animações), WorldScene (mundo), UIScene (HUD + controles)
-  entities/               Player, Slime, Wolf, Bandit, Sheep, Deer, Bird (+ Creature, Enemy, Animal, Flame)
+  entities/               Player (+ heroSheet), Slime, Wolf, Bandit, Wraith, Sheep, Deer, Bird (+ Creature, Enemy, Animal, Flame)
   systems/                DayNightSystem, WeatherSystem, MapGenerator (+ Tiles, Noise)
   input/                  VirtualControls, InputState
 public/
   manifest.json, sw.js, icons/
   assets/                 tilesets/, sprites/, tiles/ (PNG placeholder + README de layout)
 scripts/generate-assets.mjs   gerador da pixel art placeholder (mapa, inimigos, efeitos)
-scripts/hero2/                Teren desenhado à mão (ASCII) e montagem do spritesheet
+scripts/hero/                 Teren: receita e camadas LPC + montagem do spritesheet
+scripts/wraith/               Errante: arte conceitual + animação procedural
 CREDITS.md                fontes e licenças
 ```

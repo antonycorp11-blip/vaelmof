@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { TEREN_SHEET } from '../entities/terenSheet';
+import { HERO, HERO_SLASH, heroFrame } from '../entities/heroSheet';
+import { WRAITH_SHEET } from '../entities/wraithSheet';
 
 const S = 'assets/sprites/';
 
@@ -20,9 +21,10 @@ export class BootScene extends Phaser.Scene {
 
     this.load.image('tiles', 'assets/tilesets/vaelmor-tiles.png');
     const sheet = (key: string, file: string, w = 16, h = 16) => this.load.spritesheet(key, S + file, { frameWidth: w, frameHeight: h });
-    // Teren (scripts/hero3) e a lâmina em 32 ângulos
-    sheet('teren', 'teren.png', TEREN_SHEET.frameW, TEREN_SHEET.frameH);
-    sheet('teren-sword', 'teren-sword.png', 28, 28);
+    // Teren: camadas LPC montadas por scripts/hero; Errante: scripts/wraith
+    sheet('hero', 'hero.png', HERO.frame, HERO.frame);
+    sheet('hero-slash', 'hero-slash.png', HERO_SLASH.frame, HERO_SLASH.frame);
+    sheet('wraith', 'wraith.png', WRAITH_SHEET.frameW, WRAITH_SHEET.frameH);
     sheet('bandit', 'bandit.png', 48, 48);
     sheet('slime', 'slime.png');
     sheet('wolf', 'wolf.png');
@@ -45,11 +47,17 @@ export class BootScene extends Phaser.Scene {
     const a = this.anims;
     const range = (key: string, start: number, end: number) => a.generateFrameNumbers(key, { start, end });
     const frames = (key: string, list: number[]) => a.generateFrameNumbers(key, { frames: list });
-    // Teren: por direção, 8 quadros flutuando parado + 8 em movimento (manto ondulando)
-    const tc = TEREN_SHEET.cols;
+    // Teren: andar = quadros 1–8 da linha de caminhada LPC (o 0 é de pé)
     for (let d = 0; d < 4; d++) {
-      a.create({ key: `teren-idle-${d}`, frames: range('teren', d * tc, d * tc + TEREN_SHEET.idle - 1), frameRate: 10, repeat: -1 });
-      a.create({ key: `teren-walk-${d}`, frames: range('teren', d * tc + TEREN_SHEET.idle, d * tc + tc - 1), frameRate: 16, repeat: -1 });
+      const walk = [1, 2, 3, 4, 5, 6, 7, 8].map((c) => heroFrame(HERO.rows.walk, d, c));
+      a.create({ key: `hero-walk-${d}`, frames: frames('hero', walk), frameRate: 13, repeat: -1 });
+    }
+    a.create({ key: 'hero-fall', frames: range('hero', HERO.rows.fall * HERO.cols, HERO.rows.fall * HERO.cols + 5), frameRate: 10, repeat: 0 });
+    // Errante: por direção, 12 quadros flutuando + 12 em movimento
+    const wc = WRAITH_SHEET.cols;
+    for (let d = 0; d < 4; d++) {
+      a.create({ key: `wraith-idle-${d}`, frames: range('wraith', d * wc, d * wc + WRAITH_SHEET.idle - 1), frameRate: 10, repeat: -1 });
+      a.create({ key: `wraith-move-${d}`, frames: range('wraith', d * wc + WRAITH_SHEET.idle, d * wc + wc - 1), frameRate: 14, repeat: -1 });
     }
     for (let d = 0; d < 4; d++) {
       const br = 16;

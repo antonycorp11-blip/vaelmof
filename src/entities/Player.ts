@@ -4,7 +4,7 @@ import { consume, inputState } from '../input/InputState';
 import type { WorldScene } from '../scenes/WorldScene';
 import { Creature } from './Creature';
 import { Flame } from './Flame';
-import { TEREN_SHEET } from './terenSheet';
+import { HERO, HERO_SLASH, heroFrame, slashFrame } from './heroSheet';
 
 type PlayerState = 'normal' | 'attack' | 'cast' | 'roll' | 'hurt' | 'dead';
 type Swing = (typeof PLAYER.combo)[number];
@@ -19,24 +19,27 @@ interface Keys {
   flame: Phaser.Input.Keyboard.Key;
 }
 
-/** Quadros do teren.png (gerado por scripts/hero3): por direção, 12 flutuando + 12 em movimento. */
-const SWORD_ANGLES = 32;
-/** A arte tem o dobro da densidade do mapa e é exibida pela metade. */
-const ART_SCALE = 0.5;
-/** "Mão" da lâmina etérea, relativa à base, por direção (px do mundo). */
-const SHOULDER: [number, number][] = [
-  [-4, -15],
-  [-2, -15],
-  [2, -15],
-  [4, -16],
-];
-/** Olhos em relação à base, por direção (px do mundo; nas costas ficam escondidos). */
-const EYE = TEREN_SHEET.eyes.map(([x, y]) => [x * ART_SCALE, y * ART_SCALE] as const);
+/** Índice do quadro em `frames` (durações em ms) após `t` ms. */
+function frameAt(frames: readonly number[], t: number): number {
+  let acc = 0;
+  for (let i = 0; i < frames.length; i++) {
+    acc += frames[i];
+    if (t < acc) return i;
+  }
+  return frames.length - 1;
+}
+const sum = (a: readonly number[]) => a.reduce((s, v) => s + v, 0);
+const startOf = (a: readonly number[], i: number) => sum(a.slice(0, i));
+
+/** Giro do finalizador: direções em sentido horário na tela (baixo, esquerda, cima, direita). */
+const CW = [0, 1, 3, 2];
 
 /**
- * Teren: viajante de outra dimensão (arte conceitual reduzida e animada por
- * scripts/hero3). Flutua; a lâmina etérea é uma peça separada
- * (teren-sword.png, 32 ângulos) que aparece nos golpes.
+ * Teren: herói humano montado em camadas LPC (corpo, roupa, capa, cabelo,
+ * espada — ver scripts/hero/recipe.json). As animações de arte (andar, golpe,
+ * estocada, magia, queda) vêm da folha; o código cuida do resto: tempos de cada
+ * quadro sincronizados com o impacto, avanço no golpe, poeira nos passos,
+ * rastro na esquiva, recuo ao tomar dano.
  */
 export class Player extends Creature {
   hp = PLAYER.maxHp;
@@ -44,16 +47,17 @@ export class Player extends Creature {
   state2: PlayerState = 'normal';
   /** Direção para onde Teren olha (unitário, 8 direções de movimento). */
   facing = new Phaser.Math.Vector2(0, 1);
-  /** Linha do sprite: 0 baixo, 1 esquerda, 2 direita, 3 cima. */
+  /** 0 baixo, 1 esquerda, 2 direita, 3 cima. */
   private dir = 0;
   private stateUntil = 0;
+  private stateStart = 0;
   private invulnUntil = 0;
   private combo = 0;
   private comboUntil = 0;
   private hitDone = true;
-  private swingStart = 0;
-  private swingAngle = 90;
   private currentSwing: Swing = PLAYER.combo[0];
+  private swingDur: number = sum(PLAYER.combo[0].frames);
+  private swingHitAt = 0;
   private lastDodge = -99999;
   private lastFlame = -99999;
   private lastGhost = 0;
@@ -62,33 +66,33 @@ export class Player extends Creature {
   private keys?: Keys;
   /** Buffer de entrada: ação pedida fica válida por alguns ms (toques rápidos não se perdem). */
   private buffered: Record<'attack' | 'dodge' | 'flame', number> = { attack: 0, dodge: 0, flame: 0 };
-  /** Arma equipada (camada separada; trocar a textura troca a arma). */
-  readonly sword: Phaser.GameObjects.Sprite;
-  /** Sombra no chão (o corpo flutua acima dela). */
+  /** Sombra no chão. */
   private readonly shadow: Phaser.GameObjects.Image;
-  /** Brilho dos olhos (aparece com a escuridão). */
-  private readonly eyeGlow: Phaser.GameObjects.Image;
+  /** Golpes com espada usam quadros maiores (128×128): sprite à parte, no lugar do corpo. */
+  private readonly attackSprite: Phaser.GameObjects.Sprite;
   readonly spawnX: number;
   readonly spawnY: number;
 
   constructor(scene: WorldScene, x: number, y: number) {
-    super(scene, x, y, 'teren', 20, 12, 0);
-    const { frameW, frameH, footY } = TEREN_SHEET;
-    this.setScale(ART_SCALE).setOrigin(0.5, footY / frameH);
-    this.body.setSize(20, 12);
-    this.body.setOffset((frameW - 20) / 2, footY - 10);
-    this.sword = scene.add.sprite(x, y, 'teren-sword', 0).setScale(0.8).setVisible(false).setTint(0xcfe4ff);
-    this.shadow = scene.add.image(x, y, 'shadow').setScale(0.8, 0.7).setAlpha(0.75);
-    this.eyeGlow = scene.add.image(x, y, 'glow').setBlendMode(Phaser.BlendModes.ADD).setTint(0xb8ccff).setScale(0.28);
+    super(scene, x, y, 'hero', 20, 10, heroFrame(HERO.rows.walk, 0, 0));
+    const F = HERO.frame;
+    this.setScale(HERO.scale).setOrigin(0.5, HERO.footY / F);
+    this.body.setSize(20, 10);
+    this.body.setOffset((F - 20) / 2, HERO.footY - 8);
+    this.shadow = scene.add.image(x, y, 'shadow').setScale(0.95, 0.8).setAlpha(0.7);
+    this.attackSprite = scene.add
+      .sprite(x, y, 'hero-slash', 0)
+      .setScale(HERO.scale)
+      .setOrigin(0.5, HERO_SLASH.footY / HERO_SLASH.frame)
+      .setVisible(false);
     scene.events.on(Phaser.Scenes.Events.PRE_RENDER, () => {
-      this.shadow.setPosition(this.x, this.y - 1).setDepth(this.depth - 2).setVisible(this.visible);
-      const night = scene.dayNight?.lightLevel ?? 0;
-      const [ex, ey] = EYE[this.dir];
-      this.eyeGlow
-        .setPosition(this.x + ex, this.y + ey)
-        .setDepth(4150)
-        .setAlpha(night * 0.85 * this.alpha)
-        .setVisible(night > 0.02 && this.dir !== 3 && this.visible);
+      const attacking = this.attackSprite.visible;
+      this.shadow.setPosition(this.x, this.y).setDepth(this.depth - 2).setVisible((this.visible || attacking) && this.state2 !== 'dead');
+      if (attacking) this.attackSprite.setPosition(this.x, this.y).setDepth(this.depth).setAlpha(this.alpha);
+    });
+    // poeira nos passos: quadros em que um pé toca o chão
+    this.on(Phaser.Animations.Events.ANIMATION_UPDATE, (_a: unknown, frame: Phaser.Animations.AnimationFrame) => {
+      if (this.state2 === 'normal' && (frame.index === 2 || frame.index === 6)) this.dust(1);
     });
     this.spawnX = x;
     this.spawnY = y;
@@ -107,7 +111,7 @@ export class Player extends Creature {
       };
       for (const action of ['attack', 'dodge', 'flame'] as const) this.keys[action].on('down', () => this.queue(action));
     }
-    this.play('teren-idle-0');
+    this.stand();
   }
 
   get dead(): boolean {
@@ -154,37 +158,44 @@ export class Player extends Creature {
     else this.dir = y < 0 ? 3 : 0;
   }
 
-  private anim(name: 'idle' | 'walk') {
-    const key = `teren-${name}-${this.dir}`;
+  /** Parado: primeiro quadro do andar (de pé). */
+  private stand() {
+    this.anims.stop();
+    this.setFrame(heroFrame(HERO.rows.walk, this.dir, 0));
+  }
+
+  private walk(speed: number) {
+    const key = `hero-walk-${this.dir}`;
     if (this.anims.currentAnim?.key !== key || !this.anims.isPlaying) this.play(key, true);
+    // a cadência acompanha a velocidade (joystick parcial = passos mais lentos)
+    this.anims.timeScale = Math.max(0.45, speed);
   }
 
-  /** Parado no lugar (golpe, chama, dano): continua flutuando, só troca para a direção atual. */
-  private still() {
-    this.anims.timeScale = 1;
-    this.play(`teren-idle-${this.dir}`, true);
+  /** Quadro da animação `row` conforme o tempo decorrido na ação. */
+  private pose(row: number, frames: readonly number[], t: number) {
+    this.setFrame(heroFrame(row, this.dir, frameAt(frames, t)));
   }
 
-  /** Rastro etéreo: partículas de luz soltando da barra do manto. */
-  private wisp(moving: boolean) {
+  /** Nuvenzinha de poeira nos pés. */
+  private dust(n: number) {
     const s = this.scene;
-    const x = this.x + Phaser.Math.Between(-4, 4) - (moving ? this.facing.x * 4 : 0);
-    const y = this.y - Phaser.Math.Between(1, 7);
-    const p = s.add
-      .image(x, y, 'pixel')
-      .setTint(Phaser.Math.RND.pick([0xb8ccff, 0xe8f0ff, 0x9fb4ff]))
-      .setBlendMode(Phaser.BlendModes.ADD)
-      .setScale(0.5)
-      .setAlpha(0.9)
-      .setDepth(this.depth - 1);
-    s.tweens.add({
-      targets: p,
-      x: x - (moving ? this.facing.x * 8 : 0) + Phaser.Math.Between(-3, 3),
-      y: y - Phaser.Math.Between(6, 14),
-      alpha: 0,
-      duration: Phaser.Math.Between(500, 900),
-      onComplete: () => p.destroy(),
-    });
+    for (let i = 0; i < n; i++) {
+      const p = s.add
+        .image(this.x + Phaser.Math.Between(-3, 3), this.y - 1, 'pixel')
+        .setTint(0xcbb89a)
+        .setAlpha(0.75)
+        .setScale(0.6)
+        .setDepth(this.depth - 1);
+      s.tweens.add({
+        targets: p,
+        x: p.x - this.facing.x * Phaser.Math.Between(2, 6) + Phaser.Math.Between(-2, 2),
+        y: p.y - Phaser.Math.Between(2, 5),
+        alpha: 0,
+        scale: 1.1,
+        duration: Phaser.Math.Between(260, 420),
+        onComplete: () => p.destroy(),
+      });
+    }
   }
 
   update(time: number) {
@@ -194,7 +205,7 @@ export class Player extends Creature {
     const wantFlame = this.pressed('flame', time);
     const st = this.state2;
 
-    inputState.cooldowns.attack = st === 'attack' ? Phaser.Math.Clamp((this.stateUntil - time) / this.currentSwing.dur, 0, 1) : 0;
+    inputState.cooldowns.attack = st === 'attack' ? Phaser.Math.Clamp((this.stateUntil - time) / this.swingDur, 0, 1) : 0;
     inputState.cooldowns.dodge = Phaser.Math.Clamp(1 - (time - this.lastDodge) / PLAYER.dodge.cooldown, 0, 1);
     inputState.cooldowns.flame = Phaser.Math.Clamp(1 - (time - this.lastFlame) / PLAYER.flame.cooldown, 0, 1);
     inputState.hp = this.hp;
@@ -210,14 +221,17 @@ export class Player extends Creature {
 
     if (st === 'roll') {
       this.body.setVelocity(this.rollDir.x * PLAYER.dodge.speed, this.rollDir.y * PLAYER.dodge.speed);
-      if (time - this.lastGhost > 55) this.ghost(time);
-      if (time >= this.stateUntil) this.toIdle();
+      if (time - this.lastGhost > 45) this.ghost(time);
+      if (time >= this.stateUntil) {
+        this.dust(3);
+        this.toIdle();
+      }
       this.sortDepth();
       return;
     }
     if (st === 'hurt') {
       this.body.velocity.scale(0.86);
-      if (time >= this.stateUntil) this.state2 = 'normal';
+      if (time >= this.stateUntil) this.toIdle();
       this.sortDepth();
       return;
     }
@@ -234,25 +248,26 @@ export class Player extends Creature {
     }
     const flameOk = st === 'normal' || (st === 'attack' && this.hitDone);
     if (wantFlame && flameOk && time - this.lastFlame >= PLAYER.flame.cooldown) this.castFlame(time);
-    const canChain = st === 'attack' && this.combo < PLAYER.combo.length - 1 && time >= this.stateUntil - 110;
+    const canChain = st === 'attack' && this.combo < PLAYER.combo.length - 1 && time >= this.stateUntil - 120;
     if (wantAttack && (this.state2 === 'normal' || canChain)) this.swing(time);
 
     if (this.state2 === 'attack') {
       const S = this.currentSwing;
-      const t = time - this.swingStart;
-      const lunge = t > S.hit - 60 && t < S.hit + 40 ? S.lunge : 0;
-      if (!this.hitDone && t >= S.hit) {
+      const t = time - this.stateStart;
+      const lunge = t > this.swingHitAt - 50 && t < this.swingHitAt + 50 ? S.lunge : 0;
+      if (!this.hitDone && t >= this.swingHitAt) {
         this.hitDone = true;
         this.resolveHit(S);
       }
       this.body.setVelocity(this.facing.x * lunge + move.x * PLAYER.speed * 0.15, this.facing.y * lunge + move.y * PLAYER.speed * 0.15);
+      this.attackPose(S, t);
       this.sortDepth();
-      this.updateSword(t / S.dur);
       if (time >= this.stateUntil) this.toIdle();
       return;
     }
     if (this.state2 === 'cast') {
       this.body.setVelocity(move.x * PLAYER.speed * 0.2, move.y * PLAYER.speed * 0.2);
+      this.pose(HERO.rows.cast, PLAYER.flame.frames, time - this.stateStart);
       if (this.castRelease && time >= this.castRelease) {
         this.castRelease = 0;
         const a = Math.atan2(this.facing.y, this.facing.x);
@@ -261,25 +276,38 @@ export class Player extends Creature {
       if (time >= this.stateUntil) this.toIdle();
     } else {
       this.body.setVelocity(move.x * PLAYER.speed, move.y * PLAYER.speed);
-      if (move.lengthSq() > 0) {
-        this.anim('walk');
-        if (Math.random() < 0.35) this.wisp(true);
-        // ritmo dos passos acompanha a velocidade (joystick parcial = passos mais lentos)
-        this.anims.timeScale = Math.max(0.4, move.length());
-      } else {
-        this.anim('idle');
-        this.anims.timeScale = 1;
-        if (Math.random() < 0.06) this.wisp(false);
-      }
+      if (move.lengthSq() > 0) this.walk(move.length());
+      else this.stand();
     }
     this.sortDepth();
   }
 
+  /** Quadro do golpe: varredura LPC; no giro, a varredura passa pelas 4 direções. */
+  private attackPose(S: Swing, t: number) {
+    const i = frameAt(S.frames, t);
+    let dir = this.dir;
+    let col = Math.min(i, 5);
+    if (S.kind === 'spin') {
+      if (i >= 3 && i <= 6) {
+        dir = CW[(CW.indexOf(this.dir) + i - 2) % 4];
+        col = 4;
+      } else col = i < 3 ? i : 5;
+    }
+    this.attackSprite.setVisible(true).setFrame(slashFrame(dir, col));
+    this.setVisible(false);
+  }
+
+  private endAttackPose() {
+    this.attackSprite.setVisible(false);
+    this.setVisible(true);
+  }
+
   private toIdle() {
+    this.endAttackPose();
     this.state2 = 'normal';
-    this.sword.setVisible(false);
-    this.setAngle(0).setScale(ART_SCALE).setAlpha(1);
-    this.anim('idle');
+    this.setAngle(0).setAlpha(1);
+    this.anims.timeScale = 1;
+    this.stand();
   }
 
   // ---------------------------------------------------------------- Golpe (combo de 3)
@@ -289,42 +317,16 @@ export class Player extends Creature {
     const S = PLAYER.combo[step];
     this.combo = step;
     this.currentSwing = S;
-    this.swingStart = time;
+    this.swingDur = sum(S.frames);
+    this.swingHitAt = startOf(S.frames, S.hit);
+    this.stateStart = time;
     this.buffered.attack = 0;
     this.state2 = 'attack';
-    this.stateUntil = time + S.dur;
-    this.comboUntil = step < PLAYER.combo.length - 1 ? time + S.dur + PLAYER.comboWindow : 0;
+    this.stateUntil = time + this.swingDur;
+    this.comboUntil = step < PLAYER.combo.length - 1 ? time + this.swingDur + PLAYER.comboWindow : 0;
     this.updateDir(this.facing.x, this.facing.y);
-    this.swingAngle = Phaser.Math.RadToDeg(Math.atan2(this.facing.y, this.facing.x));
-    this.still();
+    this.anims.stop();
     this.hitDone = false;
-    this.updateSword(0);
-  }
-
-  /** Posiciona a espada ao longo do golpe (k = 0..1 da duração). */
-  private updateSword(k: number) {
-    const S = this.currentSwing;
-    const ease = 1 - Math.pow(1 - Math.min(1, k / 0.55), 3);
-    let rel: number;
-    let r: number;
-    if (S.kind === 'thrust') {
-      rel = 0;
-      r = k < 0.3 ? 3 - k * 6 : k < 0.6 ? 1 + (k - 0.3) * 40 : 13 - (k - 0.6) * 12;
-    } else {
-      rel = S.from + (S.to - S.from) * ease;
-      r = 6;
-    }
-    const ang = this.swingAngle + rel;
-    const [sx, sy] = SHOULDER[this.dir];
-    const a = Phaser.Math.DegToRad(ang);
-    const frame = ((Math.round((ang / 360) * SWORD_ANGLES) % SWORD_ANGLES) + SWORD_ANGLES) % SWORD_ANGLES;
-    this.sword
-      .setVisible(true)
-      .setFrame(frame)
-      .setPosition(Math.round(this.x + sx + Math.cos(a) * r), Math.round(this.y + sy + Math.sin(a) * r * 0.8));
-    // atrás do corpo quando olha para cima ou a lâmina aponta para longe
-    const behind = this.dir === 3 || Math.sin(a) < -0.45;
-    this.sword.setDepth(this.depth + (behind ? -0.5 : 0.5));
   }
 
   private resolveHit(S: Swing) {
@@ -332,15 +334,21 @@ export class Player extends Creature {
     const angle = Math.atan2(this.facing.y, this.facing.x);
     const cx = this.fx;
     const cy = this.fy;
-    // arco de corte (achatado na estocada)
-    const fx = s.add
-      .sprite(cx + Math.cos(angle) * 12, cy - 10 + Math.sin(angle) * 7, 'slash', 0)
-      .setRotation(angle)
-      .setDepth(this.depth + 1)
-      .setFlipY(S.from > S.to);
-    if (S.kind === 'thrust') fx.setScale(1.2, 0.45);
-    fx.play('slash');
-    fx.once('animationcomplete', () => fx.destroy());
+    // o rastro da lâmina já vem na arte do golpe; o giro ganha um anel de cortes
+    if (S.kind === 'spin') {
+      for (let k = 0; k < 4; k++) {
+        const a = angle + (k * Math.PI) / 2;
+        s.time.delayedCall(k * 45, () => {
+          const fx = s.add
+            .sprite(this.fx + Math.cos(a) * 13, this.fy - 9 + Math.sin(a) * 8, 'slash', 0)
+            .setRotation(a + Math.PI / 2)
+            .setDepth(this.depth + 1)
+            .setAlpha(0.85);
+          fx.play('slash');
+          fx.once('animationcomplete', () => fx.destroy());
+        });
+      }
+    }
     const half = Phaser.Math.DegToRad(S.arcDeg / 2);
     let hit = false;
     for (const e of s.enemies) {
@@ -366,28 +374,28 @@ export class Player extends Creature {
     this.lastDodge = time;
     this.buffered.dodge = 0;
     this.state2 = 'roll';
+    this.stateStart = time;
     this.stateUntil = time + PLAYER.dodge.duration;
     this.rollDir.copy(move.lengthSq() > 0 ? move : this.facing).normalize();
+    this.endAttackPose();
     this.updateDir(this.rollDir.x, this.rollDir.y);
-    this.sword.setVisible(false);
-    this.still();
     this.setAlpha(1);
-    // salto dimensional: o corpo fica translúcido e esticado na direção do salto
-    this.scene.tweens.add({ targets: this, alpha: 0.45, duration: PLAYER.dodge.duration / 2, yoyo: true });
-    this.scene.tweens.add({ targets: this, scaleX: ART_SCALE * 0.82, scaleY: ART_SCALE * 1.08, duration: PLAYER.dodge.duration / 2, yoyo: true });
+    this.dust(4);
+    // disparada: passos acelerados com rastro
+    this.play(`hero-walk-${this.dir}`, true);
+    this.anims.timeScale = 2.6;
   }
 
   private ghost(time: number) {
     this.lastGhost = time;
     const g = this.scene.add
-      .image(this.x, this.y, 'teren', this.frame.name)
+      .image(this.x, this.y, 'hero', this.frame.name)
       .setOrigin(this.originX, this.originY)
       .setScale(this.scaleX, this.scaleY)
-      .setAngle(this.angle)
-      .setAlpha(0.4)
-      .setTint(0x9fd8ff)
+      .setAlpha(0.45)
+      .setTintFill(0xbfe3ff)
       .setDepth(this.depth - 1);
-    this.scene.tweens.add({ targets: g, alpha: 0, duration: 220, onComplete: () => g.destroy() });
+    this.scene.tweens.add({ targets: g, alpha: 0, duration: 200, onComplete: () => g.destroy() });
   }
 
   // ---------------------------------------------------------------- Chama
@@ -395,13 +403,12 @@ export class Player extends Creature {
     this.lastFlame = time;
     this.buffered.flame = 0;
     this.updateDir(this.facing.x, this.facing.y);
-    this.sword.setVisible(false);
-    this.still();
+    this.anims.stop();
     this.state2 = 'cast';
-    this.castRelease = time + 90;
-    this.stateUntil = time + 240;
-    const a = Math.atan2(this.facing.y, this.facing.x);
-    this.scene.fx.burst(this.x + Math.cos(a) * 8, this.y - 15, 0xffb040, 6);
+    this.stateStart = time;
+    this.castRelease = time + startOf(PLAYER.flame.frames, PLAYER.flame.release);
+    this.stateUntil = time + sum(PLAYER.flame.frames);
+    this.scene.fx.burst(this.x, this.y - 18, 0xffb040, 6);
   }
 
   // ---------------------------------------------------------------- Dano
@@ -416,31 +423,32 @@ export class Player extends Creature {
     s.time.delayedCall(100, () => this.clearTint());
     const a = Phaser.Math.Angle.Between(fromX, fromY, this.fx, this.fy);
     this.body.setVelocity(Math.cos(a) * 150, Math.sin(a) * 150);
-    this.sword.setVisible(false);
     this.castRelease = 0;
+    this.endAttackPose();
     if (this.hp <= 0) {
       this.die();
       return;
     }
     this.state2 = 'hurt';
     this.stateUntil = s.time.now + 180;
-    this.still();
+    // recuo: quadro de "encolher" da queda, de frente para o golpe
+    this.anims.stop();
+    this.setFrame(HERO.rows.fall * HERO.cols + 1);
   }
 
   private die() {
     const s = this.scene;
     this.state2 = 'dead';
     this.body.setVelocity(0, 0);
-    this.anims.stop();
-    s.fx.burst(this.x, this.y - 12, 0xa8b8ff, 18);
-    s.tweens.add({ targets: this, angle: 90, alpha: 0.6, duration: 400 });
+    this.play('hero-fall', true);
+    s.fx.burst(this.x, this.y - 12, 0xff6060, 10);
     s.events.emit('player-died');
     s.time.delayedCall(1400, () => {
       s.cameras.main.fadeOut(400, 10, 8, 20);
       s.cameras.main.once('camerafadeoutcomplete', () => {
         this.body.reset(this.spawnX, this.spawnY);
         this.setPosition(this.spawnX, this.spawnY);
-        this.setAngle(0).setAlpha(1).setScale(ART_SCALE);
+        this.setAngle(0).setAlpha(1);
         this.hp = this.maxHp;
         this.dir = 0;
         this.toIdle();

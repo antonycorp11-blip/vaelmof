@@ -20,19 +20,21 @@ export const PLAYER = {
   speed: 72, // px/s
   maxHp: 10,
   /**
-   * Combo de 3 golpes: `dur` = duração (ms), `hit` = instante do impacto,
-   * `from`/`to` = varredura da espada em graus relativos à direção do herói,
-   * `lunge` = avanço (px/s) no impacto.
+   * Combo de 3 golpes: `frames` = duração (ms) de cada quadro da animação LPC
+   * (golpe: 6 quadros; giro: 8 passos), `hit` = índice do quadro do impacto,
+   * `from`/`to` = varredura do arco de corte em graus relativos à direção do
+   * herói, `lunge` = avanço (px/s) no impacto. A duração total é a soma dos quadros.
    */
   combo: [
-    { kind: 'slash', dur: 300, hit: 95, from: -115, to: 75, damage: 2, range: 24, arcDeg: 150, knockback: 150, lunge: 45 },
-    { kind: 'slash', dur: 300, hit: 95, from: 115, to: -75, damage: 2, range: 24, arcDeg: 150, knockback: 150, lunge: 45 },
-    { kind: 'thrust', dur: 380, hit: 135, from: 0, to: 0, damage: 3, range: 31, arcDeg: 70, knockback: 260, lunge: 150 },
+    { kind: 'slash', frames: [45, 55, 35, 60, 70, 70], hit: 3, from: -115, to: 75, damage: 2, range: 24, arcDeg: 150, knockback: 150, lunge: 45 },
+    { kind: 'slash', frames: [30, 40, 30, 60, 65, 70], hit: 3, from: 115, to: -75, damage: 2, range: 24, arcDeg: 150, knockback: 150, lunge: 50 },
+    // finalizador: giro de 360° (preparo em 3 quadros, 4 varreduras, pose final)
+    { kind: 'spin', frames: [45, 45, 40, 45, 45, 45, 45, 110], hit: 3, from: 0, to: 360, damage: 3, range: 30, arcDeg: 360, knockback: 240, lunge: 70 },
   ],
   /** Janela (ms) após um golpe para encadear o próximo do combo. */
   comboWindow: 380,
   dodge: { speed: 210, duration: 260, cooldown: 650 },
-  flame: { damage: 3, speed: 170, range: 150, radius: 30, cooldown: 4000 },
+  flame: { frames: [35, 35, 45, 55, 70, 60, 50], release: 4, damage: 3, speed: 170, range: 150, radius: 30, cooldown: 4000 },
   hurtInvuln: 900,
 };
 
