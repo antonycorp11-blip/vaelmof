@@ -1,0 +1,21 @@
+{
+  "name": "vaelmor",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Vaelmor — protótipo 2D top-down em pixel art (PWA, Phaser 3)",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "assets": "node scripts/generate-assets.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "phaser": "3.90.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.3.7"
+  }
+}
