@@ -4,6 +4,7 @@ import { consume, inputState } from '../input/InputState';
 import type { WorldScene } from '../scenes/WorldScene';
 import { Creature } from './Creature';
 import { Flame } from './Flame';
+import { TEREN_SHEET } from './terenSheet';
 
 type PlayerState = 'normal' | 'attack' | 'cast' | 'roll' | 'hurt' | 'dead';
 type Swing = (typeof PLAYER.combo)[number];
@@ -18,20 +19,23 @@ interface Keys {
   flame: Phaser.Input.Keyboard.Key;
 }
 
-/** Quadros do teren.png: 6 colunas por direção (0 baixo, 1 esquerda, 2 direita, 3 cima). */
-const COLS = 6;
+/** Quadros do teren.png (gerado por scripts/hero3): por direção, 8 flutuando + 8 em movimento. */
+const COLS = TEREN_SHEET.cols;
 const SWORD_ANGLES = 32;
-/** Ombro da mão da espada, relativo aos pés, por direção. */
+/** A arte tem o dobro da densidade do mapa e é exibida pela metade. */
+const ART_SCALE = 0.5;
+/** "Mão" da lâmina etérea, relativa à base, por direção (px do mundo). */
 const SHOULDER: [number, number][] = [
-  [-6, -16],
-  [-3, -16],
-  [3, -16],
-  [6, -17],
+  [-8, -30],
+  [-5, -30],
+  [5, -30],
+  [8, -31],
 ];
 
 /**
- * Teren: sprite desenhado à mão (scripts/hero2) com a espada como peça
- * separada (teren-sword.png, 32 ângulos), que aparece nos golpes.
+ * Teren: viajante de outra dimensão (arte conceitual reduzida e animada por
+ * scripts/hero3). Flutua; a lâmina etérea é uma peça separada
+ * (teren-sword.png, 32 ângulos) que aparece nos golpes.
  */
 export class Player extends Creature {
   hp = PLAYER.maxHp;
@@ -59,15 +63,39 @@ export class Player extends Creature {
   private buffered: Record<'attack' | 'dodge' | 'flame', number> = { attack: 0, dodge: 0, flame: 0 };
   /** Arma equipada (camada separada; trocar a textura troca a arma). */
   readonly sword: Phaser.GameObjects.Sprite;
+  /** Sombra no chão (o corpo flutua acima dela). */
+  private readonly shadow: Phaser.GameObjects.Image;
+  /** Brilho dos olhos (aparece com a escuridão). */
+  private readonly eyeGlow: Phaser.GameObjects.Image;
   readonly spawnX: number;
   readonly spawnY: number;
 
   constructor(scene: WorldScene, x: number, y: number) {
-    super(scene, x, y, 'teren', 10, 6, 0);
-    // quadro 32×40 com os pés na linha 37
-    this.setOrigin(0.5, 37 / 40);
-    this.body.setOffset(11, 32);
-    this.sword = scene.add.sprite(x, y, 'teren-sword', 0).setVisible(false);
+    super(scene, x, y, 'teren', 20, 12, 0);
+    const { frameW, frameH, footY } = TEREN_SHEET;
+    this.setScale(ART_SCALE).setOrigin(0.5, footY / frameH);
+    this.body.setSize(20, 12);
+    this.body.setOffset((frameW - 20) / 2, footY - 10);
+    this.sword = scene.add.sprite(x, y, 'teren-sword', 0).setVisible(false).setTint(0xcfe4ff);
+    this.shadow = scene.add.image(x, y, 'shadow').setScale(1.3, 1.1).setAlpha(0.8);
+    this.eyeGlow = scene.add.image(x, y, 'glow').setBlendMode(Phaser.BlendModes.ADD).setTint(0xb8ccff).setScale(0.28);
+    // olhos em relação à base, por direção (costas: escondidos)
+    const EYE: [number, number][] = [
+      [1, -39],
+      [-3, -40],
+      [3, -40],
+      [0, -39],
+    ];
+    scene.events.on(Phaser.Scenes.Events.PRE_RENDER, () => {
+      this.shadow.setPosition(this.x, this.y - 1).setDepth(this.depth - 2).setVisible(this.visible);
+      const night = scene.dayNight?.lightLevel ?? 0;
+      const [ex, ey] = EYE[this.dir];
+      this.eyeGlow
+        .setPosition(this.x + ex, this.y + ey)
+        .setDepth(4150)
+        .setAlpha(night * 0.85 * this.alpha)
+        .setVisible(night > 0.02 && this.dir !== 3 && this.visible);
+    });
     this.spawnX = x;
     this.spawnY = y;
     const kb = scene.input.keyboard;
@@ -211,7 +239,7 @@ export class Player extends Creature {
       if (this.castRelease && time >= this.castRelease) {
         this.castRelease = 0;
         const a = Math.atan2(this.facing.y, this.facing.x);
-        new Flame(this.scene, this.fx + Math.cos(a) * 10, this.fy - 14 + Math.sin(a) * 8, a);
+        new Flame(this.scene, this.fx + Math.cos(a) * 10, this.fy - 26 + Math.sin(a) * 8, a);
       }
       if (time >= this.stateUntil) this.toIdle();
     } else {
@@ -231,7 +259,7 @@ export class Player extends Creature {
   private toIdle() {
     this.state2 = 'normal';
     this.sword.setVisible(false);
-    this.setAngle(0).setScale(1);
+    this.setAngle(0).setScale(ART_SCALE).setAlpha(1);
     this.anim('idle');
   }
 
@@ -287,7 +315,7 @@ export class Player extends Creature {
     const cy = this.fy;
     // arco de corte (achatado na estocada)
     const fx = s.add
-      .sprite(cx + Math.cos(angle) * 12, cy - 10 + Math.sin(angle) * 10, 'slash', 0)
+      .sprite(cx + Math.cos(angle) * 12, cy - 18 + Math.sin(angle) * 10, 'slash', 0)
       .setRotation(angle)
       .setDepth(this.depth + 1)
       .setFlipY(S.from > S.to);
@@ -325,10 +353,9 @@ export class Player extends Creature {
     this.sword.setVisible(false);
     this.still();
     this.setAlpha(1);
-    // cambalhota: giro completo com o corpo encolhido
-    const spin = this.rollDir.x < 0 ? -360 : 360;
-    this.scene.tweens.add({ targets: this, angle: spin, duration: PLAYER.dodge.duration, ease: 'Sine.easeInOut' });
-    this.scene.tweens.add({ targets: this, scaleY: 0.75, scaleX: 1.08, duration: PLAYER.dodge.duration / 2, yoyo: true });
+    // salto dimensional: o corpo fica translúcido e esticado na direção do salto
+    this.scene.tweens.add({ targets: this, alpha: 0.45, duration: PLAYER.dodge.duration / 2, yoyo: true });
+    this.scene.tweens.add({ targets: this, scaleX: ART_SCALE * 0.82, scaleY: ART_SCALE * 1.08, duration: PLAYER.dodge.duration / 2, yoyo: true });
   }
 
   private ghost(time: number) {
@@ -336,6 +363,7 @@ export class Player extends Creature {
     const g = this.scene.add
       .image(this.x, this.y, 'teren', this.frame.name)
       .setOrigin(this.originX, this.originY)
+      .setScale(this.scaleX, this.scaleY)
       .setAngle(this.angle)
       .setAlpha(0.4)
       .setTint(0x9fd8ff)
@@ -354,7 +382,7 @@ export class Player extends Creature {
     this.castRelease = time + 90;
     this.stateUntil = time + 240;
     const a = Math.atan2(this.facing.y, this.facing.x);
-    this.scene.fx.burst(this.x + Math.cos(a) * 8, this.y - 14, 0xffb040, 6);
+    this.scene.fx.burst(this.x + Math.cos(a) * 8, this.y - 28, 0xffb040, 6);
   }
 
   // ---------------------------------------------------------------- Dano
@@ -363,7 +391,7 @@ export class Player extends Creature {
     const s = this.scene;
     this.hp = Math.max(0, this.hp - amount);
     this.invulnUntil = s.time.now + PLAYER.hurtInvuln;
-    s.fx.damageText(this.x, this.y - 38, amount, '#ff6060');
+    s.fx.damageText(this.x, this.y - 52, amount, '#ff6060');
     s.cameras.main.shake(120, 0.006);
     this.setTintFill(0xff4040);
     s.time.delayedCall(100, () => this.clearTint());
@@ -385,7 +413,7 @@ export class Player extends Creature {
     this.state2 = 'dead';
     this.body.setVelocity(0, 0);
     this.anims.stop();
-    s.fx.burst(this.x, this.y - 10, 0x36507e, 16);
+    s.fx.burst(this.x, this.y - 24, 0xa8b8ff, 18);
     s.tweens.add({ targets: this, angle: 90, alpha: 0.6, duration: 400 });
     s.events.emit('player-died');
     s.time.delayedCall(1400, () => {
@@ -393,7 +421,7 @@ export class Player extends Creature {
       s.cameras.main.once('camerafadeoutcomplete', () => {
         this.body.reset(this.spawnX, this.spawnY);
         this.setPosition(this.spawnX, this.spawnY);
-        this.setAngle(0).setAlpha(1);
+        this.setAngle(0).setAlpha(1).setScale(ART_SCALE);
         this.hp = this.maxHp;
         this.dir = 0;
         this.toIdle();

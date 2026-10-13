@@ -94,20 +94,20 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   sombra no chão e sem colisão; ao sair do mapa reaparecem numa borda.
 
 ### Teren (`src/entities/Player.ts`)
-- **Sprite desenhado à mão, pixel a pixel** (`scripts/hero2/*.txt`, um
-  caractere por pixel), na **mesma escala de pixel do mapa** (1 px de arte =
-  1 px do mundo), a partir do conceito "aventureiro do Serro": cabelo
-  castanho espetado, olhos grandes com brilho, cachecol vermelho, capa azul
-  com barra e emblema dourados, camisa creme com alça de couro, cinto com
-  fivela dourada, luvas, calça verde e botas com dobra. Quadro 32×40.
-- 4 direções (frente, costas, perfil; o lado direito é espelhado), respiração
-  parado e caminhada de 4 passos com as pernas alternando; o ritmo dos passos
-  acompanha a velocidade do joystick.
+- **Viajante de outra dimensão** (nesta dimensão os humanos não existem
+  mais): ser encapuzado de rosto escuro e olhos de luz, manto creme
+  esfarrapado com runas, cachecol azul e caudas de "céu estrelado".
+- O sprite vem da **arte conceitual** (`scripts/hero3/concept.png`: frente,
+  costas e perfil), reduzida e animada por `scripts/hero3/build.py`: ele
+  **flutua** sobre a própria sombra, a barra do manto **ondula**, as caudas
+  **ficam para trás** ao se mover e os olhos pulsam (à noite ganham brilho).
+  A arte tem o dobro da densidade do mapa e é exibida pela metade (≈ 46 px do
+  mundo de altura; ajustável com `TEREN_H`).
+- 4 direções (frente, costas, perfil; o lado direito é espelhado).
 - Movimento em **8 direções** (o joystick é analógico na intensidade, mas a
   direção é quantizada em 45°). Velocidade em `PLAYER.speed` (`src/config.ts`).
-- **A espada é uma peça separada** (`teren-sword.png`, desenhada à mão e
-  pré-rotacionada em 32 ângulos), que aparece na mão durante os golpes —
-  trocar a textura troca a arma.
+- **Lâmina etérea** como peça separada (`teren-sword.png`, 32 ângulos), que
+  aparece nos golpes — trocar a textura troca a arma.
 - **HP 10** com barra segmentada no HUD; pisca e fica invulnerável por 0,9 s
   após tomar dano. Ao morrer, volta a Brumavale com HP cheio.
 - **Golpe: combo de 3 movimentos.** Corte de um lado → corte de volta →
@@ -118,8 +118,8 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   do golpe final o combo recomeça. Segurar o botão repete. A esquiva cancela
   qualquer golpe. "Hit stop", faíscas e tremida de câmera ao acertar (mais
   fortes no golpe final). Ajustes em `PLAYER.combo` (`src/config.ts`).
-- **Esquiva**: rolagem de 260 ms com **invulnerabilidade** durante o
-  movimento, rastro de imagens e cooldown de 650 ms.
+- **Esquiva (salto dimensional)**: 260 ms translúcido e com
+  **invulnerabilidade**, rastro de imagens e cooldown de 650 ms.
 - **Chama**: projétil que explode ao tocar um inimigo, um obstáculo ou no fim
   do alcance, causando **dano 3 em área** (raio 30 px); cooldown longo de
   4 s. Atravessa a água (é possível atingir inimigos do outro lado do rio) e
@@ -259,7 +259,24 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 
 ---
 
-## Herói: desenhos e modularidade
+## Projeto das próximas etapas
+
+[`docs/design/expansao-mundo.md`](docs/design/expansao-mundo.md): biomas
+(Greenland, Snowland, Blockland, Blackland e Dustland), mundo em chunks,
+mapa com névoa de exploração, coleta por tiers e inventário no estilo Albion
+Online. Ainda não implementado.
+
+## Herói: arte e animação
+
+`python3 scripts/hero3/build.py` (Pillow + numpy) recorta as três vistas de
+`scripts/hero3/concept.png`, anima (flutuar, ondular, inclinar), reduz para a
+escala do jogo com paleta comum e contorno, repinta os olhos e gera
+`public/assets/sprites/teren.png` + `src/entities/terenSheet.ts` (tamanho dos
+quadros). Para trocar o personagem, troque o `concept.png` (frente, costas e
+perfil lado a lado, fundo transparente) e ajuste os cortes e olhos no topo do
+script.
+
+### Desenhos antigos (`scripts/hero2/`)
 
 `npm run hero` monta o spritesheet a partir dos desenhos em `scripts/hero2/`:
 
@@ -283,7 +300,7 @@ ampliado). Para uma armadura ou arma nova: desenhe a variação (ex.:
 | Item | Situação |
 |---|---|
 | Todo o tileset (grama, terra, areia, rocha, água, cachoeira, penhascos, estrada, ponte, escadaria, flores, arbustos, cercas, árvores) | placeholder procedural — trocar por Kenney Tiny Town / Roguelike RPG Pack ou arte própria |
-| Teren | desenhado à mão em `scripts/hero2/` (4 direções, parado e caminhada; golpes com a espada como peça separada). Faltam quadros próprios de ataque, cambalhota e dano (hoje o corpo fica parado e gira na esquiva) |
+| Teren | arte conceitual reduzida e animada por `scripts/hero3/` (flutuar, manto ondulando, olhos). Faltam quadros próprios de ataque, conjuração e dano |
 | Bandoleiro | rig 2D de poses (48×48, ~24 px de altura) em `scripts/generate-assets.mjs` |
 | Limo, Lobo, Ovelha, Cervo, Pássaro | placeholder procedural 16×16 (vista lateral espelhada para quadrúpedes) |
 | Casas (2 estilos por vila), poço, tochas | placeholder procedural |

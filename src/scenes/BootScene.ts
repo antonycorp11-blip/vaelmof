@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { TEREN_SHEET } from '../entities/terenSheet';
 
 const S = 'assets/sprites/';
 
@@ -19,8 +20,8 @@ export class BootScene extends Phaser.Scene {
 
     this.load.image('tiles', 'assets/tilesets/vaelmor-tiles.png');
     const sheet = (key: string, file: string, w = 16, h = 16) => this.load.spritesheet(key, S + file, { frameWidth: w, frameHeight: h });
-    // Teren desenhado à mão (scripts/hero2) e a espada em 32 ângulos
-    sheet('teren', 'teren.png', 32, 40);
+    // Teren (scripts/hero3) e a lâmina em 32 ângulos
+    sheet('teren', 'teren.png', TEREN_SHEET.frameW, TEREN_SHEET.frameH);
     sheet('teren-sword', 'teren-sword.png', 28, 28);
     sheet('bandit', 'bandit.png', 48, 48);
     sheet('slime', 'slime.png');
@@ -44,10 +45,11 @@ export class BootScene extends Phaser.Scene {
     const a = this.anims;
     const range = (key: string, start: number, end: number) => a.generateFrameNumbers(key, { start, end });
     const frames = (key: string, list: number[]) => a.generateFrameNumbers(key, { frames: list });
-    // Teren: 6 quadros por direção (parado, respira, passo A, passo, passo B, passo)
+    // Teren: por direção, 8 quadros flutuando parado + 8 em movimento (manto ondulando)
+    const tc = TEREN_SHEET.cols;
     for (let d = 0; d < 4; d++) {
-      a.create({ key: `teren-idle-${d}`, frames: [{ key: 'teren', frame: d * 6, duration: 700 }, { key: 'teren', frame: d * 6 + 1, duration: 500 }], repeat: -1 });
-      a.create({ key: `teren-walk-${d}`, frames: range('teren', d * 6 + 2, d * 6 + 5), frameRate: 9, repeat: -1 });
+      a.create({ key: `teren-idle-${d}`, frames: range('teren', d * tc, d * tc + TEREN_SHEET.idle - 1), frameRate: 7, repeat: -1 });
+      a.create({ key: `teren-walk-${d}`, frames: range('teren', d * tc + TEREN_SHEET.idle, d * tc + tc - 1), frameRate: 12, repeat: -1 });
     }
     for (let d = 0; d < 4; d++) {
       const br = 16;
