@@ -19,18 +19,19 @@ interface Keys {
   flame: Phaser.Input.Keyboard.Key;
 }
 
-/** Quadros do teren.png (gerado por scripts/hero3): por direção, 8 flutuando + 8 em movimento. */
-const COLS = TEREN_SHEET.cols;
+/** Quadros do teren.png (gerado por scripts/hero3): por direção, 12 flutuando + 12 em movimento. */
 const SWORD_ANGLES = 32;
 /** A arte tem o dobro da densidade do mapa e é exibida pela metade. */
 const ART_SCALE = 0.5;
 /** "Mão" da lâmina etérea, relativa à base, por direção (px do mundo). */
 const SHOULDER: [number, number][] = [
-  [-8, -30],
-  [-5, -30],
-  [5, -30],
-  [8, -31],
+  [-4, -15],
+  [-2, -15],
+  [2, -15],
+  [4, -16],
 ];
+/** Olhos em relação à base, por direção (px do mundo; nas costas ficam escondidos). */
+const EYE = TEREN_SHEET.eyes.map(([x, y]) => [x * ART_SCALE, y * ART_SCALE] as const);
 
 /**
  * Teren: viajante de outra dimensão (arte conceitual reduzida e animada por
@@ -76,16 +77,9 @@ export class Player extends Creature {
     this.setScale(ART_SCALE).setOrigin(0.5, footY / frameH);
     this.body.setSize(20, 12);
     this.body.setOffset((frameW - 20) / 2, footY - 10);
-    this.sword = scene.add.sprite(x, y, 'teren-sword', 0).setVisible(false).setTint(0xcfe4ff);
-    this.shadow = scene.add.image(x, y, 'shadow').setScale(1.3, 1.1).setAlpha(0.8);
+    this.sword = scene.add.sprite(x, y, 'teren-sword', 0).setScale(0.8).setVisible(false).setTint(0xcfe4ff);
+    this.shadow = scene.add.image(x, y, 'shadow').setScale(0.8, 0.7).setAlpha(0.75);
     this.eyeGlow = scene.add.image(x, y, 'glow').setBlendMode(Phaser.BlendModes.ADD).setTint(0xb8ccff).setScale(0.28);
-    // olhos em relação à base, por direção (costas: escondidos)
-    const EYE: [number, number][] = [
-      [1, -39],
-      [-3, -40],
-      [3, -40],
-      [0, -39],
-    ];
     scene.events.on(Phaser.Scenes.Events.PRE_RENDER, () => {
       this.shadow.setPosition(this.x, this.y - 1).setDepth(this.depth - 2).setVisible(this.visible);
       const night = scene.dayNight?.lightLevel ?? 0;
@@ -165,9 +159,32 @@ export class Player extends Creature {
     if (this.anims.currentAnim?.key !== key || !this.anims.isPlaying) this.play(key, true);
   }
 
+  /** Parado no lugar (golpe, chama, dano): continua flutuando, só troca para a direção atual. */
   private still() {
-    this.anims.stop();
-    this.setFrame(this.dir * COLS);
+    this.anims.timeScale = 1;
+    this.play(`teren-idle-${this.dir}`, true);
+  }
+
+  /** Rastro etéreo: partículas de luz soltando da barra do manto. */
+  private wisp(moving: boolean) {
+    const s = this.scene;
+    const x = this.x + Phaser.Math.Between(-4, 4) - (moving ? this.facing.x * 4 : 0);
+    const y = this.y - Phaser.Math.Between(1, 7);
+    const p = s.add
+      .image(x, y, 'pixel')
+      .setTint(Phaser.Math.RND.pick([0xb8ccff, 0xe8f0ff, 0x9fb4ff]))
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setScale(0.5)
+      .setAlpha(0.9)
+      .setDepth(this.depth - 1);
+    s.tweens.add({
+      targets: p,
+      x: x - (moving ? this.facing.x * 8 : 0) + Phaser.Math.Between(-3, 3),
+      y: y - Phaser.Math.Between(6, 14),
+      alpha: 0,
+      duration: Phaser.Math.Between(500, 900),
+      onComplete: () => p.destroy(),
+    });
   }
 
   update(time: number) {
@@ -239,18 +256,20 @@ export class Player extends Creature {
       if (this.castRelease && time >= this.castRelease) {
         this.castRelease = 0;
         const a = Math.atan2(this.facing.y, this.facing.x);
-        new Flame(this.scene, this.fx + Math.cos(a) * 10, this.fy - 26 + Math.sin(a) * 8, a);
+        new Flame(this.scene, this.fx + Math.cos(a) * 10, this.fy - 14 + Math.sin(a) * 5, a);
       }
       if (time >= this.stateUntil) this.toIdle();
     } else {
       this.body.setVelocity(move.x * PLAYER.speed, move.y * PLAYER.speed);
       if (move.lengthSq() > 0) {
         this.anim('walk');
+        if (Math.random() < 0.35) this.wisp(true);
         // ritmo dos passos acompanha a velocidade (joystick parcial = passos mais lentos)
         this.anims.timeScale = Math.max(0.4, move.length());
       } else {
         this.anim('idle');
         this.anims.timeScale = 1;
+        if (Math.random() < 0.06) this.wisp(false);
       }
     }
     this.sortDepth();
@@ -315,7 +334,7 @@ export class Player extends Creature {
     const cy = this.fy;
     // arco de corte (achatado na estocada)
     const fx = s.add
-      .sprite(cx + Math.cos(angle) * 12, cy - 18 + Math.sin(angle) * 10, 'slash', 0)
+      .sprite(cx + Math.cos(angle) * 12, cy - 10 + Math.sin(angle) * 7, 'slash', 0)
       .setRotation(angle)
       .setDepth(this.depth + 1)
       .setFlipY(S.from > S.to);
@@ -382,7 +401,7 @@ export class Player extends Creature {
     this.castRelease = time + 90;
     this.stateUntil = time + 240;
     const a = Math.atan2(this.facing.y, this.facing.x);
-    this.scene.fx.burst(this.x + Math.cos(a) * 8, this.y - 28, 0xffb040, 6);
+    this.scene.fx.burst(this.x + Math.cos(a) * 8, this.y - 15, 0xffb040, 6);
   }
 
   // ---------------------------------------------------------------- Dano
@@ -391,7 +410,7 @@ export class Player extends Creature {
     const s = this.scene;
     this.hp = Math.max(0, this.hp - amount);
     this.invulnUntil = s.time.now + PLAYER.hurtInvuln;
-    s.fx.damageText(this.x, this.y - 52, amount, '#ff6060');
+    s.fx.damageText(this.x, this.y - 30, amount, '#ff6060');
     s.cameras.main.shake(120, 0.006);
     this.setTintFill(0xff4040);
     s.time.delayedCall(100, () => this.clearTint());
@@ -413,7 +432,7 @@ export class Player extends Creature {
     this.state2 = 'dead';
     this.body.setVelocity(0, 0);
     this.anims.stop();
-    s.fx.burst(this.x, this.y - 24, 0xa8b8ff, 18);
+    s.fx.burst(this.x, this.y - 12, 0xa8b8ff, 18);
     s.tweens.add({ targets: this, angle: 90, alpha: 0.6, duration: 400 });
     s.events.emit('player-died');
     s.time.delayedCall(1400, () => {

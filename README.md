@@ -99,11 +99,17 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   esfarrapado com runas, cachecol azul e caudas de "céu estrelado".
 - O sprite vem da **arte conceitual** (`scripts/hero3/concept.png`: frente,
   costas e perfil), reduzida e animada por `scripts/hero3/build.py`: ele
-  **flutua** sobre a própria sombra, a barra do manto **ondula**, as caudas
-  **ficam para trás** ao se mover e os olhos pulsam (à noite ganham brilho).
-  A arte tem o dobro da densidade do mapa e é exibida pela metade (≈ 46 px do
-  mundo de altura; ajustável com `TEREN_H`).
-- 4 direções (frente, costas, perfil; o lado direito é espelhado).
+  **flutua** sobre a própria sombra (1,5 px), o corpo balança como um pêndulo
+  com a barra atrasada em relação ao capuz, ondas correm pelas tiras do manto
+  e a barra estica e encolhe com a flutuação; ao se mover ele **inclina para a
+  frente** e as tiras **arrastam para trás**, soltando um rastro de partículas
+  de luz. Os olhos pulsam (à noite ganham brilho). 12 quadros parado + 12 em
+  movimento por direção; continua flutuando durante golpes e magia.
+  A arte tem o dobro da densidade do mapa e é exibida pela metade: **24 px do
+  mundo (1,5 tile)**, na escala dos outros personagens (ajustável com
+  `TEREN_H`, que é a altura da arte antes da redução à metade).
+- 4 direções (frente, costas, perfil; o perfil da arte olha para a direita e
+  é espelhado para a esquerda).
 - Movimento em **8 direções** (o joystick é analógico na intensidade, mas a
   direção é quantizada em 45°). Velocidade em `PLAYER.speed` (`src/config.ts`).
 - **Lâmina etérea** como peça separada (`teren-sword.png`, 32 ângulos), que

@@ -48,8 +48,8 @@ export class BootScene extends Phaser.Scene {
     // Teren: por direção, 8 quadros flutuando parado + 8 em movimento (manto ondulando)
     const tc = TEREN_SHEET.cols;
     for (let d = 0; d < 4; d++) {
-      a.create({ key: `teren-idle-${d}`, frames: range('teren', d * tc, d * tc + TEREN_SHEET.idle - 1), frameRate: 7, repeat: -1 });
-      a.create({ key: `teren-walk-${d}`, frames: range('teren', d * tc + TEREN_SHEET.idle, d * tc + tc - 1), frameRate: 12, repeat: -1 });
+      a.create({ key: `teren-idle-${d}`, frames: range('teren', d * tc, d * tc + TEREN_SHEET.idle - 1), frameRate: 10, repeat: -1 });
+      a.create({ key: `teren-walk-${d}`, frames: range('teren', d * tc + TEREN_SHEET.idle, d * tc + tc - 1), frameRate: 16, repeat: -1 });
     }
     for (let d = 0; d < 4; d++) {
       const br = 16;
