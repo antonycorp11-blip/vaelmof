@@ -1,19 +1,20 @@
-"""Teren (herói humano) — monta o spritesheet a partir das camadas LPC.
+"""Teren (herói humano) — monta os spritesheets a partir das camadas LPC.
 
-A receita (recipe.json) lista as peças em ordem de profundidade; cada peça é
-uma folha "universal" do Liberated Pixel Cup (64×64 por quadro, 13 colunas ×
-21 linhas). Trocar uma peça (cabelo, roupa, arma) é trocar uma linha da
-receita — todas as animações continuam consistentes.
+A receita (recipe.json) tem a "base" (corpo, rosto, cabelo, roupa, capa) e as
+armas. Cada peça é uma folha "universal" do Liberated Pixel Cup (64×64 por
+quadro, 13 colunas × 21 linhas); trocar uma peça é trocar uma linha da
+receita, e todas as animações continuam consistentes.
 
   python3 scripts/hero/build.py      (requer Pillow)
 
-Saída: public/assets/sprites/hero.png e hero-slash.png
-Linhas (cada uma em 4 direções: cima, esquerda, baixo, direita):
-  0–3 magia (7)   4–7 estocada (8)   8–11 andar (9)   12–15 golpe (6)
-  16–19 arco (13) 20 queda/morte (6)
-hero-slash.png: golpe de espada em quadros 128×128 (6 colunas × 4 direções),
-como o "slash_128" do gerador LPC: cada camada do corpo/roupa entra com o
-quadro do golpe normal centralizado, e a espada usa a arte própria do golpe.
+Para cada arma <id> gera:
+  public/assets/sprites/hero-<id>.png          folha universal (base + arma)
+     linhas (cada animação em 4 direções: cima, esquerda, baixo, direita):
+     0–3 magia · 4–7 estocada · 8–11 andar · 12–15 golpe · 16–19 arco · 20 queda
+  public/assets/sprites/hero-<id>-<anim>.png   animações em quadros grandes
+     (128 ou 192 px), como os "slash_128"/"*_oversize" do gerador LPC: as
+     camadas de 64 px entram centralizadas e a arma usa a arte própria.
+e src/entities/heroSheets.ts com o tamanho e a ordem dos quadros de cada folha.
 Créditos e licenças de cada peça: recipe.json e CREDITS.md.
 """
 import json, os
@@ -21,29 +22,46 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
+OUT = os.path.join(ROOT, 'public', 'assets', 'sprites')
 recipe = json.load(open(os.path.join(HERE, 'recipe.json'), encoding='utf-8'))
-sheet = Image.new('RGBA', (832, 1344))
-for layer in sorted(recipe['layers'], key=lambda l: l['z']):
-    im = Image.open(os.path.join(HERE, 'layers', layer['file'])).convert('RGBA')
-    sheet.alpha_composite(im.crop((0, 0, 832, 1344)))
-out = os.path.join(ROOT, 'public', 'assets', 'sprites', 'hero.png')
-sheet.save(out, optimize=True)
-print('hero.png', sheet.size, len(recipe['layers']), 'camadas')
+cache = {}
 
-# golpe com espada em 128×128
-SLASH_ROW = 12  # linhas 12–15 da folha universal (cima, esquerda, baixo, direita)
-big = Image.new('RGBA', (6 * 128, 4 * 128))
-layers = [(l['z'], 'body', l) for l in recipe['layers'] if 'weapon/' not in l['file']]
-layers += [(l['z'], 'big', l) for l in recipe['slash128']['layers']]
-for z, kind, layer in sorted(layers, key=lambda t: t[0]):
-    im = Image.open(os.path.join(HERE, 'layers', layer['file'])).convert('RGBA')
-    if kind == 'big':
-        big.alpha_composite(im.crop((0, 0, 768, 512)))
-        continue
-    for d in range(4):
-        for c in range(6):
-            fr = im.crop((c * 64, (SLASH_ROW + d) * 64, c * 64 + 64, (SLASH_ROW + d) * 64 + 64))
-            big.alpha_composite(fr, (c * 128 + 32, d * 128 + 32))
-out2 = os.path.join(ROOT, 'public', 'assets', 'sprites', 'hero-slash.png')
-big.save(out2, optimize=True)
-print('hero-slash.png', big.size)
+
+def img(layer):
+    f = layer['file']
+    if f not in cache:
+        cache[f] = Image.open(os.path.join(HERE, 'layers', f)).convert('RGBA')
+    return cache[f]
+
+
+meta = {}
+for wid, w in recipe['weapons'].items():
+    layers = sorted(recipe['base'] + w['layers'], key=lambda l: l['z'])
+    sheet = Image.new('RGBA', (832, 1344))
+    for l in layers:
+        sheet.alpha_composite(img(l).crop((0, 0, 832, 1344)))
+    sheet.save(os.path.join(OUT, f'hero-{wid}.png'), optimize=True)
+    entry = {'name': w['name'], 'class': w['class'], 'big': {}}
+    for b in w['big']:
+        F = b['frame']
+        n = len(b['cols'])
+        o = (F - 64) // 2
+        big = Image.new('RGBA', (n * F, 4 * F))
+        for l in sorted(recipe['base'] + b['layers'], key=lambda l: l['z']):
+            im = img(l)
+            for d in range(4):
+                for i, c in enumerate(b['cols']):
+                    if im.size[0] == 832:  # camada de 64 px: quadro do corpo centralizado
+                        fr = im.crop((c * 64, (b['row'] + d) * 64, c * 64 + 64, (b['row'] + d) * 64 + 64))
+                        big.alpha_composite(fr, (i * F + o, d * F + o))
+                    else:  # arte própria da animação grande
+                        big.alpha_composite(im.crop((i * F, d * F, i * F + F, d * F + F)), (i * F, d * F))
+        big.save(os.path.join(OUT, f'hero-{wid}-{b["anim"]}.png'), optimize=True)
+        entry['big'][b['anim']] = {'frame': F, 'frames': n, 'footY': o + 61}
+    meta[wid] = entry
+    print(f'hero-{wid}.png', ' + '.join(f'{k} ({v["frame"]}px × {v["frames"]})' for k, v in entry['big'].items()))
+
+with open(os.path.join(ROOT, 'src', 'entities', 'heroSheets.ts'), 'w', encoding='utf-8') as f:
+    f.write('// Gerado por scripts/hero/build.py — não editar à mão.\n')
+    f.write(f'export const HERO_SHEETS = {json.dumps(meta, ensure_ascii=False)} as const;\n')
+    f.write('export type WeaponId = keyof typeof HERO_SHEETS;\n')

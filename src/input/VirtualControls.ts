@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { inputState } from './InputState';
 
-type ButtonId = 'attack' | 'dodge' | 'flame';
+type ButtonId = 'attack' | 'dodge' | 'flame' | 'gather';
 
 interface Button {
   id: ButtonId;
@@ -62,7 +62,8 @@ export class VirtualControls {
     const defs: [ButtonId, string, number, number][] = [
       ['attack', 'GOLPE', 0, 44],
       ['dodge', 'ESQUIVA', 1, 34],
-      ['flame', 'CHAMA', 2, 34],
+      ['flame', 'GIRO', 4, 34],
+      ['gather', 'COLETAR', 10, 34],
     ];
     for (const [id, label, icon, radius] of defs) {
       const bg = scene.add.circle(0, 0, 10, 0x0b0a12, 0.38).setDepth(depth);
@@ -106,6 +107,7 @@ export class VirtualControls {
       attack: [right - 44 * u, bottom - 44 * u],
       dodge: [right - 44 * u - 98 * u, bottom - 30 * u],
       flame: [right - 34 * u, bottom - 44 * u - 92 * u],
+      gather: [right - 44 * u - 98 * u, bottom - 30 * u - 84 * u],
     };
     for (const b of this.buttons) {
       const [x, y] = pos[b.id];
@@ -131,9 +133,19 @@ export class VirtualControls {
     inputState.touchY = 0;
   }
 
+  /** Troca rótulo e ícone de um botão (a arma define o golpe e a habilidade). */
+  setButton(id: ButtonId, label: string, icon: number) {
+    const b = this.buttons.find((x) => x.id === id);
+    if (!b) return;
+    b.label = label;
+    b.icon = icon;
+    b.text.setText(label);
+    b.img.setFrame(icon);
+  }
+
   private hitButton(x: number, y: number): Button | undefined {
-    // área de toque 15% maior que o desenho
-    return this.buttons.find((b) => Phaser.Math.Distance.Between(x, y, b.x, b.y) <= b.radius * this.u * 1.15);
+    // área de toque 15% maior que o desenho (o de coletar só existe perto de um recurso)
+    return this.buttons.find((b) => (b.id !== 'gather' || inputState.canGather) && Phaser.Math.Distance.Between(x, y, b.x, b.y) <= b.radius * this.u * 1.15);
   }
 
   private onDown(p: Phaser.Input.Pointer) {
@@ -143,6 +155,7 @@ export class VirtualControls {
       if (b.pointerId === null) {
         b.pointerId = p.id;
         inputState[b.id] = true;
+        inputState.held[b.id] = true;
         b.bg.setFillStyle(0xffffff, 0.3);
       }
       return;
@@ -190,6 +203,7 @@ export class VirtualControls {
     for (const b of this.buttons)
       if (b.pointerId === p.id) {
         b.pointerId = null;
+        inputState.held[b.id] = false;
         b.bg.setFillStyle(0x0b0a12, 0.38);
       }
   }
@@ -199,6 +213,7 @@ export class VirtualControls {
     this.resetJoystick();
     for (const b of this.buttons) {
       b.pointerId = null;
+      inputState.held[b.id] = false;
       b.bg.setFillStyle(0x0b0a12, 0.38);
     }
   }
@@ -208,7 +223,12 @@ export class VirtualControls {
     for (const b of this.buttons) {
       // segurar o botão de golpe repete o ataque
       if (b.id === 'attack' && b.pointerId !== null) inputState.attack = true;
-      const cd = inputState.cooldowns[b.id];
+      if (b.id === 'gather') {
+        const on = inputState.canGather;
+        for (const o of [b.bg, b.ring, b.img, b.text]) o.setVisible(on);
+        if (!on) continue;
+      }
+      const cd = b.id === 'gather' ? 0 : inputState.cooldowns[b.id];
       b.cd.clear();
       const r = b.radius * this.u;
       if (cd > 0) {

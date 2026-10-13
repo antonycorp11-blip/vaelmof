@@ -9,13 +9,18 @@ export const inputState = {
   attack: false,
   dodge: false,
   flame: false,
+  gather: false,
+  /** Botões mantidos pressionados (segurar repete o golpe e a coleta). */
+  held: { attack: false, dodge: false, flame: false, gather: false },
+  /** Há um recurso ao alcance: mostra o botão COLETAR. */
+  canGather: false,
   /** Cooldowns normalizados (0 = pronto, 1 = recém-usado) para o HUD. */
   cooldowns: { attack: 0, dodge: 0, flame: 0 },
   hp: 10,
   maxHp: 10,
 };
 
-export function consume(key: 'attack' | 'dodge' | 'flame'): boolean {
+export function consume(key: 'attack' | 'dodge' | 'flame' | 'gather'): boolean {
   const v = inputState[key];
   inputState[key] = false;
   return v;

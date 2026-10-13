@@ -3,12 +3,17 @@ import { DEBUG, FORCE_TOUCH } from '../config';
 import { inputState } from '../input/InputState';
 import { VirtualControls } from '../input/VirtualControls';
 import { DebugPanel } from '../ui/DebugPanel';
+import { InventoryPanel } from '../ui/InventoryPanel';
+import type { WeaponDef } from '../data/weapons';
 import type { WorldScene } from './WorldScene';
 
 /** HUD (vida, relógio, clima, nome da área) + controles virtuais. */
 export class UIScene extends Phaser.Scene {
   private controls!: VirtualControls;
   private debug!: DebugPanel;
+  private bag!: InventoryPanel;
+  private weaponBtn!: Phaser.GameObjects.Text;
+  private bagBtn!: Phaser.GameObjects.Text;
   private hpBar!: Phaser.GameObjects.Graphics;
   private heart!: Phaser.GameObjects.Image;
   private info!: Phaser.GameObjects.Text;
@@ -35,8 +40,28 @@ export class UIScene extends Phaser.Scene {
     // versão (commit) — confere se o PWA pegou a atualização
     this.version = this.add.text(0, 0, `v ${__BUILD_ID__}`, { ...style, fontSize: '9px', color: '#d8d8d8' }).setOrigin(0.5, 0).setAlpha(0.7);
     this.controls = new VirtualControls(this, touch);
-    this.debug = new DebugPanel(this, this.scene.get('World') as WorldScene);
-    this.controls.blocker = (x, y) => this.debug.contains(x, y);
+    const world0 = this.scene.get('World') as WorldScene;
+    this.debug = new DebugPanel(this, world0);
+    this.bag = new InventoryPanel(this, world0.inventory);
+    // barra do topo (centro da tela: longe do notch e dos cantos arredondados do iPhone)
+    const btn = { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff', fontStyle: 'bold', backgroundColor: '#2a2234' };
+    this.weaponBtn = this.add.text(0, 0, '', btn).setDepth(2000).setInteractive({ useHandCursor: true });
+    this.weaponBtn.on('pointerdown', () => world0.player.cycleWeapon());
+    this.bagBtn = this.add.text(0, 0, 'MOCHILA', { ...btn, backgroundColor: '#5a3a20' }).setDepth(2000).setInteractive({ useHandCursor: true });
+    this.bagBtn.on('pointerdown', () => this.bag.toggle());
+    const topUi = [this.weaponBtn, this.bagBtn];
+    this.controls.blocker = (x, y) => this.debug.contains(x, y) || this.bag.contains(x, y) || topUi.some((b) => b.getBounds().contains(x, y));
+    const onWeapon = (w: WeaponDef) => {
+      this.weaponBtn.setText(`${w.className} · ${w.name}`);
+      this.controls.setButton('attack', w.attackLabel, w.attackIcon);
+      this.controls.setButton('flame', w.skill.label, w.skill.icon);
+      this.layout();
+    };
+    world0.events.on('weapon', (w: WeaponDef) => {
+      onWeapon(w);
+      this.showToast(`Agora você é ${w.className} (${w.name})`);
+    });
+    onWeapon(world0.player.weapon);
 
     this.layout();
     this.scale.on('resize', this.layout, this);
@@ -64,7 +89,20 @@ export class UIScene extends Phaser.Scene {
     this.areaText.setPosition(width / 2, height * 0.24).setFontSize(Math.round(20 * u)).setStroke('#1e1a24', 4 * u);
     this.toast.setPosition(width / 2, height * 0.36).setFontSize(Math.round(13 * u)).setStroke('#1e1a24', 3 * u);
     this.fps?.setPosition(width - 14 * u, 30 * u).setOrigin(1, 0).setFontSize(Math.round(10 * u));
-    this.debug.layout(u, 40 * u);
+    // barra do topo: [classe · arma] [MOCHILA] [DEBUG], centralizada
+    const pad = Math.round(10 * u);
+    const py = Math.round(9 * u);
+    for (const b of [this.weaponBtn, this.bagBtn]) b.setFontSize(Math.round(12 * u)).setPadding(pad, py, pad, py);
+    const gap = 8 * u;
+    const total = this.weaponBtn.width + this.bagBtn.width + this.debug.toggleWidth + gap * 2;
+    let x = Math.round((width - total) / 2);
+    const y = 20 * u;
+    this.weaponBtn.setPosition(x, y);
+    x += this.weaponBtn.width + gap;
+    this.bagBtn.setPosition(x, y);
+    x += this.bagBtn.width + gap;
+    this.debug.layout(u, x, y);
+    this.bag.layout(u);
     this.version.setPosition(width / 2, 6 * u).setFontSize(Math.round(9 * u)).setStroke('#1e1a24', 2 * u);
     this.controls.hudBottom = 44 * u;
     this.controls.layout(width, height, u);

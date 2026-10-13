@@ -2,7 +2,10 @@ import { MAP_H, MAP_W, TILE } from '../config';
 import { fbm, mulberry32, valueNoise } from './Noise';
 import { T } from './Tiles';
 
-export type SpawnKind = 'sheep' | 'deer' | 'slime' | 'wolf' | 'bandit' | 'wraith';
+export type SpawnKind =
+  | 'sheep' | 'deer' | 'slime' | 'wolf' | 'bandit' | 'wraith'
+  | 'boar' | 'bear' | 'golem' | 'spider' | 'scorpion'
+  | 'fox' | 'hare' | 'goat' | 'lizard';
 
 export interface HouseDef {
   tx: number;

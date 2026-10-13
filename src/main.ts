@@ -33,7 +33,9 @@ const game = new Phaser.Game({
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   input: { activePointers: 4 },
-  physics: { default: 'arcade', arcade: { debug: false } },
+  // passo variável: um passo de física por quadro desenhado (telas de 120 Hz do iPhone
+  // com física fixa em 60 Hz faziam o herói andar "aos trancos" contra a câmera)
+  physics: { default: 'arcade', arcade: { debug: false, fixedStep: false } },
   fps: { target: 60 },
   render: { powerPreference: 'high-performance', antialias: false },
   scene: [BootScene, WorldScene, UIScene],

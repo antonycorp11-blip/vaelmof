@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { ACTIVE_RADIUS, DEBUG, TILE, VIEW_TILES_H, VIEW_TILES_W, WORLD_SEED } from '../config';
 import { Animal } from '../entities/Animal';
 import { Bandit } from '../entities/Bandit';
+import { BEASTS, Beast } from '../entities/Beast';
+import { makeCritter } from '../entities/Critters';
 import { Bird } from '../entities/Bird';
 import { DEPTH } from '../entities/Creature';
 import { Deer } from '../entities/Deer';
@@ -15,8 +17,11 @@ import { Wraith } from '../entities/Wraith';
 import { inputState } from '../input/InputState';
 import { DayNightSystem, mulColor } from '../systems/DayNightSystem';
 import { BiomeFx } from '../systems/BiomeFx';
+import { Gathering } from '../systems/Gathering';
+import { Inventory } from '../systems/Inventory';
 import { Biome, BIOMES, generateWorld, type WorldData } from '../systems/WorldGenerator';
-import { ANIM_FRAMES, T } from '../systems/Tiles';
+import { TileCollision } from '../systems/TileCollision';
+import { TileWindow } from '../systems/TileWindow';
 import { WeatherSystem } from '../systems/WeatherSystem';
 
 interface Light {
@@ -24,11 +29,6 @@ interface Light {
   base: number;
   scale: number;
   flicker: number;
-}
-
-interface AnimTile {
-  tile: Phaser.Tilemaps.Tile;
-  base: number;
 }
 
 const BIRD_COUNT = 14;
@@ -52,25 +52,22 @@ export class WorldScene extends Phaser.Scene {
     burst: (x: number, y: number, tint: number, count: number) => void;
     ember: (x: number, y: number) => void;
     damageText: (x: number, y: number, amount: number, color?: string) => void;
+    floatText: (x: number, y: number, text: string, color?: string) => void;
   };
+  inventory = new Inventory();
+  private gathering!: Gathering;
 
   private ambient!: Phaser.GameObjects.Rectangle;
   private glowLights: Light[] = [];
   private houseSprites: Phaser.GameObjects.Sprite[] = [];
   private torches: Phaser.GameObjects.Sprite[] = [];
-  private waterTiles: AnimTile[] = [];
-  private fallTiles: AnimTile[] = [];
-  private waterFrame = 0;
-  private fallFrame = 0;
-  private waterTimer = 0;
-  private fallTimer = 0;
   private bars!: Phaser.GameObjects.Graphics;
   private biomeFx!: BiomeFx;
   /** Peso (0..1) de cada bioma em volta do jogador, suavizado no tempo. */
   private biomeW: number[] = BIOMES.map((_, i) => (i === 0 ? 1 : 0));
   private biomeTint = 0xffffff;
   private biomeDark = 0;
-  private playerCollider!: Phaser.Physics.Arcade.Collider;
+
   private projBlock!: Uint8Array;
   private area = '';
   private areaTimer = 0;
@@ -88,7 +85,7 @@ export class WorldScene extends Phaser.Scene {
     const map = (this.map = generateWorld(WORLD_SEED));
     const W = map.width * TILE;
     const H = map.height * TILE;
-    this.buildTilemap(map);
+    this.buildWorld(map);
     this.physics.world.setBounds(0, 0, W, H);
 
     // vilas: casas, poços, tochas
@@ -132,6 +129,14 @@ export class WorldScene extends Phaser.Scene {
         case 'wraith':
           this.enemies.push((c = new Wraith(this, sp.x, sp.y)));
           break;
+        case 'fox':
+        case 'hare':
+        case 'goat':
+        case 'lizard':
+          this.animals.push((c = makeCritter(this, sp.kind, sp.x, sp.y)));
+          break;
+        default:
+          this.enemies.push((c = new Beast(this, sp.x, sp.y, BEASTS[sp.kind])));
       }
       const tint = sp.variant ? VARIANT_TINT[sp.variant] : undefined;
       if (tint !== undefined) {
@@ -141,14 +146,14 @@ export class WorldScene extends Phaser.Scene {
     }
     for (let i = 0; i < BIRD_COUNT; i++) new Bird(this, W, H);
 
-    const collisionLayer = this.collisionLayer;
-    this.playerCollider = this.physics.add.collider(this.player, collisionLayer);
-    this.physics.add.collider([...this.enemies, ...this.animals], collisionLayer);
+    this.collision.add(this.player.body, ...this.enemies.map((e) => e.body), ...this.animals.map((a) => a.body));
 
     // câmera
     const cam = this.cameras.main;
     cam.setBounds(0, 0, W, H);
-    cam.startFollow(this.player, true, 0.12, 0.12);
+    // sem arredondar a câmera em px do mundo (com zoom ~4,6× isso fazia o cenário
+    // pular 4–5 px de tela enquanto o herói andava de 1 em 1: o "tremor")
+    cam.startFollow(this.player, false, 0.12, 0.12);
     cam.setBackgroundColor('#1e1a24');
     this.applyZoom();
     this.scale.on('resize', this.applyZoom, this);
@@ -159,6 +164,8 @@ export class WorldScene extends Phaser.Scene {
     this.dayNight = new DayNightSystem();
     this.weather = new WeatherSystem(this, DEPTH.weather);
     this.biomeFx = new BiomeFx(this, DEPTH.weather);
+    this.gathering = new Gathering(this);
+    this.inventory.on('change', () => (this.player.weightMul = this.inventory.speedFactor));
     this.createWorldMap(map);
     this.ambient = this.add.rectangle(0, 0, 10, 10, 0xffffff).setOrigin(0).setDepth(DEPTH.ambient);
     this.ambient.setBlendMode(Phaser.BlendModes.MULTIPLY);
@@ -171,41 +178,23 @@ export class WorldScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------------ mapa
-  private collisionLayer!: Phaser.Tilemaps.TilemapLayer;
+  /** Janela de tiles desenhada em volta da câmera (o mundo fica em arrays). */
+  tiles!: TileWindow;
+  collision!: TileCollision;
 
-  private buildTilemap(m: WorldData) {
-    const tm = this.make.tilemap({ tileWidth: TILE, tileHeight: TILE, width: m.width, height: m.height });
-    const ts = tm.addTilesetImage('tiles', 'tiles', TILE, TILE, 1, 2)!;
-    const layer = (name: string, data: Int16Array, depth: number) => {
-      const l = tm.createBlankLayer(name, ts)!;
-      for (let y = 0; y < m.height; y++)
-        for (let x = 0; x < m.width; x++) {
-          const v = data[y * m.width + x];
-          if (v >= 0) l.putTileAt(v, x, y, false);
-        }
-      l.setDepth(depth);
-      return l;
-    };
-    layer('ground', m.ground, DEPTH.ground);
-    const water = layer('water', m.water, DEPTH.water);
-    layer('cliffs', m.cliffs, DEPTH.cliffs);
-    layer('decor', m.decor, DEPTH.decor);
-    layer('canopy', m.canopy, DEPTH.canopy);
-    const col = new Int16Array(m.collision.length);
-    for (let i = 0; i < col.length; i++) col[i] = m.collision[i] ? T.COLLISION : -1;
-    this.collisionLayer = layer('collision', col, 0).setVisible(false);
-    this.collisionLayer.setCollision(T.COLLISION);
-
-    water.forEachTile((t) => {
-      if (t.index >= T.WATER && t.index < T.WATER + ANIM_FRAMES) this.waterTiles.push({ tile: t, base: T.WATER });
-      else if (t.index >= T.WATER_LIP && t.index < T.WATER_LIP + ANIM_FRAMES) this.waterTiles.push({ tile: t, base: T.WATER_LIP });
-      else if (t.index >= T.WATERFALL && t.index < T.WATERFALL + ANIM_FRAMES) this.fallTiles.push({ tile: t, base: T.WATERFALL });
-      else if (t.index >= T.FOAM && t.index < T.FOAM + ANIM_FRAMES) this.fallTiles.push({ tile: t, base: T.FOAM });
-    });
-
+  private buildWorld(m: WorldData) {
+    this.tiles = new TileWindow(this, m);
+    this.collision = new TileCollision(this.physics.world, m.collision, m.width, m.height);
     // projéteis atravessam água, mas não paredes/árvores/casas
     this.projBlock = new Uint8Array(m.collision.length);
     for (let i = 0; i < m.collision.length; i++) this.projBlock[i] = m.collision[i] && m.water[i] < 0 ? 1 : 0;
+  }
+
+  /** Liga/desliga a colisão de um tile (recurso coletado, recurso que voltou). */
+  setSolid(tx: number, ty: number, on: boolean) {
+    const i = ty * this.map.width + tx;
+    this.map.collision[i] = on ? 1 : 0;
+    this.projBlock[i] = on && this.map.water[i] < 0 ? 1 : 0;
   }
 
   blocksProjectile(x: number, y: number): boolean {
@@ -213,21 +202,6 @@ export class WorldScene extends Phaser.Scene {
     const ty = Math.floor(y / TILE);
     if (tx < 0 || ty < 0 || tx >= this.map.width || ty >= this.map.height) return true;
     return this.projBlock[ty * this.map.width + tx] === 1;
-  }
-
-  private animateTiles(delta: number) {
-    this.waterTimer += delta;
-    this.fallTimer += delta;
-    if (this.waterTimer >= 190) {
-      this.waterTimer = 0;
-      this.waterFrame = (this.waterFrame + 1) % ANIM_FRAMES;
-      for (const a of this.waterTiles) a.tile.index = a.base + this.waterFrame;
-    }
-    if (this.fallTimer >= 85) {
-      this.fallTimer = 0;
-      this.fallFrame = (this.fallFrame + 1) % ANIM_FRAMES;
-      for (const a of this.fallTiles) a.tile.index = a.base + this.fallFrame;
-    }
   }
 
   private createWaterfallMist(m: WorldData) {
@@ -326,6 +300,14 @@ export class WorldScene extends Phaser.Scene {
           .setDepth(DEPTH.fx + 2);
         this.tweens.add({ targets: t, y: y - 12, alpha: 0, duration: 600, ease: 'Quad.easeOut', onComplete: () => t.destroy() });
       },
+      floatText: (x, y, text, color = '#ffffff') => {
+        const t = this.add
+          .text(x, y, text, { fontFamily: 'monospace', fontSize: '7px', fontStyle: 'bold', color, stroke: '#1e1a24', strokeThickness: 2 })
+          .setOrigin(0.5)
+          .setResolution(4)
+          .setDepth(DEPTH.fx + 2);
+        this.tweens.add({ targets: t, y: y - 14, alpha: 0, delay: 350, duration: 900, ease: 'Quad.easeOut', onComplete: () => t.destroy() });
+      },
     };
   }
 
@@ -338,14 +320,20 @@ export class WorldScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------------ câmera
-  /** Zoom que preserva a área de ~20×12 tiles visíveis em qualquer proporção. */
+  /**
+   * Zoom inteiro mais próximo do que mostraria ~20×12 tiles. Inteiro para cada
+   * pixel da arte virar exatamente N pixels da tela: com zoom fracionado os
+   * pixels alternam de largura e "rastejam" quando a câmera anda.
+   */
   private applyZoom() {
     const { width, height } = this.scale;
     const target = VIEW_TILES_W * TILE * VIEW_TILES_H * TILE;
-    const zoom = Math.sqrt((width * height) / target);
+    const zoom = Math.max(1, Math.round(Math.sqrt((width * height) / target)));
     const cam = this.cameras.main;
     cam.setSize(width, height);
     cam.setZoom(zoom);
+    cam.setRoundPixels(false);
+    this.player?.fitPixels(zoom);
     if (this.player) cam.centerOn(this.player.x, this.player.y);
   }
 
@@ -356,8 +344,8 @@ export class WorldScene extends Phaser.Scene {
     const time = this.time.now;
     const dt = Math.min(delta, 50);
     this.dayNight.update(dt);
-    this.animateTiles(dt);
     this.player.update(time);
+    this.gathering.update(time);
 
     const cam = this.cameras.main;
     const cx = cam.midPoint.x;
@@ -379,6 +367,7 @@ export class WorldScene extends Phaser.Scene {
     }
 
     const view = cam.worldView;
+    this.tiles.update(view, dt);
     this.updateBiome(dt);
     this.weather.update(time, dt, view);
     this.biomeFx.update(view, this.biomeW);
@@ -477,6 +466,7 @@ export class WorldScene extends Phaser.Scene {
     this.player.body.reset(px, py);
     this.player.setPosition(px, py);
     this.cameras.main.centerOn(px, py);
+    this.tiles.recenter(px, py);
     // chega com o clima do destino já aplicado
     const b = this.biomeAt(px, py);
     this.biomeW = BIOMES.map((_, i) => (i === b ? 1 : 0));
@@ -486,7 +476,8 @@ export class WorldScene extends Phaser.Scene {
   /** Modo voo: atravessa tudo e anda 3× mais rápido. */
   setFlying(on: boolean) {
     this.flying = on;
-    this.playerCollider.active = !on;
+    if (on) this.collision.ghosts.add(this.player.body);
+    else this.collision.ghosts.delete(this.player.body);
     this.player.speedMul = on ? 3 : 1;
   }
 

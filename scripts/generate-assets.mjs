@@ -702,7 +702,7 @@ const BP = {
     tiles.rect(ox + 2, oy + 13, 12, 1, S[0]);
   }
   // cume de montanha nevada / paredão
-  noiseTile(138, [S[0], S[1], RK[1], S[2]], [0.5, 0.25, 0.15, 0.1], 408, (ox, oy, r) => {
+  noiseTile(138, [RK[1], RK[2], S[1], S[0]], [0.38, 0.26, 0.2, 0.16], 408, (ox, oy, r) => {
     for (let i = 0; i < 2; i++) {
       const x = ox + 2 + Math.floor(r() * 11), y = oy + 2 + Math.floor(r() * 11);
       tiles.rect(x, y, 3, 2, RK[2]);
@@ -803,7 +803,7 @@ const BP = {
       tiles.line(x, oy + 14, x + (r() > 0.5 ? 2 : -2), oy + 8 - Math.floor(r() * 3), BP.dry[i % 3]);
     }
   }
-  noiseTile(153, [B[2], B[0], B[4], B[1]], [0.45, 0.3, 0.15, 0.1], 427, (ox, oy, r) => {
+  noiseTile(153, [B[3], B[1], B[5], B[0]], [0.42, 0.3, 0.16, 0.12], 427, (ox, oy, r) => {
     for (let i = 0; i < 3; i++) {
       const x = ox + 1 + Math.floor(r() * 12), y = oy + 1 + Math.floor(r() * 12);
       tiles.rect(x, y, 3, 3, B[1]);
@@ -1816,6 +1816,242 @@ quad('assets/sprites/wolf.png', 5, (t, f) => {
   t.set(hx + 3, hy - 1, P[1]);
   t.set(hx + 1, hy + 1, crouch || lunge ? P[4] : PAL.outline);
 }, 5.5);
+// ================================================================ CRIATURAS DOS BIOMAS
+// Vista lateral olhando para a esquerda (o jogo espelha para a direita).
+// Inimigos: 0–1 andar, 2 preparo, 3 ataque, 4 dano. Animais: 0–1 andar, 2 alerta, 3 correndo.
+function sheetN(file, frames, S, draw, sw) {
+  const img = new Img(frames * S, S);
+  for (let f = 0; f < frames; f++) {
+    img.ellipse(f * S + S / 2, S - 1.4, sw, 1.5, '#000000', 0.3);
+    const tmp = new Img(S, S);
+    draw(tmp, f);
+    tmp.outline(0, 0, S, S);
+    composite(img, tmp, f * S, 0);
+  }
+  save(file, img);
+}
+const CP = {
+  boar: ['#6e4a32', '#523624', '#8a6040', '#3a2618', '#efe6d0'],
+  bear: ['#eef0f2', '#cdd3dc', '#ffffff', '#a8b2c0', '#2a2430'],
+  golem: ['#8c8983', '#6e6b66', '#a8a59e', '#4e4b47', '#5ee0ea'],
+  spider: ['#2c2438', '#1c1626', '#b46cec', '#e6b8ff', '#5ee0ea'],
+  scorp: ['#c87a3a', '#a05a28', '#e09a52', '#6e3a18', '#2a1a10'],
+  fox: ['#d8742e', '#b05a22', '#f2f0e8', '#3a2418'],
+  hare: ['#f2f4f8', '#d2d8e2', '#e8a0a8', '#3a3040'],
+  goat: ['#8a7a68', '#6a5c4c', '#d8d0c0', '#3a3028', '#c8b890'],
+  lizard: ['#a8a050', '#848040', '#d4cc7a', '#4a4a20', '#c84a3a'],
+};
+// javali: atropela (investida longa)
+sheetN('assets/sprites/boar.png', 5, 16, (t, f) => {
+  const P = CP.boar;
+  const crouch = f === 2;
+  const charge = f === 3;
+  const by = crouch ? 9 : 8;
+  const legs = f === 1 ? [[4, 1], [6, -1], [11, 1], [13, -1]] : charge ? [[2, 2], [5, 2], [11, -2], [14, -2]] : [[4, 0], [6, 0], [11, 0], [13, 0]];
+  for (const [x, s] of legs) t.line(x, by + 3, x + Math.sign(s), by + 6 - (crouch ? 1 : 0), P[3]);
+  t.ellipse(9, by + 1.5, charge ? 6.5 : 6, 3.4, P[0]);
+  t.ellipse(9.5, by + 0.5, 5, 2, P[2]);
+  for (let x = 6; x <= 13; x += 2) t.set(x, by - 2, P[3]);
+  t.line(14, by, 15, by - 1, P[1]);
+  const hx = charge ? 1 : 2;
+  const hy = crouch ? by + 2 : by;
+  t.ellipse(hx + 2.5, hy + 1, 2.8, 2.4, P[1]);
+  t.rect(hx - 0.5, hy + 1, 2, 2, P[2]);
+  t.set(hx - 0.5, hy + 1, P[3]);
+  t.line(hx + 1, hy + 3, hx - 0.5, hy + 1.5, P[4]);
+  t.set(hx + 2, hy, P[4]);
+  t.set(hx + 3, hy - 1.5, P[1]);
+}, 5.5);
+// urso-polar: ergue-se e golpeia o chão
+sheetN('assets/sprites/bear.png', 5, 24, (t, f) => {
+  const P = CP.bear;
+  const rear = f === 2;
+  const slam = f === 3;
+  if (rear) {
+    t.ellipse(13, 13, 5.5, 7.5, P[0]);
+    t.ellipse(12, 12, 3.5, 5.5, P[2]);
+    t.rect(10, 19, 3, 4, P[1]);
+    t.rect(15, 19, 3, 4, P[1]);
+    t.ellipse(10, 4.5, 3.6, 3.2, P[0]);
+    t.set(7, 4, P[4]);
+    t.set(9, 3, P[4]);
+    t.set(11, 1.5, P[1]);
+    t.line(8, 9, 5, 6, P[1]);
+    t.line(17, 9, 19, 6, P[1]);
+    t.set(5, 5.5, P[4]);
+    return;
+  }
+  const by = slam ? 13 : 12;
+  const legs = f === 1 ? [[5, 1], [8, -1], [15, 1], [18, -1]] : slam ? [[3, 2], [6, 2], [16, 0], [19, 0]] : [[5, 0], [8, 0], [15, 0], [18, 0]];
+  for (const [x, s] of legs) t.rect(x + (s > 0 ? -1 : 0), by + 3, 3, 23 - by - 4, P[1]);
+  t.ellipse(12.5, by + 1, 8.5, 5, P[0]);
+  t.ellipse(12, by - 0.5, 6.5, 3, P[2]);
+  t.ellipse(20, by - 1, 1.5, 1.5, P[1]);
+  const hx = slam ? 2 : 3;
+  const hy = slam ? by + 1 : by - 2;
+  t.ellipse(hx + 3, hy, 3.6, 3.2, P[0]);
+  t.rect(hx - 0.5, hy, 2.5, 2, P[2]);
+  t.set(hx - 0.5, hy, P[4]);
+  t.set(hx + 2, hy - 1, P[4]);
+  t.ellipse(hx + 5, hy - 3, 1, 1, P[1]);
+  if (slam) for (const x of [1, 3]) t.set(x, by + 7, P[3]);
+}, 8);
+// golem de pedra: lento, ergue os braços e esmaga
+sheetN('assets/sprites/golem.png', 5, 24, (t, f) => {
+  const P = CP.golem;
+  const up = f === 2;
+  const slam = f === 3;
+  const bob = f === 1 ? 1 : 0;
+  // pernas
+  t.rect(8, 17, 4, 6 - bob, P[1]);
+  t.rect(13, 17 + bob, 4, 6 - bob, P[1]);
+  // tronco
+  t.rect(6, 8 + bob, 13, 10, P[0]);
+  t.rect(6, 8 + bob, 13, 2, P[2]);
+  t.rect(16, 10 + bob, 3, 8, P[3]);
+  t.line(9, 12 + bob, 12, 15 + bob, P[3]);
+  t.rect(7, 14 + bob, 3, 2, PAL.forest[2]);
+  // cabeça
+  t.rect(4, 3 + bob, 7, 6, P[0]);
+  t.rect(4, 3 + bob, 7, 1, P[2]);
+  t.set(5, 5 + bob, P[4]);
+  t.set(7, 5 + bob, P[4]);
+  // braços
+  if (up) {
+    t.rect(2, 0, 3, 8, P[1]);
+    t.rect(19, 0, 3, 9, P[1]);
+    t.rect(1, 0, 5, 3, P[0]);
+    t.rect(18, 0, 5, 3, P[0]);
+  } else if (slam) {
+    t.rect(0, 14, 5, 4, P[0]);
+    t.rect(2, 9, 3, 6, P[1]);
+    t.rect(19, 10, 3, 8, P[1]);
+    for (const x of [0, 3, 6]) t.set(x, 20, P[3]);
+  } else {
+    t.rect(2, 9 + bob, 4, 9, P[1]);
+    t.rect(2, 16 + bob, 4, 3, P[0]);
+    t.rect(19, 9 + bob, 3, 8, P[1]);
+  }
+}, 7);
+// aranha de cristal: pula no herói
+sheetN('assets/sprites/spider.png', 5, 16, (t, f) => {
+  const P = CP.spider;
+  const crouch = f === 2;
+  const leap = f === 3;
+  const by = crouch ? 10 : leap ? 7 : 9;
+  const swing = f === 1 ? 1 : 0;
+  for (let i = 0; i < 4; i++) {
+    const x = 4 + i * 2.6;
+    const out = leap ? 2 : 0;
+    t.line(x, by, x - 2 - out + (i % 2 ? swing : -swing), by + 4 - (crouch ? 1 : 0), P[1]);
+    t.line(x + 1, by, x + 3 + out - (i % 2 ? swing : -swing), by + 4 - (crouch ? 1 : 0), P[0]);
+  }
+  t.ellipse(10, by - 0.5, 4.5, 3, P[0]);
+  t.ellipse(4.5, by + 0.5, 2.5, 2.2, P[1]);
+  t.set(3, by, P[4]);
+  t.set(4, by - 0.5, P[4]);
+  // cristais nas costas
+  for (const [x, h] of [[8, 3], [10, 4], [12, 3]]) {
+    t.line(x, by - 3, x, by - 3 - h, P[2]);
+    t.set(x, by - 3 - h, P[3]);
+  }
+}, 5);
+// escorpião: ferroada rápida
+sheetN('assets/sprites/scorpion.png', 5, 16, (t, f) => {
+  const P = CP.scorp;
+  const raise = f === 2;
+  const sting = f === 3;
+  const by = 10;
+  const leg = f === 1 ? 1 : 0;
+  for (let i = 0; i < 3; i++) {
+    t.line(6 + i * 2, by + 1, 5 + i * 2 - leg, by + 4, P[3]);
+    t.line(7 + i * 2, by + 1, 8 + i * 2 + leg, by + 4, P[1]);
+  }
+  t.ellipse(8, by, 4.5, 2.2, P[0]);
+  t.ellipse(8, by - 0.8, 3.5, 1, P[2]);
+  // pinças
+  t.line(4, by, 1, by - 1, P[1]);
+  t.ellipse(1.5, by - 1.5, 1.6, 1.2, P[0]);
+  t.set(0, by - 2, P[3]);
+  // cauda segmentada
+  const tail = sting ? [[12, by - 1], [14, by - 3], [13, by - 6], [9, by - 7], [6, by - 6]] : raise ? [[12, by - 1], [14, by - 3], [14.5, by - 5.5], [14, by - 8], [12, by - 9.5]] : [[12, by - 1], [14, by - 3], [14, by - 6], [12, by - 8], [10, by - 7]];
+  for (const [x, y] of tail) t.ellipse(x, y, 1.4, 1.2, P[0]);
+  const [sx, sy] = tail[tail.length - 1];
+  t.set(sx - 1, sy + 1, P[4]);
+  t.set(sx - 2, sy + 1, P[4]);
+  t.set(3, by - 1, P[4]);
+}, 5);
+// raposa
+sheetN('assets/sprites/fox.png', 4, 16, (t, f) => {
+  const P = CP.fox;
+  const run = f === 3;
+  const legs = f === 1 ? [[4, 1], [6, -1], [10, 1], [12, -1]] : run ? [[2, 2], [5, 2], [10, -2], [13, -2]] : [[4, 0], [5, 0], [10, 0], [11, 0]];
+  for (const [x, s] of legs) t.line(x, 10, x + Math.sign(s), 13, P[3]);
+  t.ellipse(8, 9, 4.5, 2.2, P[0]);
+  t.rect(5, 10, 5, 1, P[2]);
+  t.ellipse(13.5, 8, 2.5, 1.6, P[0]);
+  t.set(15, 7, P[2]);
+  t.set(15, 8, P[2]);
+  const hx = run ? 1.5 : 2.5;
+  const hy = f === 2 ? 5 : 6;
+  t.ellipse(hx + 1.5, hy + 1, 2.2, 1.8, P[0]);
+  t.set(hx - 0.5, hy + 1.5, P[3]);
+  t.rect(hx, hy + 2, 2, 1, P[2]);
+  t.set(hx + 1, hy - 1, P[1]);
+  t.set(hx + 2.5, hy - 1.5, P[1]);
+  t.set(hx + 1, hy + 0.5, P[3]);
+}, 4.5);
+// lebre-da-neve
+sheetN('assets/sprites/hare.png', 4, 16, (t, f) => {
+  const P = CP.hare;
+  const run = f === 3;
+  const by = run ? 9 : 10;
+  t.ellipse(9, by, run ? 4.5 : 3.6, 2.6, P[0]);
+  t.ellipse(12.5, by + 1, 1.4, 1.4, P[0]);
+  t.rect(9, by + 2, 3, 2, P[1]);
+  t.rect(5, by + 2, 2, 2, P[1]);
+  const hy = f === 2 ? by - 4 : by - 3;
+  t.ellipse(5, hy + 1, 2.2, 2, P[0]);
+  t.line(5, hy - 1, 5 + (run ? 3 : 1), hy - 5, P[0]);
+  t.line(6, hy - 1, 7 + (run ? 3 : 1), hy - 4, P[1]);
+  t.set(4, hy + 0.5, P[3]);
+  t.set(3, hy + 1.5, P[2]);
+}, 3.5);
+// cabra-montesa
+sheetN('assets/sprites/goat.png', 4, 16, (t, f) => {
+  const P = CP.goat;
+  const run = f === 3;
+  const legs = f === 1 ? [[4, 1], [6, -1], [11, 1], [13, -1]] : run ? [[2, 2], [5, 2], [11, -2], [14, -2]] : [[4, 0], [5, 0], [11, 0], [12, 0]];
+  for (const [x, s] of legs) t.line(x, 9, x + Math.sign(s), 13, P[3]);
+  t.ellipse(8.5, 8, 5, 2.6, P[0]);
+  t.rect(5, 9, 6, 1, P[1]);
+  t.set(14, 6, P[1]);
+  const hx = run ? 1.5 : 2.5;
+  const hy = f === 2 ? 2 : 3;
+  t.rect(hx + 2, hy + 2, 2, 3, P[0]);
+  t.ellipse(hx + 1.5, hy + 1.5, 2, 1.8, P[0]);
+  t.line(hx + 2, hy - 0.5, hx + 5, hy - 2, P[4]);
+  t.line(hx + 5, hy - 2, hx + 6, hy, P[4]);
+  t.set(hx, hy + 3.5, P[2]);
+  t.set(hx + 1, hy + 1, P[3]);
+}, 4.5);
+// lagarto do deserto
+sheetN('assets/sprites/lizard.png', 4, 16, (t, f) => {
+  const P = CP.lizard;
+  const run = f === 3;
+  const by = 11;
+  const leg = f === 1 || run ? 1 : 0;
+  t.line(5, by + 1, 4 - leg, by + 3, P[3]);
+  t.line(9, by + 1, 10 + leg, by + 3, P[3]);
+  t.ellipse(7.5, by, 4, 1.6, P[0]);
+  t.line(11, by, 15, by + (run ? 0 : 1), P[1]);
+  t.set(14, by + 1, P[1]);
+  const hy = f === 2 ? by - 3 : by - 1;
+  t.ellipse(3, hy + 0.5, 2.2, 1.4, P[0]);
+  t.set(2, hy, P[3]);
+  if (f === 2) t.set(0, hy + 1, P[4]);
+  for (const x of [6, 8, 10]) t.set(x, by - 1, P[2]);
+}, 4);
 // ovelha: 0-1 andar, 2 pastando
 quad('assets/sprites/sheep.png', 3, (t, f) => {
   const P = PAL.sheep;
@@ -1998,9 +2234,9 @@ quad('assets/sprites/deer.png', 4, (t, f) => {
   save('assets/sprites/fog.png', fog);
 }
 
-// ícones dos botões (16×16): golpe, esquiva, chama, coração
+// ícones dos botões (16×16): golpe, esquiva, chama, coração (+ armas e ações, abaixo)
 {
-  const img = new Img(64, 16);
+  const img = new Img(16 * 13, 16);
   const s = new Img(16, 16);
   s.line(3, 12, 11, 4, PAL.steel[0]);
   s.line(4, 12, 12, 4, PAL.steel[1]);
@@ -2029,7 +2265,162 @@ quad('assets/sprites/deer.png', 4, (t, f) => {
   h.rect(4, 4, 2, 2, '#ffb0b0');
   h.outline(0, 0, 16, 16);
   composite(img, h, 48, 0);
+  // 4 giro, 5 montante, 6 cajado/raio, 7 arco, 8 tiro triplo, 9 estocada, 10 coletar, 11 mochila, 12 trocar arma
+  {
+    const ic = (i, draw) => {
+      const t = new Img(16, 16);
+      draw(t);
+      t.outline(0, 0, 16, 16);
+      composite(img, t, i * 16, 0);
+    };
+    ic(4, (t) => {
+      for (let a = 0; a < Math.PI * 1.75; a += 0.07) t.set(8 + Math.cos(a) * 6, 8 + Math.sin(a) * 6, a > 4 ? '#ffffff' : '#bfe6ff');
+      t.line(5, 11, 11, 5, PAL.steel[0]);
+      t.line(6, 11, 12, 5, PAL.steel[1]);
+      t.rect(4, 11, 2, 2, PAL.belt[1]);
+    });
+    ic(5, (t) => {
+      t.line(2, 14, 13, 3, PAL.steel[1]);
+      t.line(3, 14, 14, 3, PAL.steel[0]);
+      t.line(2, 13, 13, 2, PAL.steel[0]);
+      t.line(1, 11, 5, 15, PAL.belt[1]);
+      t.rect(1, 14, 2, 2, PAL.wood[1]);
+    });
+    ic(6, (t) => {
+      t.line(3, 15, 10, 4, PAL.wood[0]);
+      t.line(4, 15, 11, 4, PAL.wood[2]);
+      t.ellipse(11.5, 3.5, 2.6, 2.6, '#b46cec');
+      t.ellipse(11, 3, 1.2, 1.2, '#e6b8ff');
+    });
+    ic(7, (t) => {
+      for (let a = -1.2; a <= 1.2; a += 0.06) t.set(6 + Math.cos(a) * 6, 8 + Math.sin(a) * 6.5, PAL.wood[0]);
+      t.line(6, 2, 6, 14, '#e8e2d0');
+      t.line(3, 8, 14, 8, PAL.steel[1]);
+      t.rect(13, 7, 2, 3, PAL.steel[0]);
+      t.rect(2, 7, 2, 3, '#e04848');
+    });
+    ic(8, (t) => {
+      for (const dy of [-4, 0, 4]) {
+        t.line(2, 8 + dy * 0.6, 12, 8 + dy, PAL.steel[1]);
+        t.rect(12, 7 + dy, 2, 2, PAL.steel[0]);
+        t.set(2, 8 + dy * 0.6, '#e04848');
+      }
+    });
+    ic(9, (t) => {
+      t.line(1, 8, 13, 8, PAL.steel[0]);
+      t.line(1, 9, 13, 9, PAL.steel[1]);
+      t.rect(13, 7, 2, 4, '#ffffff');
+      for (const x of [3, 6, 9]) t.set(x, 5, '#bfe6ff');
+      for (const x of [4, 7, 10]) t.set(x, 12, '#bfe6ff');
+    });
+    ic(10, (t) => {
+      t.line(4, 14, 11, 4, PAL.wood[0]);
+      t.line(5, 14, 12, 4, PAL.wood[2]);
+      t.rect(8, 2, 6, 3, PAL.steel[1]);
+      t.rect(8, 2, 6, 1, PAL.steel[0]);
+      t.rect(13, 4, 1, 3, PAL.steel[1]);
+    });
+    ic(11, (t) => {
+      t.rect(3, 6, 10, 8, PAL.wood[0]);
+      t.rect(3, 6, 10, 2, PAL.wood[2]);
+      t.rect(6, 3, 4, 3, PAL.wood[1]);
+      t.rect(7, 9, 2, 2, PAL.belt[1]);
+    });
+    ic(12, (t) => {
+      for (let a = 0.4; a < Math.PI - 0.4; a += 0.08) t.set(8 + Math.cos(a) * 5, 9 - Math.sin(a) * 5, '#ffe9a8');
+      for (let a = Math.PI + 0.4; a < Math.PI * 2 - 0.4; a += 0.08) t.set(8 + Math.cos(a) * 5, 7 - Math.sin(a) * 5, '#ffe9a8');
+      t.rect(12, 7, 2, 3, '#ffe9a8');
+      t.rect(2, 6, 2, 3, '#ffe9a8');
+    });
+  }
   save('assets/sprites/ui-icons.png', img);
+}
+
+// projéteis: flecha (aponta para a direita) e raio arcano (2 quadros)
+{
+  const ar = new Img(16, 16);
+  ar.line(1, 8, 12, 8, PAL.wood[2]);
+  ar.rect(12, 7, 3, 3, PAL.steel[0]);
+  ar.set(15, 8, PAL.steel[0]);
+  ar.rect(0, 6, 2, 1, '#e04848');
+  ar.rect(0, 10, 2, 1, '#e04848');
+  ar.outline(0, 0, 16, 16);
+  save('assets/sprites/arrow.png', ar);
+  const bo = new Img(32, 16);
+  for (let f = 0; f < 2; f++) {
+    bo.ellipse(f * 16 + 8, 8, 4.5 - f, 4.5 - f, '#7b3cc2');
+    bo.ellipse(f * 16 + 8, 8, 3, 3, '#b46cec');
+    bo.ellipse(f * 16 + 7.5, 7.5, 1.6 + f * 0.4, 1.6 + f * 0.4, '#f4e0ff');
+  }
+  save('assets/sprites/bolt.png', bo);
+}
+
+// itens (16×16) — recursos por região; índices em src/data/items.ts
+{
+  const N = 14;
+  const img = new Img(16 * N, 16);
+  const item = (i, draw) => {
+    const t = new Img(16, 16);
+    draw(t);
+    t.outline(0, 0, 16, 16);
+    composite(img, t, i * 16, 0);
+  };
+  const log = (bark, core, ring, extra) => (t) => {
+    t.rect(2, 6, 11, 6, bark[0]);
+    t.rect(2, 6, 11, 2, bark[1]);
+    t.rect(2, 11, 11, 1, bark[2]);
+    t.ellipse(13, 9, 2.2, 3, core);
+    t.set(13, 9, ring);
+    if (extra) extra(t);
+  };
+  item(0, log(['#6e4426', '#8a5a32', '#4f2f1a'], '#d8b07a', '#a87a48'));
+  item(1, log(['#3a2a20', '#5a4232', '#241a14'], '#c8a070', '#8a6a48', (t) => t.rect(3, 5, 8, 2, '#f6faff')));
+  item(2, log(['#3a3040', '#4a4054', '#2a2230'], '#7a7084', '#5a5064'));
+  item(3, log(['#a88a52', '#c8a86a', '#8a6a3a'], '#e8d0a0', '#b89a62', (t) => { for (let x = 3; x < 12; x += 3) t.rect(x, 6, 1, 6, '#8a6a3a'); }));
+  const stone = (P, extra) => (t) => {
+    t.ellipse(8, 10, 6, 4, P[1]);
+    t.ellipse(7, 9, 4.5, 2.8, P[0]);
+    t.set(5, 8, P[2]);
+    if (extra) extra(t);
+  };
+  item(4, stone(['#9a9ca0', '#7f8287', '#b9bbbe'], (t) => { t.rect(5, 7, 3, 1, PAL.forest[2]); t.set(10, 8, PAL.forest[0]); }));
+  item(5, stone(['#9aa6b4', '#7a8696', '#c8d4e0'], (t) => t.ellipse(8, 7.5, 5, 1.6, '#f6faff')));
+  item(6, (t) => {
+    t.rect(3, 6, 10, 8, '#787570');
+    t.rect(3, 4, 10, 3, '#a3a099');
+    t.rect(11, 6, 2, 8, '#64615c');
+  });
+  item(7, stone(['#8c8983', '#6e6b66', '#bbb8b1'], (t) => { for (const [x, y] of [[5, 9], [8, 8], [10, 11], [7, 11]]) { t.set(x, y, '#e0b84a'); t.set(x + 1, y, '#a07a22'); } }));
+  item(8, (t) => {
+    for (const [x, h, w] of [[6, 9, 2], [9, 12, 3], [12, 7, 2]]) {
+      for (let y = 0; y < h; y++) {
+        const ww = Math.max(1, Math.round(w * (1 - (y / h) * 0.8)));
+        for (let k = 0; k < ww; k++) t.set(x - (ww >> 1) + k, 14 - y, k === 0 ? '#e6b8ff' : '#b46cec');
+      }
+    }
+  });
+  item(9, stone(['#dea26c', '#b07440', '#f0c090'], (t) => t.rect(3, 10, 10, 1, '#8e5a30')));
+  item(10, (t) => {
+    for (let i = 0; i < 5; i++) t.line(3 + i * 2, 14, 6 + i * 2, 3, i % 2 ? '#78ba60' : '#5c9c4a');
+    t.rect(3, 9, 10, 2, '#c8a86a');
+  });
+  item(11, (t) => {
+    for (const [x, h] of [[6, 9], [9, 12], [11, 7]]) for (let y = 0; y < h; y++) t.rect(x - (y < h * 0.7 ? 1 : 0), 14 - y, y < h * 0.7 ? 2 : 1, 1, y > h * 0.6 ? '#ffffff' : '#a9d3ec');
+  });
+  item(12, (t) => {
+    for (const [x, y] of [[6, 9], [9, 8], [8, 11], [11, 11], [5, 12]]) {
+      t.ellipse(x, y, 1.8, 1.8, '#c0392b');
+      t.set(x - 0.5, y - 0.5, '#ff8a7a');
+    }
+    t.line(8, 7, 10, 4, PAL.forest[2]);
+    t.rect(10, 3, 3, 2, PAL.oak[2]);
+  });
+  item(13, (t) => {
+    t.ellipse(8, 9, 5.5, 4, '#e8e2d0');
+    t.ellipse(7, 8, 3.5, 2.2, '#ffffff');
+    t.rect(4, 11, 8, 2, '#c8c0a8');
+  });
+  save('assets/sprites/items.png', img);
 }
 
 // ================================================================ CASAS

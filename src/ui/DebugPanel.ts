@@ -113,25 +113,31 @@ export class DebugPanel {
     this.godBtn.setText(`Invencível: ${this.world.player?.god ? 'SIM' : 'não'}`).setStyle({ backgroundColor: this.world.player?.god ? '#2e7a3a' : '#2a2234' });
   }
 
-  layout(u: number, top: number) {
+  /** Largura do botão DEBUG (para a barra do topo distribuir os botões). */
+  get toggleWidth(): number {
+    return this.toggle.width;
+  }
+
+  /** Botão DEBUG em (x, y); o painel abre logo abaixo, centralizado na tela. */
+  layout(u: number, x: number, y: number) {
     this.u = u;
-    const fs = Math.round(11 * u);
-    const pad = { x: Math.round(7 * u), y: Math.round(5 * u) };
-    this.toggle.setFontSize(fs).setPadding(pad.x, pad.y, pad.x, pad.y).setPosition(12 * u, top);
-    const x0 = 12 * u;
-    const y0 = top + this.toggle.height + 6 * u;
-    this.panel.setPosition(x0, y0);
+    const fs = Math.round(12 * u);
+    const pad = { x: Math.round(10 * u), y: Math.round(9 * u) };
+    this.toggle.setFontSize(fs).setPadding(pad.x, pad.y, pad.x, pad.y).setPosition(x, y);
     this.info.setFontSize(Math.round(10 * u)).setPosition(8 * u, 6 * u);
-    // botões em 2 colunas
-    const colW = 150 * u;
-    let y = 8 * u + this.info.height + 4 * u;
+    // botões em 2 colunas, grandes o bastante para o dedo
+    const colW = 158 * u;
+    let by = 8 * u + this.info.height + 4 * u;
     this.buttons.forEach((b, i) => {
-      b.setFontSize(fs).setPadding(pad.x, pad.y, pad.x, pad.y);
-      b.setPosition(8 * u + (i % 2) * colW, y);
-      if (i % 2 === 1) y += b.height + 5 * u;
+      b.setFontSize(fs).setPadding(pad.x, Math.round(7 * u), pad.x, Math.round(7 * u));
+      b.setPosition(8 * u + (i % 2) * colW, by);
+      if (i % 2 === 1) by += b.height + 5 * u;
     });
-    if (this.buttons.length % 2) y += this.buttons[0].height + 5 * u;
-    this.bg.setSize(colW * 2 + 8 * u, y + 4 * u);
+    if (this.buttons.length % 2) by += this.buttons[0].height + 5 * u;
+    const W = colW * 2 + 8 * u;
+    this.bg.setSize(W, by + 4 * u);
+    const { width } = this.scene.scale;
+    this.panel.setPosition(Math.round((width - W) / 2), y + this.toggle.height + 6 * u);
     this.layoutMap();
   }
 

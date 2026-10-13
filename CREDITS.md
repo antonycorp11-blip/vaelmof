@@ -17,7 +17,7 @@ repositório), numa grade 16×16 e com uma paleta única definida em `PAL`.
 | `public/assets/sprites/*` | gerado por `scripts/generate-assets.mjs` | mesma do repositório |
 | `public/assets/tiles/*` | gerado por `scripts/generate-assets.mjs` | mesma do repositório |
 | `public/icons/*` | gerado por `scripts/generate-assets.mjs` | mesma do repositório |
-| `public/assets/sprites/hero.png`, `hero-slash.png` | camadas LPC montadas por `scripts/hero/build.py` (ver abaixo) | CC-BY-SA 3.0 / GPL 3.0 / OGA-BY 3.0 |
+| `public/assets/sprites/hero-*.png` (uma folha por arma + animações grandes) | camadas LPC montadas por `scripts/hero/build.py` (ver abaixo) | CC-BY-SA 3.0 / GPL 3.0 / OGA-BY 3.0 |
 | `public/assets/sprites/wraith.png` | arte conceitual do autor do jogo, animada por `scripts/wraith/build.py` | mesma do repositório |
 
 ### Substituição sugerida (licença livre)
@@ -43,30 +43,48 @@ universal). Receita: `scripts/hero/recipe.json`.
 Cada peça pode ser usada sob **qualquer uma** das licenças listadas
 (CC-BY-SA 3.0, GPL 3.0 ou OGA-BY 3.0, conforme a peça); todas exigem
 atribuição aos autores abaixo. Obras derivadas desta arte (ex.: os
-spritesheets gerados `hero.png` e `hero-slash.png`) seguem a mesma licença da
+spritesheets gerados `hero-*.png`) seguem a mesma licença da
 peça (CC-BY-SA: compartilhar pela mesma licença).
 
-| Peça | Arquivo LPC | Autores | Licenças | Fonte |
-|---|---|---|---|---|
-| capa (atrás) | `cape/solid_behind/forest.png` | Nila122, JaidynReiman | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-curly-hair-elven-ears-white-cape-with-blue-trim-and-more |
-| espada (atrás) | `weapon/sword/arming/universal/bg/steel.png` | ElizaWy; walk and down by JaidynReiman | OGA-BY 3.0 | https://github.com/ElizaWy/LPC/tree/main/Characters/Props/Sword%2001%20-%20Arming%20Sword |
-| corpo | `body/bodies/male/light.png` | bluecarrot16, Benjamin K. Smith (BenCreating), Evert, Eliza Wyatt (ElizaWy), TheraHedwig, MuffinElZangano, Durrani, Johannes Sj?lund (wulax), Stephen Challener (Redshrike) | CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles |
-| calça | `legs/pants/male/brown.png` | bluecarrot16, JaidynReiman, ElizaWy, Matthew Krohn (makrohn), Johannes Sjölund (wulax) | OGA-BY 3.0, GPL 3.0, CC-BY-SA 3.0 | https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles |
-| botas | `feet/boots/male/brown.png` | bluecarrot16, Nila122 | OGA-BY 3.0, CC-BY-SA 3.0, GPL 2.0, GPL 3.0 | https://opengameart.org/content/lpc-clothes-and-hair |
-| camisa | `torso/clothes/longsleeve/longsleeve/male/white.png` | JaidynReiman, Johannes Sjölund (wulax) | CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
-| colete de couro | `torso/armour/leather/male/brown.png` | Johannes Sjölund (wulax) | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
-| ombreiras | `shoulders/leather/male/brown.png` | Matthew Krohn (makrohn), Johannes Sjölund (wulax) | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
-| cinto | `torso/waist/belt_leather/male/brown.png` | bluecarrot16, Johannes Sjölund (wulax), Matthew Krohn (makrohn) | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-combat-armor-for-women |
-| capa (frente) | `cape/solid/female/forest.png` | bluecarrot16, JaidynReiman | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-curly-hair-elven-ears-white-cape-with-blue-trim-and-more |
-| laço da capa | `neck/capetie/male/brown.png` | bluecarrot16, JaidynReiman | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-curly-hair-elven-ears-white-cape-with-blue-trim-and-more |
-| cabeça | `head/heads/human/male/light.png` | bluecarrot16, Benjamin K. Smith (BenCreating), Stephen Challener (Redshrike) | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles |
-| olhos | `eyes/human/adult/green.png` | JaidynReiman, Matthew Krohn (makrohn), Stephen Challener (Redshrike) | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles |
-| nariz | `head/nose/straight/adult/light.png` | Thane Brimhall (pennomi), Matthew Krohn (makrohn) | GPL 3.0, CC-BY-SA 3.0 | https://opengameart.org/content/lpc-base-character-expressions |
-| sobrancelhas | `eyes/eyebrows/thick/adult/dark_brown.png` | ElizaWy | OGA-BY 3.0 | https://github.com/ElizaWy/LPC/tree/main/Characters/Hair |
-| cabelo | `hair/messy2/male/dark_brown.png` | Manuel Riecke (MrBeast) | CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles |
-| espada (frente) | `weapon/sword/arming/universal/fg/steel.png` | ElizaWy; walk and down by JaidynReiman | OGA-BY 3.0 | https://github.com/ElizaWy/LPC/tree/main/Characters/Props/Sword%2001%20-%20Arming%20Sword |
-| espada no golpe (atrás) | `weapon/sword/arming/attack_slash/bg/steel.png` | ElizaWy; walk and down by JaidynReiman | OGA-BY 3.0 | https://github.com/ElizaWy/LPC/tree/main/Characters/Props/Sword%2001%20-%20Arming%20Sword |
-| espada no golpe (frente) | `weapon/sword/arming/attack_slash/fg/steel.png` | ElizaWy; walk and down by JaidynReiman | OGA-BY 3.0 | https://github.com/ElizaWy/LPC/tree/main/Characters/Props/Sword%2001%20-%20Arming%20Sword |
+| Peça | Onde | Arquivo LPC | Autores | Licenças | Fonte |
+|---|---|---|---|---|---|
+| capa (atrás) | base | `cape/solid_behind/forest.png` | Nila122, JaidynReiman | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-curly-hair-elven-ears-white-cape-with-blue-trim-and-more |
+| corpo | base | `body/bodies/male/light.png` | bluecarrot16, Benjamin K. Smith (BenCreating), Evert, Eliza Wyatt (ElizaWy), TheraHedwig, MuffinElZangano, Durrani, Johannes Sj?lund (wulax), Stephen Challener (Redshrike) | CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles |
+| calça | base | `legs/pants/male/brown.png` | bluecarrot16, JaidynReiman, ElizaWy, Matthew Krohn (makrohn), Johannes Sjölund (wulax) | OGA-BY 3.0, GPL 3.0, CC-BY-SA 3.0 | https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles |
+| botas | base | `feet/boots/male/brown.png` | bluecarrot16, Nila122 | OGA-BY 3.0, CC-BY-SA 3.0, GPL 2.0, GPL 3.0 | https://opengameart.org/content/lpc-clothes-and-hair |
+| camisa | base | `torso/clothes/longsleeve/longsleeve/male/white.png` | JaidynReiman, Johannes Sjölund (wulax) | CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
+| colete de couro | base | `torso/armour/leather/male/brown.png` | Johannes Sjölund (wulax) | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
+| ombreiras | base | `shoulders/leather/male/brown.png` | Matthew Krohn (makrohn), Johannes Sjölund (wulax) | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
+| cinto | base | `torso/waist/belt_leather/male/brown.png` | bluecarrot16, Johannes Sjölund (wulax), Matthew Krohn (makrohn) | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-combat-armor-for-women |
+| capa (frente) | base | `cape/solid/female/forest.png` | bluecarrot16, JaidynReiman | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-curly-hair-elven-ears-white-cape-with-blue-trim-and-more |
+| laço da capa | base | `neck/capetie/male/brown.png` | bluecarrot16, JaidynReiman | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-curly-hair-elven-ears-white-cape-with-blue-trim-and-more |
+| cabeça | base | `head/heads/human/male/light.png` | bluecarrot16, Benjamin K. Smith (BenCreating), Stephen Challener (Redshrike) | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles |
+| olhos | base | `eyes/human/adult/green.png` | JaidynReiman, Matthew Krohn (makrohn), Stephen Challener (Redshrike) | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles |
+| nariz | base | `head/nose/straight/adult/light.png` | Thane Brimhall (pennomi), Matthew Krohn (makrohn) | GPL 3.0, CC-BY-SA 3.0 | https://opengameart.org/content/lpc-base-character-expressions |
+| sobrancelhas | base | `eyes/eyebrows/thick/adult/dark_brown.png` | ElizaWy | OGA-BY 3.0 | https://github.com/ElizaWy/LPC/tree/main/Characters/Hair |
+| cabelo | base | `hair/messy2/male/dark_brown.png` | Manuel Riecke (MrBeast) | CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles |
+| espada (atrás) | Espada | `weapon/sword/arming/universal/bg/steel.png` | ElizaWy; walk and down by JaidynReiman | OGA-BY 3.0 | https://github.com/ElizaWy/LPC/tree/main/Characters/Props/Sword%2001%20-%20Arming%20Sword |
+| espada (frente) | Espada | `weapon/sword/arming/universal/fg/steel.png` | ElizaWy; walk and down by JaidynReiman | OGA-BY 3.0 | https://github.com/ElizaWy/LPC/tree/main/Characters/Props/Sword%2001%20-%20Arming%20Sword |
+| espada no golpe (atrás) | Espada | `weapon/sword/arming/attack_slash/bg/steel.png` | ElizaWy; walk and down by JaidynReiman | OGA-BY 3.0 | https://github.com/ElizaWy/LPC/tree/main/Characters/Props/Sword%2001%20-%20Arming%20Sword |
+| espada no golpe (frente) | Espada | `weapon/sword/arming/attack_slash/fg/steel.png` | ElizaWy; walk and down by JaidynReiman | OGA-BY 3.0 | https://github.com/ElizaWy/LPC/tree/main/Characters/Props/Sword%2001%20-%20Arming%20Sword |
+| montante (atrás) | Montante | `weapon/sword/longsword/universal_behind/longsword.png` | Johannes Sjölund (wulax), bluecarrot16 | OGA-BY 3.0, CC-BY-SA 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
+| montante | Montante | `weapon/sword/longsword/longsword.png` | Johannes Sjölund (wulax), bluecarrot16 | OGA-BY 3.0, CC-BY-SA 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
+| montante no golpe (atrás) | Montante | `weapon/sword/longsword/attack_slash/behind/longsword.png` | Johannes Sjölund (wulax), bluecarrot16 | OGA-BY 3.0, CC-BY-SA 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
+| montante no golpe | Montante | `weapon/sword/longsword/attack_slash/longsword.png` | Johannes Sjölund (wulax), bluecarrot16 | OGA-BY 3.0, CC-BY-SA 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
+| montante no golpe reverso (atrás) | Montante | `weapon/sword/longsword/attack_slash_reverse/behind/longsword.png` | Johannes Sjölund (wulax), bluecarrot16 | OGA-BY 3.0, CC-BY-SA 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
+| montante no golpe reverso | Montante | `weapon/sword/longsword/attack_slash_reverse/longsword.png` | Johannes Sjölund (wulax), bluecarrot16 | OGA-BY 3.0, CC-BY-SA 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
+| montante na estocada (atrás) | Montante | `weapon/sword/longsword/attack_thrust/behind/longsword.png` | Johannes Sjölund (wulax), bluecarrot16 | OGA-BY 3.0, CC-BY-SA 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
+| montante na estocada | Montante | `weapon/sword/longsword/attack_thrust/longsword.png` | Johannes Sjölund (wulax), bluecarrot16 | OGA-BY 3.0, CC-BY-SA 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
+| cajado (atrás) | Cajado | `weapon/magic/gnarled/universal/background/gnarled.png` | bluecarrot16 | OGA-BY 3.0+, GPL 3.0, CC-BY 4.0 | https://opengameart.org/content/lpc-more-weapons |
+| cajado | Cajado | `weapon/magic/gnarled/universal/foreground/gnarled.png` | bluecarrot16 | OGA-BY 3.0+, GPL 3.0, CC-BY 4.0 | https://opengameart.org/content/lpc-more-weapons |
+| cajado no ataque (atrás) | Cajado | `weapon/magic/gnarled/thrust/background/gnarled.png` | bluecarrot16 | OGA-BY 3.0+, GPL 3.0, CC-BY 4.0 | https://opengameart.org/content/lpc-more-weapons |
+| cajado no ataque | Cajado | `weapon/magic/gnarled/thrust/foreground/gnarled.png` | bluecarrot16 | OGA-BY 3.0+, GPL 3.0, CC-BY 4.0 | https://opengameart.org/content/lpc-more-weapons |
+| aljava | Arco | `quiver/quiver.png` | Johannes Sjölund (wulax) | CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
+| arco (atrás) | Arco | `weapon/ranged/bow/normal/universal/background/normal.png` |  walk animations by pvigier |  split into layers and tweaked for v3 character bases by bluecarrot16. pvigier has agreed to license this sheet as OGA-BY 3.0+. | Johannes Sjölund (wulax), Pierre Vigier (pvigier) |
+| arco | Arco | `weapon/ranged/bow/normal/universal/foreground/normal.png` |  walk animations by pvigier |  split into layers and tweaked for v3 character bases by bluecarrot16. pvigier has agreed to license this sheet as OGA-BY 3.0+. | Johannes Sjölund (wulax), Pierre Vigier (pvigier) |
+| flecha | Arco | `weapon/ranged/bow/arrow/arrow.png` | Johannes Sjölund (wulax) | OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0 | https://opengameart.org/content/lpc-medieval-fantasy-character-sprites |
+| arco andando (atrás) | Arco | `weapon/ranged/bow/normal/walk/background/normal.png` |  walk animations by pvigier |  split into layers and tweaked for v3 character bases by bluecarrot16. pvigier has agreed to license this sheet as OGA-BY 3.0+. | Johannes Sjölund (wulax), Pierre Vigier (pvigier) |
+| arco andando | Arco | `weapon/ranged/bow/normal/walk/foreground/normal.png` |  walk animations by pvigier |  split into layers and tweaked for v3 character bases by bluecarrot16. pvigier has agreed to license this sheet as OGA-BY 3.0+. | Johannes Sjölund (wulax), Pierre Vigier (pvigier) |
 
 ## Código e bibliotecas
 

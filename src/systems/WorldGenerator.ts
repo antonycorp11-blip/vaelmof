@@ -32,11 +32,14 @@ export const BIOMES: BiomeInfo[] = [
   { name: 'Dustland', tint: 0xfff0cc, dark: 0, map: 0xe2b86e },
 ];
 
-export const WORLD_W = 320;
-export const WORLD_H = 320;
-/** Posição do vale original (120×120) dentro do mundo. */
-const OX = 100;
-const OY = 105;
+export const WORLD_W = 480;
+export const WORLD_H = 480;
+/** Escala do traçado em relação ao primeiro mundo (320×320). */
+const K = WORLD_W / 320;
+const k = (v: number) => Math.round(v * K);
+/** Posição do vale original (120×120) dentro do mundo: centro-norte. */
+const OX = Math.round(WORLD_W / 2 - 60);
+const OY = k(105);
 
 export interface WorldData extends MapData {
   biome: Uint8Array;
@@ -78,15 +81,15 @@ export function generateWorld(seed: number): WorldData {
   const biomeAt = (x: number, y: number): Biome => {
     if (inVale(x, y)) return Biome.VALE;
     const warp = (sx: number, sd: number) =>
-      (fbm(x * 0.012 + sx, y * 0.012, seed + sd, 3) - 0.5) * 150 + (fbm(x * 0.05 + sx, y * 0.05, seed + sd + 7, 2) - 0.5) * 22;
+      (fbm((x * 0.012) / K + sx, (y * 0.012) / K, seed + sd, 3) - 0.5) * 150 * K + (fbm(x * 0.05 + sx, y * 0.05, seed + sd + 7, 2) - 0.5) * 22;
     const wx = warp(0, 501);
     const wy = warp(50, 502);
     const u = x + wx;
     const v = y + wy;
-    if (v < 92) return Biome.SNOW;
-    if (u > 236 && v < 218) return Biome.BLOCK;
-    if (u > 218 && v >= 218) return Biome.BLACK;
-    if (v > 240) return Biome.DUST;
+    if (v < k(92)) return Biome.SNOW;
+    if (u > k(236) && v < k(218)) return Biome.BLOCK;
+    if (u > k(218) && v >= k(218)) return Biome.BLACK;
+    if (v > k(240)) return Biome.DUST;
     return Biome.GREEN;
   };
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) biome[idx(x, y)] = biomeAt(x, y);
@@ -165,31 +168,33 @@ export function generateWorld(seed: number): WorldData {
   const valley = generateMap(seed);
   let serroX = OX + 60;
   for (let x = 0; x < MAP_W; x++) if (valley.water[(MAP_H - 1) * MAP_W + x] >= 0) serroX = OX + x;
-  river([[serroX, OY + MAP_H], [serroX - 6, 250], [serroX + 8, 276], [serroX + 2, 292]], 2);
-  lake(serroX + 2, 296, 8, 5);
+  river([[serroX, OY + MAP_H], [serroX - 6, k(250)], [serroX + 8, k(276)], [serroX + 2, k(292)]], 2);
+  lake(serroX + 2, k(296), 9, 6);
   // grande rio de Greenland: desce das montanhas de neve pelo oeste, com lagoas
-  river([[46, 70], [38, 130], [54, 190], [42, 250], [58, 300]], 2);
-  for (let k = 0; k < 9; k++) {
-    const cx = 10 + rand() * 85;
-    const cy = 100 + rand() * 140;
+  river([[k(46), k(70)], [k(38), k(130)], [k(54), k(190)], [k(42), k(250)], [k(58), k(300)]], 3);
+  // segundo rio de Greenland, a leste do vale, descendo para o deserto
+  river([[OX + MAP_W + 18, k(98)], [OX + MAP_W + 26, k(160)], [OX + MAP_W + 14, k(215)], [OX + MAP_W + 22, k(250)]], 2);
+  for (let n = 0; n < 20; n++) {
+    const cx = 10 + rand() * k(95);
+    const cy = k(100) + rand() * k(140);
     if (biome[idx(Math.round(cx), Math.round(cy))] === Biome.GREEN) lake(cx, cy, 4 + rand() * 6, 3 + rand() * 4);
   }
   // lagos congelados no Snowland
-  for (let k = 0; k < 7; k++) lake(15 + rand() * 290, 12 + rand() * 60, 4 + rand() * 7, 3 + rand() * 4);
+  for (let n = 0; n < 16; n++) lake(15 + rand() * k(290), 12 + rand() * k(60), 4 + rand() * 8, 3 + rand() * 5);
   // poucos rios no Blockland (um riacho estreito)
-  river([[300, 108], [284, 150], [292, 200]], 1);
+  river([[k(300), k(108)], [k(284), k(150)], [k(292), k(200)]], 1);
   // poças do vazio no Blackland
-  for (let k = 0; k < 6; k++) lake(240 + rand() * 70, 236 + rand() * 75, 2 + rand() * 4, 2 + rand() * 3);
+  for (let n = 0; n < 14; n++) lake(k(240) + rand() * k(70), k(236) + rand() * k(75), 2 + rand() * 4, 2 + rand() * 3);
   // oásis no Dustland
   const oases: [number, number][] = [];
-  for (let k = 0; k < 4; k++) {
-    const cx = 20 + rand() * 190;
-    const cy = 258 + rand() * 50;
+  for (let n = 0; n < 9; n++) {
+    const cx = 20 + rand() * k(190);
+    const cy = k(258) + rand() * k(50);
     if (biome[idx(Math.round(cx), Math.round(cy))] !== Biome.DUST) continue;
     lake(cx, cy, 3 + rand() * 2, 2 + rand() * 2);
     oases.push([cx, cy]);
   }
-  oases.push([serroX + 2, 296]);
+  oases.push([serroX + 2, k(296)]);
   // margens: areia em Greenland, grama de oásis no deserto
   const isWater = (x: number, y: number) => inside(x, y) && water[idx(x, y)] >= 0;
   for (let y = 0; y < H; y++)
@@ -206,32 +211,40 @@ export function generateWorld(seed: number): WorldData {
     }
 
   // ------------------------------------------------------------ montanhas
-  // cristas (ruído "ridged"); a fileira de baixo de cada maciço vira paredão
-  const ridge = (x: number, y: number, s: number) => 1 - Math.abs(fbm(x * 0.035, y * 0.035, seed + s, 4) * 2 - 1);
+  // maciços (manchas grandes de ruído); a borda de baixo de cada um vira paredão
+  const massif = (x: number, y: number, s: number) => fbm((x * 0.028) / Math.sqrt(K), (y * 0.028) / Math.sqrt(K), seed + s, 4);
   const mountain = new Uint8Array(N);
   const MOUNT: Partial<Record<Biome, [number, number, number]>> = {
-    [Biome.SNOW]: [0.86, T.SNOW_PEAK, T.SNOW_CLIFF],
-    [Biome.BLOCK]: [0.8, T.ROCK_PEAK, T.ROCK_CLIFF],
-    [Biome.BLACK]: [0.88, T.BLACK_PEAK, T.BLACK_CLIFF],
-    [Biome.DUST]: [0.9, T.MESA_PEAK, T.MESA_CLIFF],
-    [Biome.GREEN]: [0.955, T.ROCK_PEAK, T.ROCK_CLIFF],
+    [Biome.SNOW]: [0.63, T.SNOW_PEAK, T.SNOW_CLIFF],
+    [Biome.BLOCK]: [0.6, T.ROCK_PEAK, T.ROCK_CLIFF],
+    [Biome.BLACK]: [0.66, T.BLACK_PEAK, T.BLACK_CLIFF],
+    [Biome.DUST]: [0.67, T.MESA_PEAK, T.MESA_CLIFF],
+    [Biome.GREEN]: [0.7, T.ROCK_PEAK, T.ROCK_CLIFF],
   };
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       const i = idx(x, y);
       const m = MOUNT[biome[i] as Biome];
       if (!m || water[i] >= 0 || ground[i] === T.VOID || ground[i] === T.ICE || ground[i] === T.ICE_CRACK) continue;
-      // longe do vale e das bordas de água
-      if (x > OX - 6 && y > OY - 6 && x < OX + MAP_W + 6 && y < OY + MAP_H + 6) continue;
-      if (ridge(x, y, 531 + (biome[i] as number)) > m[0]) mountain[i] = 1;
+      // longe do vale
+      if (x > OX - 8 && y > OY - 8 && x < OX + MAP_W + 8 && y < OY + MAP_H + 8) continue;
+      if (massif(x, y, 531) > m[0] + (valueNoise(x * 0.5, y * 0.5, seed + 537) - 0.5) * 0.02) mountain[i] = 1;
+    }
+  // tira pontas de 1 tile (fica só maciço de verdade)
+  for (let y = 1; y < H - 1; y++)
+    for (let x = 1; x < W - 1; x++) {
+      const i = idx(x, y);
+      if (mountain[i] && mountain[i - 1] + mountain[i + 1] + mountain[i - W] + mountain[i + W] < 2) mountain[i] = 0;
     }
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       const i = idx(x, y);
       if (!mountain[i]) continue;
       const m = MOUNT[biome[i] as Biome]!;
+      // paredão de 2 tiles na borda de baixo de cada maciço; o resto é o cume
       const below = y + 1 < H && mountain[idx(x, y + 1)];
-      cliffs[i] = below ? m[1] : m[2];
+      const below2 = y + 2 < H && mountain[idx(x, y + 2)];
+      cliffs[i] = below && below2 ? m[1] : m[2];
       collision[i] = 1;
       occupied[i] = 1;
     }
@@ -422,30 +435,44 @@ export function generateWorld(seed: number): WorldData {
       placed++;
     }
   };
-  place('deer', 14, Biome.GREEN);
-  place('slime', 10, Biome.GREEN);
-  place('wolf', 6, Biome.GREEN);
-  place('bandit', 4, Biome.GREEN);
-  place('wolf', 12, Biome.SNOW, 'snow');
-  place('deer', 5, Biome.SNOW, 'snow');
-  place('wraith', 3, Biome.SNOW);
-  place('slime', 12, Biome.BLOCK, 'stone');
-  place('bandit', 5, Biome.BLOCK);
-  place('wraith', 14, Biome.BLACK);
-  place('slime', 6, Biome.BLACK, 'void');
-  place('bandit', 8, Biome.DUST);
-  place('slime', 8, Biome.DUST, 'sand');
-  place('wolf', 4, Biome.DUST, 'sand');
+  // Greenland: muita vida
+  place('deer', 30, Biome.GREEN);
+  place('fox', 24, Biome.GREEN);
+  place('boar', 22, Biome.GREEN);
+  place('slime', 18, Biome.GREEN);
+  place('wolf', 12, Biome.GREEN);
+  place('bandit', 8, Biome.GREEN);
+  // Snowland
+  place('hare', 26, Biome.SNOW);
+  place('deer', 10, Biome.SNOW, 'snow');
+  place('bear', 16, Biome.SNOW);
+  place('wolf', 22, Biome.SNOW, 'snow');
+  place('wraith', 6, Biome.SNOW);
+  // Blockland
+  place('goat', 22, Biome.BLOCK);
+  place('golem', 18, Biome.BLOCK);
+  place('slime', 16, Biome.BLOCK, 'stone');
+  place('bandit', 10, Biome.BLOCK);
+  // Blackland
+  place('spider', 26, Biome.BLACK);
+  place('wraith', 24, Biome.BLACK);
+  place('slime', 10, Biome.BLACK, 'void');
+  // Dustland
+  place('lizard', 24, Biome.DUST);
+  place('scorpion', 24, Biome.DUST);
+  place('bandit', 14, Biome.DUST);
+  place('slime', 10, Biome.DUST, 'sand');
+  place('wolf', 8, Biome.DUST, 'sand');
 
   // ------------------------------------------------------------ pontos de interesse (debug)
   const poi: WorldData['poi'] = [];
   const centers: [number, number][] = [
     [OX + 60, OY + 80], // vale (Brumavale fica perto)
-    [40, 170],
-    [150, 40],
-    [285, 160],
-    [270, 275],
-    [130, 285],
+    [k(40), k(170)],
+    [k(150), k(40)],
+    [k(285), k(160)],
+    [k(270), k(275)],
+    [k(130), k(285)],
   ];
   for (const [cx, cy] of centers) {
     let best: { x: number; y: number } | null = null;

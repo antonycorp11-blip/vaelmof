@@ -1,0 +1,3 @@
+// Gerado por scripts/hero/build.py — não editar à mão.
+export const HERO_SHEETS = {"sword": {"name": "Espada", "class": "Guerreiro", "big": {"slash": {"frame": 128, "frames": 6, "footY": 93}}}, "greatsword": {"name": "Montante", "class": "Guerreiro pesado", "big": {"slash": {"frame": 192, "frames": 6, "footY": 125}, "rslash": {"frame": 192, "frames": 6, "footY": 125}, "thrust": {"frame": 192, "frames": 8, "footY": 125}}}, "staff": {"name": "Cajado", "class": "Mago", "big": {"thrust": {"frame": 192, "frames": 8, "footY": 125}}}, "bow": {"name": "Arco", "class": "Arqueiro", "big": {"walk": {"frame": 128, "frames": 8, "footY": 93}}}} as const;
+export type WeaponId = keyof typeof HERO_SHEETS;

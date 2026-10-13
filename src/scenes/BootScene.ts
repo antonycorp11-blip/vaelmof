@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { HERO, HERO_SLASH, heroFrame } from '../entities/heroSheet';
+import { HERO, heroFrame } from '../entities/heroSheet';
+import { HERO_SHEETS, type WeaponId } from '../entities/heroSheets';
 import { WRAITH_SHEET } from '../entities/wraithSheet';
 
 const S = 'assets/sprites/';
@@ -22,10 +23,19 @@ export class BootScene extends Phaser.Scene {
     this.load.image('tiles', 'assets/tilesets/vaelmor-tiles.png');
     const sheet = (key: string, file: string, w = 16, h = 16) => this.load.spritesheet(key, S + file, { frameWidth: w, frameHeight: h });
     // Teren: camadas LPC montadas por scripts/hero; Errante: scripts/wraith
-    sheet('hero', 'hero.png', HERO.frame, HERO.frame);
-    sheet('hero-slash', 'hero-slash.png', HERO_SLASH.frame, HERO_SLASH.frame);
+    // uma folha por arma (corpo + arma) e as animações grandes de cada uma
+    for (const [id, w] of Object.entries(HERO_SHEETS)) {
+      sheet(`hero-${id}`, `hero-${id}.png`, HERO.frame, HERO.frame);
+      for (const [anim, b] of Object.entries(w.big)) sheet(`hero-${id}-${anim}`, `hero-${id}-${anim}.png`, b.frame, b.frame);
+    }
+    sheet('arrow', 'arrow.png');
+    sheet('bolt', 'bolt.png');
+    sheet('items', 'items.png');
     sheet('wraith', 'wraith.png', WRAITH_SHEET.frameW, WRAITH_SHEET.frameH);
     sheet('bandit', 'bandit.png', 48, 48);
+    // criaturas dos biomas
+    for (const k of ['boar', 'spider', 'scorpion', 'fox', 'hare', 'goat', 'lizard']) sheet(k, `${k}.png`);
+    for (const k of ['bear', 'golem']) sheet(k, `${k}.png`, 24, 24);
     sheet('slime', 'slime.png');
     sheet('wolf', 'wolf.png');
     sheet('sheep', 'sheep.png');
@@ -47,12 +57,21 @@ export class BootScene extends Phaser.Scene {
     const a = this.anims;
     const range = (key: string, start: number, end: number) => a.generateFrameNumbers(key, { start, end });
     const frames = (key: string, list: number[]) => a.generateFrameNumbers(key, { frames: list });
-    // Teren: andar = quadros 1–8 da linha de caminhada LPC (o 0 é de pé)
-    for (let d = 0; d < 4; d++) {
-      const walk = [1, 2, 3, 4, 5, 6, 7, 8].map((c) => heroFrame(HERO.rows.walk, d, c));
-      a.create({ key: `hero-walk-${d}`, frames: frames('hero', walk), frameRate: 24, repeat: -1 });
+    // Teren: andar = quadros 1–8 da linha de caminhada LPC (o 0 é de pé), para cada arma
+    for (const id of Object.keys(HERO_SHEETS) as WeaponId[]) {
+      const key = `hero-${id}`;
+      for (let d = 0; d < 4; d++) {
+        const walk = [1, 2, 3, 4, 5, 6, 7, 8].map((c) => heroFrame(HERO.rows.walk, d, c));
+        a.create({ key: `${key}-walk-${d}`, frames: frames(key, walk), frameRate: 24, repeat: -1 });
+      }
+      a.create({ key: `${key}-fall`, frames: range(key, HERO.rows.fall * HERO.cols, HERO.rows.fall * HERO.cols + 5), frameRate: 10, repeat: 0 });
     }
-    a.create({ key: 'hero-fall', frames: range('hero', HERO.rows.fall * HERO.cols, HERO.rows.fall * HERO.cols + 5), frameRate: 10, repeat: 0 });
+    // arco: andar com o arco usa quadros de 128 (o arco não cabe no de 64)
+    const bw = HERO_SHEETS.bow.big.walk;
+    const dirRow = [2, 1, 3, 0];
+    for (let d = 0; d < 4; d++)
+      a.create({ key: `hero-bow-bigwalk-${d}`, frames: range('hero-bow-walk', dirRow[d] * bw.frames, dirRow[d] * bw.frames + bw.frames - 1), frameRate: 24, repeat: -1 });
+    a.create({ key: 'bolt-fly', frames: range('bolt', 0, 1), frameRate: 12, repeat: -1 });
     // Errante: por direção, 12 quadros flutuando + 12 em movimento
     const wc = WRAITH_SHEET.cols;
     for (let d = 0; d < 4; d++) {
@@ -68,6 +87,11 @@ export class BootScene extends Phaser.Scene {
         frames: [11, 12, 13, 14].map((c, i) => ({ key: 'bandit', frame: d * br + c, duration: [40, 70, 80, 110][i] })),
         repeat: 0,
       });
+    }
+    for (const k of ['boar', 'spider', 'scorpion', 'bear', 'golem']) a.create({ key: `${k}-walk`, frames: range(k, 0, 1), frameRate: k === 'golem' || k === 'bear' ? 4 : 7, repeat: -1 });
+    for (const k of ['fox', 'hare', 'goat', 'lizard']) {
+      a.create({ key: `${k}-walk`, frames: range(k, 0, 1), frameRate: 5, repeat: -1 });
+      a.create({ key: `${k}-run`, frames: frames(k, [3, 1, 3, 0]), frameRate: 12, repeat: -1 });
     }
     a.create({ key: 'slime-hop', frames: frames('slime', [0, 1, 2, 3, 2, 1]), frameRate: 9, repeat: -1 });
     a.create({ key: 'wolf-walk', frames: range('wolf', 0, 1), frameRate: 6, repeat: -1 });

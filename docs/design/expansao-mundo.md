@@ -185,6 +185,11 @@ Na transição entre biomas, o clima faz crossfade pela posição do jogador.
 
 ## 2. Mapa e coleta
 
+> **Implementado em parte**: coleta de todos os recursos do mapa, por região
+> (`src/systems/Gathering.ts`, itens em `src/data/items.ts`), com esgotamento e
+> volta. Ainda não: tiers, níveis de coleta, ferramentas e o mapa com névoa
+> (o mapa do debug mostra o mundo inteiro).
+
 ### 2.1 Mapa
 
 - **Minimapa** circular no canto superior direito (sem cobrir botões):
@@ -240,6 +245,10 @@ depois); a coleta usa as mãos de Teren com um efeito de "puxar" etéreo.
 ---
 
 ## 3. Inventário (estilo Albion Online, sem slots de equipamento)
+
+> **Implementado** (base): mochila de 48 espaços, pilhas de 999 e peso com
+> lentidão acima da carga (`src/systems/Inventory.ts`, `src/ui/InventoryPanel.ts`).
+> Ainda não: arrastar/dividir/descartar pilhas e tiers.
 
 ### 3.1 Regras
 

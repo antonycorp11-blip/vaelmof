@@ -12,6 +12,8 @@ export abstract class Enemy extends Creature {
   maxHp: number;
   hp: number;
   dead = false;
+  /** 0..1: quanto o knockback dos golpes empurra (bichos pesados resistem). */
+  knockbackScale = 1;
   /** Dano causado ao encostar no jogador (0 = não causa). */
   contactDamage = 0;
   /** Altura (px acima de y) da barra de vida e do número de dano. */
@@ -43,7 +45,7 @@ export abstract class Enemy extends Creature {
     this.flashWhite();
     this.scene.fx.damageText(this.x, this.y - this.barOffset + 2, amount);
     const a = Phaser.Math.Angle.Between(fromX, fromY, this.fx, this.fy);
-    this.body.setVelocity(Math.cos(a) * knockback, Math.sin(a) * knockback);
+    this.body.setVelocity(Math.cos(a) * knockback * this.knockbackScale, Math.sin(a) * knockback * this.knockbackScale);
     this.stunUntil = this.scene.time.now + 220;
     if (this.hp <= 0) this.die();
   }

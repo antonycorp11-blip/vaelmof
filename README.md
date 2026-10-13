@@ -34,10 +34,13 @@ preciso rodar se você alterar `scripts/generate-assets.mjs`).
 
 | Ação | Toque | Teclado |
 |---|---|---|
-| Mover (8 direções) | joystick flutuante na metade esquerda da tela | WASD ou setas |
-| Golpe (arco) | botão **GOLPE** (segurar repete) | J (segurar repete) |
-| Esquiva (rolagem) | botão **ESQUIVA** | K |
-| Chama (projétil em área) | botão **CHAMA** | L |
+| Mover | joystick flutuante na metade esquerda da tela (analógico) | WASD ou setas |
+| Ataque da arma (golpe / raio / flecha) | botão grande (segurar repete) | J (segurar repete) |
+| Esquiva | botão **ESQUIVA** | K |
+| Habilidade da arma | terceiro botão (muda com a arma) | L |
+| Coletar recurso | botão **COLETAR** (aparece perto de árvore, pedra, cristal…; segurar repete) | E |
+| Trocar de arma | botão de classe na barra do topo | Q (ou 1–4) |
+| Mochila | botão **MOCHILA** na barra do topo | — |
 
 Os botões aparecem em aparelhos com toque (ou ao primeiro toque na tela).
 Em desktop sem toque, use `?touch=1` para exibi-los.
@@ -60,31 +63,40 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 ## O que foi implementado
 
 ### Mundo e biomas (`src/systems/WorldGenerator.ts`)
-- Mundo de **320×320 tiles** (≈ 5.100 px de lado) com **cinco biomas** em volta
+- Mundo de **480×480 tiles** (≈ 7.700 px de lado) com **cinco biomas** em volta
   do vale original, que fica no centro-norte como o coração de Greenland.
   As fronteiras são deformadas por ruído e a luz, o clima e as partículas
-  mudam suavemente ao cruzá-las:
+  mudam suavemente ao cruzá-las. Cada bioma tem **fauna e inimigos próprios**
+  (≈ 450 criaturas no mundo):
   - **Greenland** (oeste e em volta do vale): florestas densas de carvalhos
     antigos, carvalhos, pinheiros e salgueiros, um **grande rio** descendo das
-    montanhas de neve com **lagoas** pelo caminho, samambaias, flores grandes,
+    montanhas de neve com **lagoas** pelo caminho (e um segundo rio a leste do
+    vale), samambaias, flores grandes; **javalis** (investida), raposas,
     cervos, lobos, limos e bandoleiros.
   - **Snowland** (norte): neve **constante**, luz fria e mais escura,
     **pinheiros altíssimos** nevados (copa 3×3), lagos e rios **congelados**
     (gelo andável), montanhas nevadas com paredão, pedras com neve, arbustos
-    congelados, cristais de gelo; lobos-da-neve, cervos claros e Errantes.
+    congelados, cristais de gelo; **ursos-polares** (erguem-se e esmagam o
+    chão), lebres-da-neve, lobos-da-neve, cervos claros e Errantes.
   - **Blockland** (leste): chão de pedra, cascalho e capim seco, **blocos de
     pedra** em aglomerados, muitas montanhas, quase sem vegetação, um único
-    riacho, veios de minério; limos de pedra e bandoleiros.
+    riacho, veios de minério; **golens de pedra** (lentos, resistentes ao
+    empurrão, esmagam), cabras-montesas, limos de pedra e bandoleiros.
   - **Blackland** (sudeste): terra arrasada de cinzas e obsidiana, muito
     escura, rachaduras em brasa, **cristais** roxos e ciano que **brilham**,
     árvores de cristal e árvores mortas, fungos luminosos, espinheiros, ossos,
-    poças do vazio; cinzas caindo e brasas subindo; muitos Errantes.
+    poças do vazio; cinzas caindo e brasas subindo; **aranhas de cristal**
+    (saltam no herói), muitos Errantes e limos do vazio.
   - **Dustland** (sul): dunas, arenito, mesas com paredões em camadas,
     cactos, arbustos secos, crânios, vento de areia e **oásis** com palmeiras
-    — o Rio Serro atravessa o deserto e morre num oásis; bandoleiros, limos de
-    areia e lobos do deserto.
-- Montanhas: cristas de ruído viram maciços intransponíveis; a fileira de
-  baixo de cada maciço é o paredão (arte própria por bioma).
+    — o Rio Serro atravessa o deserto e morre num oásis; **escorpiões**
+    (ferroada rápida), lagartos, bandoleiros, limos de areia e lobos do deserto.
+- Montanhas: manchas grandes de ruído viram **maciços** intransponíveis; as
+  duas fileiras de baixo de cada maciço são o paredão (arte própria por bioma).
+- Só uma **janela** de 72×48 tiles em volta da câmera vira tilemap; o mundo
+  inteiro fica em arrays compactos (`src/systems/TileWindow.ts`) e a colisão é
+  resolvida direto nesses arrays (`src/systems/TileCollision.ts`). Assim o
+  mundo pode crescer sem criar milhões de objetos no celular.
 - Arte de todos os biomas gerada por código em `scripts/generate-assets.mjs`
   (linhas 8–15 do tileset), no mesmo estilo do resto do mapa.
 
@@ -114,7 +126,21 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   cogumelos, tocos e placas como decoração.
 - Ao entrar numa vila, perto da queda ou num bioma novo, o nome aparece na tela.
 
-### Debug (botão **DEBUG** no canto superior esquerdo)
+### Coleta e mochila (`src/systems/Gathering.ts`, `src/systems/Inventory.ts`)
+- **Todo recurso do mapa é coletável**: árvores, pedras, blocos, minério,
+  cristais, gelo, cactos, arbustos (frutas e fibra). Perto de um, aparece o
+  botão **COLETAR** e um marcador no recurso; cada golpe rende um pouco.
+- O item depende do tipo **e da região**: *Madeira de Greenland*, *Madeira
+  de Snowland* (pinheiro nevado), *Pedra de Blockland*, *Cristal de
+  Blackland*, *Fibra de Dustland*… (`src/data/items.ts`) — as receitas de
+  craft vão pedir o material específico de cada região.
+- Recursos se esgotam (árvore vira toco, pedra some) e voltam depois de
+  2,5 min, quando o herói estiver longe.
+- **Mochila** no estilo Albion (sem slots de equipamento por enquanto):
+  48 espaços, pilhas de 999, peso total (máx. 300 kg; acima disso Teren fica
+  mais lento).
+
+### Debug (botão **DEBUG** na barra do topo, ao centro)
 - Teleporte para o coração de cada bioma (Vale, Greenland, Snowland,
   Blockland, Blackland, Dustland).
 - **MAPA**: o mundo inteiro (1 px por tile) com a posição do herói; **tocar
@@ -148,21 +174,30 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - Movimento com **aceleração e frenagem suaves**, joystick analógico (direção
   livre) e cadência dos passos casada com a velocidade real (os pés não
   deslizam).
+- Sem tremor: câmera com **zoom inteiro** (cada pixel da arte vira N pixels da
+  tela), herói com escala que dá um número inteiro de pixels de tela por pixel
+  da arte e física em **passo variável** (telas de 120 Hz do iPhone com física
+  fixa em 60 Hz faziam o herói andar aos trancos contra a câmera).
 - Movimento em **8 direções** (o joystick é analógico na intensidade, mas a
   direção é quantizada em 45°). Velocidade em `PLAYER.speed` (`src/config.ts`).
 - **HP 10** com barra segmentada no HUD; pisca e fica invulnerável por 0,9 s
   após tomar dano. Ao morrer, volta a Brumavale com HP cheio.
-- **Golpe: combo de 3 movimentos.** Corte **descendente** (do alto para
-  baixo) → corte ascendente de volta, mais rápido → **giro de 360°** (dano 2, 2 e 3; o giro acerta tudo em volta e empurra
-  mais). Cada golpe tem a duração de cada quadro em `PLAYER.combo`, e o dano
-  sai no quadro em que a lâmina passa. Apertar de
-  novo no fim da recuperação (ou dentro de 380 ms) encadeia o próximo; depois
-  do golpe final o combo recomeça. Segurar o botão repete. A esquiva cancela
-  qualquer golpe. "Hit stop", faíscas e tremida de câmera ao acertar (mais
-  fortes no golpe final). Ajustes em `PLAYER.combo` (`src/config.ts`).
+- **A arma define a classe** (como no Albion — não há classe fixa): troque
+  de arma no botão de classe da barra do topo (ou Q / 1–4). Cada arma tem
+  folha de sprites, combo e habilidade próprios (`src/data/weapons.ts`):
+
+  | Arma | Classe | Ataque | Habilidade |
+  |---|---|---|---|
+  | Espada | Guerreiro | corte descendente → corte ascendente → giro de 360° | **Investida** (avança cortando) |
+  | Montante | Guerreiro pesado | corte → corte reverso → estocada longa (lento, dano alto, alcance maior) | **Giro** de 360° |
+  | Cajado | Mago | **Raio** arcano (projétil) | **Chama** (explode em área) |
+  | Arco | Arqueiro | **Flecha** (rápida, longe) | **Tiro triplo** (3 flechas que atravessam) |
+
+  O dano sai no quadro em que a lâmina passa ou o disparo acontece; apertar de
+  novo no fim do golpe encadeia o combo; a habilidade pode interromper o golpe.
 - **Esquiva**: disparada de 260 ms com **invulnerabilidade**, passos
   acelerados, rastro de imagens e poeira; cooldown de 650 ms.
-- **Chama**: projétil que explode ao tocar um inimigo, um obstáculo ou no fim
+- **Chama** (habilidade do cajado): projétil que explode ao tocar um inimigo, um obstáculo ou no fim
   do alcance, causando **dano 3 em área** (raio 30 px); cooldown longo de
   4 s. Atravessa a água (é possível atingir inimigos do outro lado do rio) e
   ilumina o caminho à noite.
@@ -316,16 +351,23 @@ Online ainda não foram implementados.
 
 ## Herói: arte e animação
 
-`npm run hero` (`python3 scripts/hero/build.py`, requer Pillow) junta as
-camadas listadas em `scripts/hero/recipe.json` (em ordem de profundidade `z`)
-e gera:
+`npm run hero` (`python3 scripts/hero/build.py`, requer Pillow) junta a
+**base** (corpo, rosto, cabelo, roupa, capa) com cada **arma** listada em
+`scripts/hero/recipe.json` (em ordem de profundidade `z`) e gera, por arma:
 
-- `public/assets/sprites/hero.png` — folha universal LPC, 64×64 por quadro,
+- `public/assets/sprites/hero-<arma>.png` — folha universal LPC, 64×64 por quadro,
   13 colunas: magia (linhas 0–3), estocada (4–7), andar (8–11), golpe
   (12–15), arco (16–19), queda (20); cada animação em 4 direções (cima,
   esquerda, baixo, direita).
-- `public/assets/sprites/hero-slash.png` — golpe com espada em 128×128
-  (6 colunas × 4 direções).
+- `public/assets/sprites/hero-<arma>-<anim>.png` — animações em quadros
+  grandes (128 ou 192 px: golpes da espada e do montante, estocadas do montante
+  e do cajado, o arco andando) — o corpo entra centralizado e a arma usa a arte
+  própria da animação;
+- `src/entities/heroSheets.ts` — tamanho e quantidade de quadros de cada folha.
+
+**Arma nova**: some uma entrada em `weapons` na receita (camadas e animações
+grandes), rode `npm run hero` e descreva golpes e habilidade em
+`src/data/weapons.ts`.
 
 **Trocar uma peça**: baixe a camada do gerador LPC
 (https://github.com/sanderfrenken/Universal-LPC-Spritesheet-Character-Generator,
@@ -443,9 +485,12 @@ src/
   config.ts               constantes ajustáveis e parâmetros de URL
   pwa.ts                  service worker, trava de orientação, gestos
   scenes/                 BootScene (carga/animações), WorldScene (mundo), UIScene (HUD + controles)
-  entities/               Player (+ heroSheet), Slime, Wolf, Bandit, Wraith, Sheep, Deer, Bird (+ Creature, Enemy, Animal, Flame)
-  systems/                WorldGenerator (biomas), MapGenerator (vale), BiomeFx, DayNightSystem, WeatherSystem (+ Tiles, Noise)
-  ui/                     DebugPanel (teleporte, mapa, voo)
+  entities/               Player (+ heroSheet/heroSheets), Beast (inimigos dos biomas), Critters (fauna dos biomas),
+                          Slime, Wolf, Bandit, Wraith, Sheep, Deer, Bird (+ Creature, Enemy, Animal, Flame, Projectile)
+  data/                   weapons (armas e classes), items (recursos por região)
+  systems/                WorldGenerator (biomas), MapGenerator (vale), TileWindow, TileCollision, Gathering, Inventory,
+                          BiomeFx, DayNightSystem, WeatherSystem (+ Tiles, Noise)
+  ui/                     DebugPanel (teleporte, mapa, voo), InventoryPanel (mochila)
   input/                  VirtualControls, InputState
 public/
   manifest.json, sw.js, icons/
