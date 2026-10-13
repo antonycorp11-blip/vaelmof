@@ -12,6 +12,12 @@ export const inputState = {
   gather: false,
   /** Botões mantidos pressionados (segurar repete o golpe e a coleta). */
   held: { attack: false, dodge: false, flame: false, gather: false },
+  /** Mira manual: o botão de ataque arrastado (direção unitária enquanto ativo). */
+  aim: { x: 0, y: 0, active: false },
+  /** Mira da habilidade: o botão arrastado e solto (null = mira automática). */
+  skillAim: null as { x: number; y: number } | null,
+  /** Desktop: posição do mouse no mundo (null = mouse parado/fora). */
+  mouseAim: null as { x: number; y: number } | null,
   /** Há um recurso ao alcance: mostra o botão COLETAR. */
   canGather: false,
   /** Cooldowns normalizados (0 = pronto, 1 = recém-usado) para o HUD. */

@@ -154,8 +154,10 @@ export class VirtualControls {
     if (b) {
       if (b.pointerId === null) {
         b.pointerId = p.id;
-        inputState[b.id] = true;
+        // a habilidade sai ao soltar (dá para arrastar para mirar antes)
+        if (b.id !== 'flame') inputState[b.id] = true;
         inputState.held[b.id] = true;
+        this.dragged = null;
         b.bg.setFillStyle(0xffffff, 0.3);
       }
       return;
@@ -168,7 +170,21 @@ export class VirtualControls {
     }
   }
 
+  /** Mira arrastando o botão de ataque ou de habilidade. */
+  private dragged: { x: number; y: number } | null = null;
+
   private onMove(p: Phaser.Input.Pointer) {
+    const b = this.buttons.find((x) => x.pointerId === p.id && (x.id === 'attack' || x.id === 'flame'));
+    if (b) {
+      const dx = p.x - b.x;
+      const dy = p.y - b.y;
+      const l = Math.hypot(dx, dy);
+      if (l > 14 * this.u) {
+        this.dragged = { x: dx / l, y: dy / l };
+        inputState.aim = { x: dx / l, y: dy / l, active: true };
+      }
+      return;
+    }
     if (p.id !== this.joyPointer) return;
     const dx = p.x - this.joyOrigin.x;
     const dy = p.y - this.joyOrigin.y;
@@ -204,6 +220,14 @@ export class VirtualControls {
       if (b.pointerId === p.id) {
         b.pointerId = null;
         inputState.held[b.id] = false;
+        if (b.id === 'flame') {
+          inputState.flame = true;
+          inputState.skillAim = this.dragged;
+        }
+        if (b.id === 'attack' || b.id === 'flame') {
+          inputState.aim = { x: 0, y: 0, active: false };
+          this.dragged = null;
+        }
         b.bg.setFillStyle(0x0b0a12, 0.38);
       }
   }

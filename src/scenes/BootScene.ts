@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import { HERO, heroFrame } from '../entities/heroSheet';
-import { HERO_SHEETS, type WeaponId } from '../entities/heroSheets';
+import { HERO } from '../entities/heroSheet';
+import { HERO_SHEETS } from '../entities/heroSheets';
 import { WRAITH_SHEET } from '../entities/wraithSheet';
 
 const S = 'assets/sprites/';
@@ -23,11 +23,10 @@ export class BootScene extends Phaser.Scene {
     this.load.image('tiles', 'assets/tilesets/vaelmor-tiles.png');
     const sheet = (key: string, file: string, w = 16, h = 16) => this.load.spritesheet(key, S + file, { frameWidth: w, frameHeight: h });
     // Teren: camadas LPC montadas por scripts/hero; Errante: scripts/wraith
-    // uma folha por arma (corpo + arma) e as animações grandes de cada uma
-    for (const [id, w] of Object.entries(HERO_SHEETS)) {
-      sheet(`hero-${id}`, `hero-${id}.png`, HERO.frame, HERO.frame);
-      for (const [anim, b] of Object.entries(w.big)) sheet(`hero-${id}-${anim}`, `hero-${id}-${anim}.png`, b.frame, b.frame);
-    }
+    // Teren em camadas: traje inicial e espada (os outros carregam ao equipar)
+    for (const k of ['outfit-leather', 'outfit-leather-back', 'wpn-sword-bg', 'wpn-sword-fg']) sheet(k, `${k}.png`, HERO.frame, HERO.frame);
+    for (const side of ['bg', 'fg']) sheet(`wpn-sword-slash-${side}`, `wpn-sword-slash-${side}.png`, HERO_SHEETS.sword.big.slash.frame, HERO_SHEETS.sword.big.slash.frame);
+    sheet('armor-icons', 'armor-icons.png', 40, 54);
     sheet('arrow', 'arrow.png');
     sheet('bolt', 'bolt.png');
     sheet('items', 'items.png');
@@ -57,20 +56,6 @@ export class BootScene extends Phaser.Scene {
     const a = this.anims;
     const range = (key: string, start: number, end: number) => a.generateFrameNumbers(key, { start, end });
     const frames = (key: string, list: number[]) => a.generateFrameNumbers(key, { frames: list });
-    // Teren: andar = quadros 1–8 da linha de caminhada LPC (o 0 é de pé), para cada arma
-    for (const id of Object.keys(HERO_SHEETS) as WeaponId[]) {
-      const key = `hero-${id}`;
-      for (let d = 0; d < 4; d++) {
-        const walk = [1, 2, 3, 4, 5, 6, 7, 8].map((c) => heroFrame(HERO.rows.walk, d, c));
-        a.create({ key: `${key}-walk-${d}`, frames: frames(key, walk), frameRate: 24, repeat: -1 });
-      }
-      a.create({ key: `${key}-fall`, frames: range(key, HERO.rows.fall * HERO.cols, HERO.rows.fall * HERO.cols + 5), frameRate: 10, repeat: 0 });
-    }
-    // arco: andar com o arco usa quadros de 128 (o arco não cabe no de 64)
-    const bw = HERO_SHEETS.bow.big.walk;
-    const dirRow = [2, 1, 3, 0];
-    for (let d = 0; d < 4; d++)
-      a.create({ key: `hero-bow-bigwalk-${d}`, frames: range('hero-bow-walk', dirRow[d] * bw.frames, dirRow[d] * bw.frames + bw.frames - 1), frameRate: 24, repeat: -1 });
     a.create({ key: 'bolt-fly', frames: range('bolt', 0, 1), frameRate: 12, repeat: -1 });
     // Errante: por direção, 12 quadros flutuando + 12 em movimento
     const wc = WRAITH_SHEET.cols;

@@ -1,16 +1,25 @@
 import Phaser from 'phaser';
 import { PLAYER } from '../config';
-import { WEAPONS, WEAPON_ORDER, type Move, type WeaponDef } from '../data/weapons';
+import { WEAPONS, type Move, type WeaponDef } from '../data/weapons';
 import { consume, inputState } from '../input/InputState';
 import type { WorldScene } from '../scenes/WorldScene';
 import { Creature } from './Creature';
 import { Flame } from './Flame';
-import { HERO, LPC_DIR, heroFrame } from './heroSheet';
-import { HERO_SHEETS, type WeaponId } from './heroSheets';
+import { HERO, LPC_DIR } from './heroSheet';
+import { HERO_SHEETS, OUTFITS, type OutfitId, type WeaponId } from './heroSheets';
 import { Projectile } from './Projectile';
 
 type PlayerState = 'normal' | 'attack' | 'roll' | 'hurt' | 'gather' | 'dead';
 type Action = 'attack' | 'dodge' | 'flame' | 'gather';
+interface BigAnim {
+  frame: number;
+  frames: number;
+  footY: number;
+  cols: readonly number[];
+  row: number;
+  bg: boolean;
+  fg: boolean;
+}
 
 interface Keys {
   up: Phaser.Input.Keyboard.Key[];
@@ -39,15 +48,31 @@ const startOf = (a: readonly number[], i: number) => sum(a.slice(0, i));
 const CW = [0, 1, 3, 2];
 /** Coleta: golpe com o corpo (machadada / picaretada) em 6 passos. */
 const GATHER_FRAMES = [70, 80, 60, 70, 110, 120];
+const WALK_FPS = 24;
 
 /**
- * Teren: herói humano montado em camadas LPC (ver scripts/hero/recipe.json).
- * A **arma define a classe**, como no Albion: espada = Guerreiro, montante =
- * Guerreiro pesado, cajado = Mago, arco = Arqueiro. Cada arma traz o próprio
- * combo (botão de golpe) e a própria habilidade (terceiro botão); trocar de
- * arma troca a folha de sprites e os movimentos (data/weapons.ts).
- * As animações de arte vêm das folhas; o código cuida do tempo de cada
- * quadro, do avanço no golpe, dos projéteis, da poeira e do rastro.
+ * Pose desenhada: linha e coluna da folha universal (o corpo é sempre um
+ * quadro de 64 px) e, se a arma usa uma animação grande, qual e em que passo.
+ */
+interface Pose {
+  row: number;
+  col: number;
+  dir: number;
+  big?: { anim: string; i: number };
+}
+
+const bigOf = (w: WeaponId, anim: string) => (HERO_SHEETS[w].big as unknown as Record<string, BigAnim | undefined>)[anim];
+
+/**
+ * Teren: herói humano em camadas LPC (scripts/hero/recipe.json). Desenhado
+ * como 4 sprites sobrepostos e sincronizados quadro a quadro — o fundo do traje
+ * (capa), a arma atrás do corpo, o corpo com o traje/armadura e a arma na
+ * frente —, então qualquer armadura combina com qualquer arma.
+ *
+ * A **arma define a classe** (como no Albion) e traz combo e habilidade
+ * próprios (data/weapons.ts); a **armadura** é sempre completa e muda defesa,
+ * velocidade e um bônus. Armas à distância miram sozinhas no inimigo mais
+ * próximo, ou para onde o jogador arrastar o botão; andando, disparam sem parar.
  */
 export class Player extends Creature {
   hp = PLAYER.maxHp;
@@ -56,8 +81,10 @@ export class Player extends Creature {
   /** Direção para onde Teren olha (unitário). */
   facing = new Phaser.Math.Vector2(0, 1);
   weapon: WeaponDef = WEAPONS.sword;
+  outfit: OutfitId = 'leather';
   /** 0 baixo, 1 esquerda, 2 direita, 3 cima. */
   private dir = 0;
+  private pose: Pose = { row: HERO.rows.walk, col: 0, dir: 0 };
   private stateUntil = 0;
   private stateStart = 0;
   private invulnUntil = 0;
@@ -65,23 +92,32 @@ export class Player extends Creature {
   private comboUntil = 0;
   private hitDone = true;
   private move: Move = WEAPONS.sword.combo[0];
+  private isSkill = false;
   private moveDur = 0;
   private moveHitAt = 0;
+  /** Direção do disparo/golpe atual (mira). */
+  private aim = new Phaser.Math.Vector2(0, 1);
   private lastDodge = -99999;
   private lastSkill = -99999;
   private lastGhost = 0;
+  private nextShot = 0;
+  private pendingShot?: { at: number; move: Move; aim: Phaser.Math.Vector2 };
   private rollDir = new Phaser.Math.Vector2();
+  private walkT = 0;
+  private lastWalkCol = -1;
   private keys?: Keys;
   /** Buffer de entrada: ação pedida fica válida por alguns ms (toques rápidos não se perdem). */
   private buffered: Record<Action, number> = { attack: 0, dodge: 0, flame: 0, gather: 0 };
   private readonly shadow: Phaser.GameObjects.Image;
-  /** Animações em quadros grandes (golpes, arco andando): sprite à parte, no lugar do corpo. */
-  private readonly big: Phaser.GameObjects.Sprite;
+  /** Camadas: fundo do traje, arma atrás, arma na frente. */
+  private readonly back: Phaser.GameObjects.Sprite;
+  private readonly wBg: Phaser.GameObjects.Sprite;
+  private readonly wFg: Phaser.GameObjects.Sprite;
   private gatherDone?: () => void;
   private gatherAt = 0;
   readonly spawnX: number;
   readonly spawnY: number;
-  /** Multiplicador de velocidade (modo voo do debug, peso da mochila). */
+  /** Multiplicador de velocidade (modo voo do debug). */
   speedMul = 1;
   /** Peso da mochila (1 = normal; menor = carregado demais). */
   weightMul = 1;
@@ -91,24 +127,18 @@ export class Player extends Creature {
   private lastUpdate = 0;
 
   constructor(scene: WorldScene, x: number, y: number) {
-    super(scene, x, y, 'hero-sword', 20, 10, heroFrame(HERO.rows.walk, 0, 0));
+    super(scene, x, y, 'outfit-leather', 20, 10, 0);
     const F = HERO.frame;
-    this.setScale(this.artScale).setOrigin(0.5, HERO.footY / F);
+    this.setOrigin(0.5, HERO.footY / F);
     this.body.setSize(20, 10);
     this.body.setOffset((F - 20) / 2, HERO.footY - 8);
     this.shadow = scene.add.image(x, y, 'shadow').setScale(0.75, 0.65).setAlpha(0.7);
-    this.big = scene.add.sprite(x, y, 'hero-sword-slash', 0).setScale(this.artScale).setVisible(false);
-    scene.events.on(Phaser.Scenes.Events.PRE_RENDER, () => {
-      const bigOn = this.big.visible;
-      this.shadow.setPosition(this.x, this.y).setDepth(this.depth - 2).setVisible((this.visible || bigOn) && this.state2 !== 'dead');
-      if (bigOn) this.big.setPosition(this.x, this.y).setDepth(this.depth).setAlpha(this.alpha);
-    });
-    // poeira nos passos: quadros em que um pé toca o chão
-    const step = (_a: unknown, frame: Phaser.Animations.AnimationFrame) => {
-      if (this.state2 === 'normal' && (frame.index === 2 || frame.index === 6)) this.dust(1);
-    };
-    this.on(Phaser.Animations.Events.ANIMATION_UPDATE, step);
-    this.big.on(Phaser.Animations.Events.ANIMATION_UPDATE, step);
+    const layer = (key: string) => scene.add.sprite(x, y, key, 0).setOrigin(0.5, HERO.footY / F);
+    this.back = layer('outfit-leather-back');
+    this.wBg = layer('wpn-sword-bg');
+    this.wFg = layer('wpn-sword-fg');
+    this.setScale(this.artScale);
+    scene.events.on(Phaser.Scenes.Events.PRE_RENDER, () => this.syncLayers());
     this.spawnX = x;
     this.spawnY = y;
     const kb = scene.input.keyboard;
@@ -126,10 +156,14 @@ export class Player extends Creature {
         gather: k(K.E),
       };
       for (const action of ['attack', 'dodge', 'flame', 'gather'] as const) this.keys[action].on('down', () => this.queue(action));
-      k(K.Q).on('down', () => this.cycleWeapon());
-      [K.ONE, K.TWO, K.THREE, K.FOUR].forEach((c, i) => k(c).on('down', () => this.setWeapon(WEAPON_ORDER[i])));
     }
     this.stand();
+  }
+
+  setScale(x: number, y?: number): this {
+    super.setScale(x, y);
+    for (const s of [this.back, this.wBg, this.wFg]) s?.setScale(x, y ?? x);
+    return this;
   }
 
   /**
@@ -139,7 +173,6 @@ export class Player extends Creature {
   fitPixels(zoom: number) {
     this.artScale = Math.max(1, Math.round(zoom * HERO.scale)) / zoom;
     this.setScale(this.artScale);
-    this.big.setScale(this.artScale);
   }
 
   get dead(): boolean {
@@ -154,23 +187,129 @@ export class Player extends Creature {
     return this.state2 !== 'normal';
   }
 
-  // ---------------------------------------------------------------- armas
-  setWeapon(id: WeaponId) {
-    if (this.weapon.id === id || this.state2 === 'dead') return;
-    this.weapon = WEAPONS[id];
-    this.combo = 0;
-    this.comboUntil = 0;
-    this.setTexture(`hero-${id}`);
-    this.endBig();
-    if (this.state2 === 'attack' || this.state2 === 'gather') this.state2 = 'normal';
-    this.stand();
-    this.scene.fx.burst(this.x, this.y - 10, 0xffe9a8, 8);
-    this.scene.events.emit('weapon', this.weapon);
+  /** Arma à distância (arco, cajado)? */
+  get ranged(): boolean {
+    return !!this.weapon.combo[0].projectile;
   }
 
-  cycleWeapon() {
-    const i = WEAPON_ORDER.indexOf(this.weapon.id);
-    this.setWeapon(WEAPON_ORDER[(i + 1) % WEAPON_ORDER.length]);
+  /** Alcance para mirar automaticamente. */
+  get aimRange(): number {
+    const p = this.weapon.combo[0].projectile;
+    return p && p !== 'flame' ? p.range * 0.9 : 46;
+  }
+
+  private get skillCooldown(): number {
+    return this.weapon.skill.cooldown * (OUTFITS[this.outfit].bonus === 'cooldown' ? 0.7 : 1);
+  }
+
+  private get dodgeCooldown(): number {
+    return PLAYER.dodge.cooldown * (OUTFITS[this.outfit].bonus === 'dodge' ? 0.75 : 1);
+  }
+
+  // ---------------------------------------------------------------- camadas
+  /** Coloca as 4 camadas na pose atual (quadros, origem, profundidade). */
+  private syncLayers() {
+    const p = this.pose;
+    const visible = this.visible;
+    // a queda só existe numa direção (linha única)
+    const row = p.row === HERO.rows.fall ? p.row : p.row + LPC_DIR[p.dir];
+    const frame = row * HERO.cols + p.col;
+    this.setFrame(frame);
+    const o = OUTFITS[this.outfit];
+    this.back.setVisible(visible && o.back);
+    if (o.back) this.back.setFrame(frame);
+    const w = this.weapon.id;
+    const big = p.big ? bigOf(w, p.big.anim) : undefined;
+    for (const [s, side] of [
+      [this.wBg, 'bg'],
+      [this.wFg, 'fg'],
+    ] as const) {
+      if (big && p.big) {
+        const has = big[side];
+        s.setVisible(visible && has);
+        if (!has) continue;
+        const key = `wpn-${w}-${p.big.anim}-${side}`;
+        if (s.texture.key !== key) s.setTexture(key);
+        s.setOrigin(0.5, big.footY / big.frame).setFrame(LPC_DIR[p.dir] * big.frames + p.big.i);
+      } else {
+        const has = HERO_SHEETS[w][side];
+        s.setVisible(visible && has);
+        if (!has) continue;
+        const key = `wpn-${w}-${side}`;
+        if (s.texture.key !== key) s.setTexture(key);
+        s.setOrigin(0.5, HERO.footY / HERO.frame).setFrame(frame);
+      }
+    }
+    const d = this.depth;
+    for (const [s, k] of [
+      [this.back, -0.3],
+      [this.wBg, -0.2],
+      [this.wFg, 0.2],
+    ] as const) s.setPosition(this.x, this.y).setDepth(d + k).setAlpha(this.alpha);
+    this.shadow.setPosition(this.x, this.y).setDepth(d - 2).setVisible(visible && this.state2 !== 'dead');
+  }
+
+  private setPose(row: number, col: number, big?: Pose['big'], dir = this.dir) {
+    this.pose = { row, col, dir, big };
+  }
+
+  /** Pisca todas as camadas numa cor (dano). */
+  private flash(color: number, ms: number) {
+    const all = [this, this.back, this.wBg, this.wFg];
+    for (const s of all) s.setTintFill(color);
+    this.scene.time.delayedCall(ms, () => all.forEach((s) => s.clearTint()));
+  }
+
+  // ---------------------------------------------------------------- equipamento
+  /** Carrega as texturas que faltam e chama `done` (carga sob demanda: poupa memória no celular). */
+  private ensure(keys: string[], done: () => void) {
+    const s = this.scene;
+    const missing = keys.filter((k) => !s.textures.exists(k));
+    if (!missing.length) return done();
+    for (const k of missing) {
+      const big = /^wpn-(\w+)-(\w+)-(bg|fg)$/.exec(k);
+      const b = big ? bigOf(big[1] as WeaponId, big[2]) : undefined;
+      const F = b ? b.frame : HERO.frame;
+      s.load.spritesheet(k, `assets/sprites/${k}.png`, { frameWidth: F, frameHeight: F });
+    }
+    s.load.once(Phaser.Loader.Events.COMPLETE, done);
+    s.load.start();
+  }
+
+  private weaponKeys(id: WeaponId): string[] {
+    const w = HERO_SHEETS[id];
+    const keys: string[] = [];
+    for (const side of ['bg', 'fg'] as const) if (w[side]) keys.push(`wpn-${id}-${side}`);
+    for (const [anim, b] of Object.entries(w.big as unknown as Record<string, BigAnim>))
+      for (const side of ['bg', 'fg'] as const) if (b[side]) keys.push(`wpn-${id}-${anim}-${side}`);
+    return keys;
+  }
+
+  setWeapon(id: WeaponId) {
+    if (this.state2 === 'dead') return;
+    this.ensure(this.weaponKeys(id), () => {
+      this.weapon = WEAPONS[id];
+      this.combo = 0;
+      this.comboUntil = 0;
+      this.pendingShot = undefined;
+      if (this.state2 === 'attack' || this.state2 === 'gather') this.state2 = 'normal';
+      this.stand();
+      this.scene.fx.burst(this.x, this.y - 10, 0xffe9a8, 8);
+      this.scene.events.emit('weapon', this.weapon);
+    });
+  }
+
+  setOutfit(id: OutfitId) {
+    if (this.state2 === 'dead') return;
+    const keys = [`outfit-${id}`];
+    if (OUTFITS[id].back) keys.push(`outfit-${id}-back`);
+    this.ensure(keys, () => {
+      this.outfit = id;
+      this.setTexture(`outfit-${id}`);
+      if (OUTFITS[id].back) this.back.setTexture(`outfit-${id}-back`);
+      this.scene.fx.burst(this.x, this.y - 10, 0xbfe6ff, 10);
+      this.scene.events.emit('outfit', id);
+    });
   }
 
   // ---------------------------------------------------------------- entrada
@@ -210,27 +349,58 @@ export class Player extends Creature {
     else this.dir = y < 0 ? 3 : 0;
   }
 
-  /** Parado. Com arco: o primeiro quadro do tiro (arco na mão). */
-  private stand() {
-    this.anims.stop();
-    this.endBig();
-    this.setFrame(heroFrame(this.weapon.id === 'bow' ? HERO.rows.shoot : HERO.rows.walk, this.dir, 0));
+  /** Inimigo vivo mais próximo dentro do alcance (preferindo o que está à frente). */
+  nearestTarget(range: number) {
+    let best: { x: number; y: number } | null = null;
+    let bestScore = Infinity;
+    for (const e of this.scene.enemies) {
+      if (e.dead || !e.body.enable) continue;
+      const dx = e.fx - this.fx;
+      const dy = e.fy - this.fy;
+      const d = Math.hypot(dx, dy);
+      if (d > range) continue;
+      const front = (dx * this.facing.x + dy * this.facing.y) / (d || 1);
+      const score = d * (1.4 - front * 0.4);
+      if (score < bestScore) {
+        bestScore = score;
+        best = { x: e.fx, y: e.fy };
+      }
+    }
+    return best;
   }
 
-  private walk() {
-    const rate = Math.max(0.35, this.body.velocity.length() / (PLAYER.speed * Math.max(1, this.speedMul)));
-    if (this.weapon.id === 'bow') {
-      // o arco não cabe no quadro de 64: anda com a folha de 128
-      const key = `hero-bow-bigwalk-${this.dir}`;
-      this.showBig('hero-bow-walk', HERO_SHEETS.bow.big.walk.footY, HERO_SHEETS.bow.big.walk.frame);
-      if (this.big.anims.currentAnim?.key !== key || !this.big.anims.isPlaying) this.big.play(key, true);
-      this.big.anims.timeScale = rate;
-      return;
+  /**
+   * Para onde vai o golpe/disparo: o botão arrastado (mira manual), o mouse
+   * (desktop), o inimigo mais próximo (mira automática) ou a frente.
+   */
+  private resolveAim(manual?: { x: number; y: number } | null): Phaser.Math.Vector2 {
+    const v = new Phaser.Math.Vector2(this.facing.x, this.facing.y);
+    if (manual) return v.set(manual.x, manual.y).normalize();
+    if (inputState.aim.active) return v.set(inputState.aim.x, inputState.aim.y).normalize();
+    if (inputState.mouseAim) {
+      const m = inputState.mouseAim;
+      return v.set(m.x - this.fx, m.y - (this.fy - 8)).normalize();
     }
-    const key = `hero-${this.weapon.id}-walk-${this.dir}`;
-    if (this.anims.currentAnim?.key !== key || !this.anims.isPlaying) this.play(key, true);
-    // a cadência acompanha a velocidade real (os pés não deslizam)
-    this.anims.timeScale = rate;
+    const t = this.nearestTarget(this.aimRange);
+    if (t) v.set(t.x - this.fx, t.y - this.fy).normalize();
+    return v;
+  }
+
+  // ---------------------------------------------------------------- poses básicas
+  /** Parado. Com arco: o primeiro quadro do tiro (arco na mão). */
+  private stand() {
+    this.setPose(this.weapon.id === 'bow' ? HERO.rows.shoot : HERO.rows.walk, 0);
+  }
+
+  /** Passos casados com a velocidade real (os pés não deslizam). */
+  private walk(dt: number) {
+    const rate = Math.max(0.35, this.body.velocity.length() / (PLAYER.speed * Math.max(1, this.speedMul)));
+    this.walkT = (this.walkT + dt * WALK_FPS * rate) % 8;
+    const col = 1 + Math.floor(this.walkT);
+    if (col !== this.lastWalkCol && (col === 2 || col === 6) && this.state2 === 'normal') this.dust(1);
+    this.lastWalkCol = col;
+    const bowWalk = this.weapon.id === 'bow' ? { anim: 'walk', i: col - 1 } : undefined;
+    this.setPose(HERO.rows.walk, col, bowWalk);
   }
 
   /** Aceleração/desaceleração suave até a velocidade alvo. */
@@ -243,20 +413,6 @@ export class Player extends Creature {
     const step = accel * dt;
     if (d <= step) this.body.setVelocity(tx, ty);
     else this.body.setVelocity(v.x + (dx / d) * step, v.y + (dy / d) * step);
-  }
-
-  private showBig(texture: string, footY: number, frame: number) {
-    if (this.big.texture.key !== texture) this.big.setTexture(texture);
-    this.big.setOrigin(0.5, footY / frame).setVisible(true);
-    this.setVisible(false);
-  }
-
-  private endBig() {
-    if (this.big.visible) {
-      this.big.anims.stop();
-      this.big.setVisible(false);
-    }
-    this.setVisible(true);
   }
 
   /** Nuvenzinha de poeira nos pés. */
@@ -291,16 +447,26 @@ export class Player extends Creature {
     const wantSkill = this.pressed('flame', time);
     const st = this.state2;
     const W = this.weapon;
+    const O = OUTFITS[this.outfit];
 
-    inputState.cooldowns.attack = st === 'attack' ? Phaser.Math.Clamp((this.stateUntil - time) / this.moveDur, 0, 1) : 0;
-    inputState.cooldowns.dodge = Phaser.Math.Clamp(1 - (time - this.lastDodge) / PLAYER.dodge.cooldown, 0, 1);
-    inputState.cooldowns.flame = Phaser.Math.Clamp(1 - (time - this.lastSkill) / W.skill.cooldown, 0, 1);
+    inputState.cooldowns.attack = st === 'attack' && !this.isSkill ? Phaser.Math.Clamp((this.stateUntil - time) / this.moveDur, 0, 1) : 0;
+    inputState.cooldowns.dodge = Phaser.Math.Clamp(1 - (time - this.lastDodge) / this.dodgeCooldown, 0, 1);
+    inputState.cooldowns.flame = Phaser.Math.Clamp(1 - (time - this.lastSkill) / this.skillCooldown, 0, 1);
     inputState.hp = this.hp;
     inputState.maxHp = this.maxHp;
 
     if (st === 'dead') {
       this.body.setVelocity(0, 0);
+      const i = Math.min(5, Math.floor((time - this.stateStart) / 100));
+      this.setPose(HERO.rows.fall, i);
       return;
+    }
+
+    // disparo andando (arco/cajado): sai um instante depois do toque
+    if (this.pendingShot && time >= this.pendingShot.at) {
+      const s = this.pendingShot;
+      this.pendingShot = undefined;
+      this.fire(s.move, s.aim);
     }
 
     // piscar durante invulnerabilidade pós-dano
@@ -308,6 +474,9 @@ export class Player extends Creature {
 
     if (st === 'roll') {
       this.body.setVelocity(this.rollDir.x * PLAYER.dodge.speed, this.rollDir.y * PLAYER.dodge.speed);
+      // disparada: passos acelerados com rastro
+      this.walkT = (this.walkT + dt * WALK_FPS * 2.6) % 8;
+      this.setPose(HERO.rows.walk, 1 + Math.floor(this.walkT), this.weapon.id === 'bow' ? { anim: 'walk', i: Math.floor(this.walkT) } : undefined);
       if (time - this.lastGhost > 45) this.ghost(time);
       if (time >= this.stateUntil) {
         this.dust(3);
@@ -323,24 +492,23 @@ export class Player extends Creature {
       return;
     }
 
-    if (move.lengthSq() > 0) {
+    const moving = move.lengthSq() > 0.04;
+    if (moving) {
       this.facing.copy(move).normalize();
       if (st === 'normal') this.updateDir(move.x, move.y);
     }
-    const speed = PLAYER.speed * this.speedMul * this.weightMul;
+    const speed = PLAYER.speed * O.speed * this.speedMul * this.weightMul;
 
     // ações — a esquiva cancela tudo; o golpe pode ser encadeado no fim da recuperação
-    if (wantDodge && time - this.lastDodge >= PLAYER.dodge.cooldown) {
+    if (wantDodge && time - this.lastDodge >= this.dodgeCooldown) {
       this.startRoll(time, move);
       return;
     }
     if (st === 'gather') {
-      // andar cancela a coleta
-      if (move.lengthSq() > 0.2) this.toIdle();
+      if (moving) this.toIdle();
       else {
         this.body.velocity.scale(0.7);
-        const t = time - this.stateStart;
-        this.setFrame(heroFrame(HERO.rows.slash, this.dir, frameAt(GATHER_FRAMES, t)));
+        this.setPose(HERO.rows.slash, frameAt(GATHER_FRAMES, time - this.stateStart));
         if (this.gatherDone && time >= this.gatherAt) {
           const done = this.gatherDone;
           this.gatherDone = undefined;
@@ -351,88 +519,99 @@ export class Player extends Creature {
         return;
       }
     }
-    // a habilidade pode interromper o golpe (fica mais responsivo no toque)
     const skillOk = this.state2 === 'normal' || (this.state2 === 'attack' && !this.isSkill);
-    if (wantSkill && skillOk && time - this.lastSkill >= W.skill.cooldown) {
-      this.endBig();
+    if (wantSkill && skillOk && time - this.lastSkill >= this.skillCooldown) {
       this.lastSkill = time;
       this.buffered.flame = 0;
-      this.startMove(time, W.skill);
+      this.startMove(time, W.skill, this.resolveAim(inputState.skillAim));
+      inputState.skillAim = null;
       this.combo = 0;
       this.comboUntil = 0;
     }
-    const canChain = this.state2 === 'attack' && !this.isSkill && this.combo < W.combo.length - 1 && time >= this.stateUntil - 120;
-    if (wantAttack && (this.state2 === 'normal' || canChain)) this.swing(time);
+    if (wantAttack && this.state2 === 'normal' && this.ranged && moving) {
+      // à distância e andando: atira sem parar de andar
+      if (time >= this.nextShot) {
+        this.buffered.attack = 0;
+        const M = W.combo[0];
+        this.nextShot = time + sum(M.frames) * 0.8;
+        this.pendingShot = { at: time + 70, move: M, aim: this.resolveAim() };
+      }
+    } else {
+      const canChain = this.state2 === 'attack' && !this.isSkill && this.combo < W.combo.length - 1 && time >= this.stateUntil - 120;
+      if (wantAttack && (this.state2 === 'normal' || canChain) && time >= this.nextShot) this.swing(time);
+    }
 
     if (this.state2 === 'attack') {
       const M = this.move;
       const t = time - this.stateStart;
-      const lunge = t > this.moveHitAt - 50 && t < this.moveHitAt + 50 ? M.lunge : 0;
-      if (!this.hitDone && t >= this.moveHitAt) {
-        this.hitDone = true;
-        this.release(M);
+      // à distância: começar a andar solta o disparo na hora e volta a andar
+      if (M.projectile && moving && !this.isSkill) {
+        if (!this.hitDone) {
+          this.hitDone = true;
+          this.fire(M, this.aim);
+        }
+        this.toIdle();
+      } else {
+        const lunge = t > this.moveHitAt - 50 && t < this.moveHitAt + 50 ? M.lunge : 0;
+        if (!this.hitDone && t >= this.moveHitAt) {
+          this.hitDone = true;
+          this.fire(M, this.aim);
+        }
+        const k = M.projectile ? 0.45 : 0.15;
+        this.body.setVelocity(this.aim.x * lunge + move.x * speed * k, this.aim.y * lunge + move.y * speed * k);
+        this.attackPose(M, t);
+        this.sortDepth();
+        if (time >= this.stateUntil) this.toIdle();
+        return;
       }
-      const k = M.projectile ? 0.25 : 0.15;
-      this.body.setVelocity(this.facing.x * lunge + move.x * speed * k, this.facing.y * lunge + move.y * speed * k);
-      this.attackPose(M, t);
-      this.sortDepth();
-      if (time >= this.stateUntil) this.toIdle();
-      return;
     }
     this.steer(move.x * speed, move.y * speed, dt);
-    if (move.lengthSq() > 0) this.walk();
+    if (moving) this.walk(dt);
     else if (this.body.velocity.lengthSq() < 64) this.stand();
     this.sortDepth();
   }
 
-  /** Quadro do movimento atual: animação grande da arma, giro ou tiro com arco. */
+  /** Pose do movimento atual: animação grande da arma, giro ou tiro com arco. */
   private attackPose(M: Move, t: number) {
     const i = frameAt(M.frames, t);
-    const id = this.weapon.id;
     if (M.anim === 'shoot') {
-      this.endBig();
-      this.setFrame(heroFrame(HERO.rows.shoot, this.dir, M.cols ? M.cols[i] : i));
+      this.setPose(HERO.rows.shoot, M.cols ? M.cols[i] : i);
       return;
     }
     const anim = M.anim === 'spin' ? 'slash' : M.anim;
-    const b = (HERO_SHEETS[id].big as Record<string, { frame: number; frames: number; footY: number }>)[anim];
+    const b = bigOf(this.weapon.id, anim)!;
     let dir = this.dir;
-    let col = M.cols ? M.cols[Math.min(i, M.cols.length - 1)] : Math.min(i, b.frames - 1);
+    let step = M.cols ? M.cols[Math.min(i, M.cols.length - 1)] : Math.min(i, b.frames - 1);
     if (M.anim === 'spin') {
       // preparo em 3 quadros, a varredura passa pelas 4 direções, pose final
       if (i >= 3 && i <= 6) {
         dir = CW[(CW.indexOf(this.dir) + i - 2) % 4];
-        col = 4;
-      } else col = i < 3 ? i : 5;
+        step = 4;
+      } else step = i < 3 ? i : 5;
     }
-    this.showBig(`hero-${id}-${anim}`, b.footY, b.frame);
-    this.big.setFrame(LPC_DIR[dir] * b.frames + col);
+    this.setPose(b.row, b.cols[step], { anim, i: step }, dir);
   }
 
   private toIdle() {
-    this.endBig();
     this.state2 = 'normal';
     this.gatherDone = undefined;
     this.setAngle(0).setAlpha(1);
-    this.anims.timeScale = 1;
     this.stand();
   }
 
   // ---------------------------------------------------------------- golpes
-  private isSkill = false;
-
   private swing(time: number) {
     const W = this.weapon;
     const chaining = (this.state2 === 'attack' && !this.isSkill) || time < this.comboUntil;
     const step = chaining && this.combo < W.combo.length - 1 ? this.combo + 1 : 0;
     this.combo = step;
     this.buffered.attack = 0;
-    this.startMove(time, W.combo[step]);
-    this.isSkill = false;
+    this.startMove(time, W.combo[step], this.resolveAim());
     this.comboUntil = step < W.combo.length - 1 ? time + this.moveDur + PLAYER.comboWindow : 0;
+    if (W.combo[step].projectile) this.nextShot = time + this.moveDur;
   }
 
-  private startMove(time: number, M: Move) {
+  private startMove(time: number, M: Move, aim: Phaser.Math.Vector2) {
     this.move = M;
     this.isSkill = M === this.weapon.skill;
     this.moveDur = sum(M.frames);
@@ -440,15 +619,16 @@ export class Player extends Creature {
     this.stateStart = time;
     this.state2 = 'attack';
     this.stateUntil = time + this.moveDur;
-    this.updateDir(this.facing.x, this.facing.y);
-    this.anims.stop();
+    this.aim.copy(aim);
+    this.facing.copy(aim);
+    this.updateDir(aim.x, aim.y);
     this.hitDone = false;
     if (M.projectile === 'flame') this.scene.fx.burst(this.x, this.y - 14, 0xffb040, 6);
   }
 
-  /** Momento do impacto: corte em arco ou disparo. */
-  private release(M: Move) {
-    const a = Math.atan2(this.facing.y, this.facing.x);
+  /** Momento do impacto: corte em arco ou disparo na direção `aim`. */
+  private fire(M: Move, aim: Phaser.Math.Vector2) {
+    const a = Math.atan2(aim.y, aim.x);
     // sai do corpo (não à frente): um inimigo colado também é atingido
     const ox = this.fx + Math.cos(a) * 3;
     const oy = this.fy - 10 + Math.sin(a) * 2;
@@ -463,12 +643,11 @@ export class Player extends Creature {
       if (this.weapon.id === 'staff') this.scene.fx.burst(ox, oy, 0xb46cec, 6);
       return;
     }
-    this.resolveHit(M);
+    this.resolveHit(M, a);
   }
 
-  private resolveHit(M: Move) {
+  private resolveHit(M: Move, angle: number) {
     const s = this.scene;
-    const angle = Math.atan2(this.facing.y, this.facing.x);
     const cx = this.fx;
     const cy = this.fy;
     // o rastro da lâmina já vem na arte; o giro ganha um anel de cortes
@@ -507,10 +686,7 @@ export class Player extends Creature {
   }
 
   // ---------------------------------------------------------------- coleta
-  /**
-   * Golpeia um recurso em (x, y): toca a animação e chama `onHit` no impacto.
-   * A WorldScene/Gathering decide o que sai do recurso.
-   */
+  /** Golpeia um recurso em (x, y): toca a animação e chama `onHit` no impacto. */
   startGather(x: number, y: number, onHit: () => void) {
     if (this.state2 !== 'normal') return false;
     const time = this.scene.time.now;
@@ -522,8 +698,6 @@ export class Player extends Creature {
     this.stateUntil = time + sum(GATHER_FRAMES);
     this.gatherAt = time + startOf(GATHER_FRAMES, 4);
     this.gatherDone = onHit;
-    this.anims.stop();
-    this.endBig();
     return true;
   }
 
@@ -540,13 +714,9 @@ export class Player extends Creature {
     this.stateStart = time;
     this.stateUntil = time + PLAYER.dodge.duration;
     this.rollDir.copy(move.lengthSq() > 0 ? move : this.facing).normalize();
-    this.endBig();
     this.updateDir(this.rollDir.x, this.rollDir.y);
     this.setAlpha(1);
     this.dust(4);
-    // disparada: passos acelerados com rastro
-    this.play(`hero-${this.weapon.id}-walk-${this.dir}`, true);
-    this.anims.timeScale = 2.6;
   }
 
   private ghost(time: number) {
@@ -565,16 +735,17 @@ export class Player extends Creature {
   hurt(amount: number, fromX: number, fromY: number) {
     if (this.invulnerable) return;
     const s = this.scene;
-    this.hp = Math.max(0, this.hp - amount);
+    // a armadura absorve parte do dano (mínimo 1)
+    const dmg = Math.max(1, Math.round(amount * (1 - OUTFITS[this.outfit].defense)));
+    this.hp = Math.max(0, this.hp - dmg);
     this.invulnUntil = s.time.now + PLAYER.hurtInvuln;
-    s.fx.damageText(this.x, this.y - 24, amount, '#ff6060');
+    s.fx.damageText(this.x, this.y - 24, dmg, '#ff6060');
     s.cameras.main.shake(120, 0.006);
-    this.setTintFill(0xff4040);
-    s.time.delayedCall(100, () => this.clearTint());
+    this.flash(0xff4040, 100);
     const a = Phaser.Math.Angle.Between(fromX, fromY, this.fx, this.fy);
     this.body.setVelocity(Math.cos(a) * 150, Math.sin(a) * 150);
     this.gatherDone = undefined;
-    this.endBig();
+    this.pendingShot = undefined;
     if (this.hp <= 0) {
       this.die();
       return;
@@ -582,15 +753,14 @@ export class Player extends Creature {
     this.state2 = 'hurt';
     this.stateUntil = s.time.now + 180;
     // recuo: quadro de "encolher" da queda
-    this.anims.stop();
-    this.setFrame(HERO.rows.fall * HERO.cols + 1);
+    this.setPose(HERO.rows.fall, 1);
   }
 
   private die() {
     const s = this.scene;
     this.state2 = 'dead';
+    this.stateStart = s.time.now;
     this.body.setVelocity(0, 0);
-    this.play(`hero-${this.weapon.id}-fall`, true);
     s.fx.burst(this.x, this.y - 12, 0xff6060, 10);
     s.events.emit('player-died');
     s.time.delayedCall(1400, () => {

@@ -5,6 +5,7 @@ import { VirtualControls } from '../input/VirtualControls';
 import { DebugPanel } from '../ui/DebugPanel';
 import { InventoryPanel } from '../ui/InventoryPanel';
 import type { WeaponDef } from '../data/weapons';
+import { OUTFITS, type OutfitId } from '../entities/heroSheets';
 import type { WorldScene } from './WorldScene';
 
 /** HUD (vida, relógio, clima, nome da área) + controles virtuais. */
@@ -46,7 +47,7 @@ export class UIScene extends Phaser.Scene {
     // barra do topo (centro da tela: longe do notch e dos cantos arredondados do iPhone)
     const btn = { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff', fontStyle: 'bold', backgroundColor: '#2a2234' };
     this.weaponBtn = this.add.text(0, 0, '', btn).setDepth(2000).setInteractive({ useHandCursor: true });
-    this.weaponBtn.on('pointerdown', () => world0.player.cycleWeapon());
+    this.weaponBtn.on('pointerdown', () => this.bag.toggle());
     this.bagBtn = this.add.text(0, 0, 'MOCHILA', { ...btn, backgroundColor: '#5a3a20' }).setDepth(2000).setInteractive({ useHandCursor: true });
     this.bagBtn.on('pointerdown', () => this.bag.toggle());
     const topUi = [this.weaponBtn, this.bagBtn];
@@ -62,6 +63,7 @@ export class UIScene extends Phaser.Scene {
       this.showToast(`Agora você é ${w.className} (${w.name})`);
     });
     onWeapon(world0.player.weapon);
+    world0.events.on('outfit', (id: OutfitId) => this.showToast(`Vestiu: ${OUTFITS[id].name}`));
 
     this.layout();
     this.scale.on('resize', this.layout, this);

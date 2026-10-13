@@ -39,7 +39,8 @@ preciso rodar se você alterar `scripts/generate-assets.mjs`).
 | Esquiva | botão **ESQUIVA** | K |
 | Habilidade da arma | terceiro botão (muda com a arma) | L |
 | Coletar recurso | botão **COLETAR** (aparece perto de árvore, pedra, cristal…; segurar repete) | E |
-| Trocar de arma | botão de classe na barra do topo | Q (ou 1–4) |
+| Mirar (arco, cajado, habilidades) | automático no inimigo mais próximo; **segure e arraste** o botão para mirar à mão (linha pontilhada) — a habilidade sai ao soltar | mouse (mira para onde ele aponta) |
+| Trocar de arma / armadura | na **MOCHILA** (botão de classe ou MOCHILA na barra do topo): toque no item → EQUIPAR | Q (próxima arma) |
 | Mochila | botão **MOCHILA** na barra do topo | — |
 
 Os botões aparecem em aparelhos com toque (ou ao primeiro toque na tela).
@@ -182,6 +183,25 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   direção é quantizada em 45°). Velocidade em `PLAYER.speed` (`src/config.ts`).
 - **HP 10** com barra segmentada no HUD; pisca e fica invulnerável por 0,9 s
   após tomar dano. Ao morrer, volta a Brumavale com HP cheio.
+- **Camadas**: o herói são 4 sprites sincronizados — fundo do traje (capa),
+  arma atrás, corpo com traje/armadura, arma na frente —, então **qualquer
+  armadura combina com qualquer arma**. As folhas de cada traje/arma são
+  carregadas só quando equipadas (poupa memória no celular).
+- **Armaduras completas** (corpo inteiro, sem peças separadas):
+
+  | Armadura | Defesa | Velocidade | Bônus |
+  |---|---|---|---|
+  | Traje do Andarilho (couro leve, capa verde) | 10% | — | — |
+  | Armadura de Placas (aço, grande-elmo) | 45% | −12% | — |
+  | Armadura Legionária (bronze, saiote, penacho) | 30% | −5% | — |
+  | Vestes Arcanas (chapéu de mago, tabardo, capa) | 0% | — | habilidades recarregam 30% mais rápido |
+  | Couraça do Caçador (capuz, couro escuro, capa rasgada) | 15% | +6% | esquiva recarrega 25% antes |
+
+  Defesa = parte do dano absorvida (mínimo 1 de dano).
+- **Mira**: arco, cajado e habilidades miram sozinhos no inimigo mais próximo
+  (marcado com um retículo vermelho); arrastar o botão mira à mão; no desktop,
+  o mouse mira. **Andando, arco e cajado disparam sem parar** (o herói segue
+  andando); parado, toca a animação completa do tiro.
 - **A arma define a classe** (como no Albion — não há classe fixa): troque
   de arma no botão de classe da barra do topo (ou Q / 1–4). Cada arma tem
   folha de sprites, combo e habilidade próprios (`src/data/weapons.ts`):
@@ -355,15 +375,20 @@ Online ainda não foram implementados.
 **base** (corpo, rosto, cabelo, roupa, capa) com cada **arma** listada em
 `scripts/hero/recipe.json` (em ordem de profundidade `z`) e gera, por arma:
 
-- `public/assets/sprites/hero-<arma>.png` — folha universal LPC, 64×64 por quadro,
+- `outfit-<traje>.png` (+ `-back.png`, o que fica atrás do corpo) e
+  `wpn-<arma>-bg.png` / `-fg.png` (arma atrás / na frente do corpo) — folhas
+  universais LPC, 64×64 por quadro,
   13 colunas: magia (linhas 0–3), estocada (4–7), andar (8–11), golpe
   (12–15), arco (16–19), queda (20); cada animação em 4 direções (cima,
   esquerda, baixo, direita).
-- `public/assets/sprites/hero-<arma>-<anim>.png` — animações em quadros
+- `wpn-<arma>-<anim>-bg/fg.png` — animações em quadros
   grandes (128 ou 192 px: golpes da espada e do montante, estocadas do montante
   e do cajado, o arco andando) — o corpo entra centralizado e a arma usa a arte
   própria da animação;
 - `src/entities/heroSheets.ts` — tamanho e quantidade de quadros de cada folha.
+
+**Armadura nova**: some uma entrada em `outfits` (camadas LPC, defesa,
+velocidade, bônus; `hideHair` se tiver elmo/capuz) e rode `npm run hero`.
 
 **Arma nova**: some uma entrada em `weapons` na receita (camadas e animações
 grandes), rode `npm run hero` e descreva golpes e habilidade em

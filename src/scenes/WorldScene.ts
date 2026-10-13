@@ -15,6 +15,7 @@ import { Slime } from '../entities/Slime';
 import { Wolf } from '../entities/Wolf';
 import { Wraith } from '../entities/Wraith';
 import { inputState } from '../input/InputState';
+import type { OutfitId, WeaponId } from '../entities/heroSheets';
 import { DayNightSystem, mulColor } from '../systems/DayNightSystem';
 import { BiomeFx } from '../systems/BiomeFx';
 import { Gathering } from '../systems/Gathering';
@@ -63,6 +64,8 @@ export class WorldScene extends Phaser.Scene {
   private torches: Phaser.GameObjects.Sprite[] = [];
   private bars!: Phaser.GameObjects.Graphics;
   private biomeFx!: BiomeFx;
+  /** Mira: linha ao arrastar o botão e marcador no alvo automático. */
+  private aimGfx!: Phaser.GameObjects.Graphics;
   /** Peso (0..1) de cada bioma em volta do jogador, suavizado no tempo. */
   private biomeW: number[] = BIOMES.map((_, i) => (i === 0 ? 1 : 0));
   private biomeTint = 0xffffff;
@@ -165,7 +168,30 @@ export class WorldScene extends Phaser.Scene {
     this.weather = new WeatherSystem(this, DEPTH.weather);
     this.biomeFx = new BiomeFx(this, DEPTH.weather);
     this.gathering = new Gathering(this);
+    this.aimGfx = this.add.graphics().setDepth(DEPTH.fx + 3);
     this.inventory.on('change', () => (this.player.weightMul = this.inventory.speedFactor));
+    // equipar: arma (define a classe) e armadura (corpo inteiro)
+    this.inventory.on('equip', (kind: 'weapon' | 'armor', id: string) => {
+      if (kind === 'weapon') this.player.setWeapon(id as WeaponId);
+      else this.player.setOutfit(id as OutfitId);
+    });
+    // começa com a espada e o traje de couro equipados; o resto vai na mochila
+    for (const w of ['greatsword', 'staff', 'bow']) this.inventory.add(`weapon_${w}`, 1);
+    for (const a of ['plate', 'legion', 'arcane', 'hunter']) this.inventory.add(`armor_${a}`, 1);
+    this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.Q).on('down', () => {
+      const i = this.inventory.nextWeaponSlot();
+      if (i >= 0) this.inventory.equipAt(i);
+    });
+    // desktop: mira com o mouse (some depois de 3 s parado)
+    let mouseAt = 0;
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (p.wasTouch) return;
+      mouseAt = this.time.now;
+      inputState.mouseAim = { x: p.worldX, y: p.worldY };
+    });
+    this.events.on('update', () => {
+      if (inputState.mouseAim && this.time.now - mouseAt > 3000) inputState.mouseAim = null;
+    });
     this.createWorldMap(map);
     this.ambient = this.add.rectangle(0, 0, 10, 10, 0xffffff).setOrigin(0).setDepth(DEPTH.ambient);
     this.ambient.setBlendMode(Phaser.BlendModes.MULTIPLY);
@@ -188,6 +214,40 @@ export class WorldScene extends Phaser.Scene {
     // projéteis atravessam água, mas não paredes/árvores/casas
     this.projBlock = new Uint8Array(m.collision.length);
     for (let i = 0; i < m.collision.length; i++) this.projBlock[i] = m.collision[i] && m.water[i] < 0 ? 1 : 0;
+  }
+
+  private drawAim(time: number) {
+    const g = this.aimGfx;
+    g.clear();
+    const p = this.player;
+    if (p.dead) return;
+    const ox = p.fx;
+    const oy = p.fy - 8;
+    if (inputState.aim.active) {
+      // linha pontilhada na direção arrastada
+      const len = p.ranged ? p.aimRange : 34;
+      const { x, y } = inputState.aim;
+      for (let d = 8; d < len; d += 7) g.fillStyle(0xffffff, 0.75 - (d / len) * 0.5).fillRect(ox + x * d - 1, oy + y * d - 1, 2, 2);
+      const tx = ox + x * len;
+      const ty = oy + y * len;
+      const a = Math.atan2(y, x);
+      g.lineStyle(1.5, 0xffffff, 0.8);
+      g.lineBetween(tx, ty, tx - Math.cos(a - 0.5) * 5, ty - Math.sin(a - 0.5) * 5);
+      g.lineBetween(tx, ty, tx - Math.cos(a + 0.5) * 5, ty - Math.sin(a + 0.5) * 5);
+      return;
+    }
+    if (!p.ranged || inputState.mouseAim) return;
+    // mira automática: marca o alvo que será atingido
+    const t = p.nearestTarget(p.aimRange);
+    if (!t) return;
+    const r = 7 + Math.sin(time / 130);
+    g.lineStyle(1, 0xff6060, 0.85);
+    for (let k = 0; k < 4; k++) {
+      const a = (k * Math.PI) / 2 + Math.PI / 4;
+      const cx = t.x + Math.cos(a) * r;
+      const cy = t.y - 4 + Math.sin(a) * r;
+      g.lineBetween(cx, cy, cx - Math.cos(a) * 3, cy - Math.sin(a) * 3);
+    }
   }
 
   /** Liga/desliga a colisão de um tile (recurso coletado, recurso que voltou). */
@@ -346,6 +406,7 @@ export class WorldScene extends Phaser.Scene {
     this.dayNight.update(dt);
     this.player.update(time);
     this.gathering.update(time);
+    this.drawAim(time);
 
     const cam = this.cameras.main;
     const cx = cam.midPoint.x;
