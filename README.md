@@ -4,9 +4,9 @@ Protótipo jogável de um jogo 2D top-down em pixel art 16×16 que roda 100% no
 navegador, como PWA para celular em modo paisagem. Feito com **TypeScript +
 Vite + Phaser 3** (sem Godot).
 
-O foco é o **mundo vivo** e a jogabilidade básica: Teren explora o vale do
-Rio Serro, entre as vilas de Brumavale e Pedrafria, com fauna, inimigos, ciclo
-de dia e noite e clima. Não há história, diálogos, menus, save, economia nem
+O foco é o **mundo vivo** e a jogabilidade básica: Teren explora um mundo
+grande de cinco biomas e 14 cidades muradas, a partir da capital Brumavale,
+com fauna, inimigos, ciclo de dia e noite e clima. Não há história, diálogos, menus, save, economia nem
 música.
 
 ---
@@ -64,69 +64,67 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 
 ## O que foi implementado
 
-### Mundo e biomas (`src/systems/WorldGenerator.ts`)
-- Mundo de **480×480 tiles** (≈ 7.700 px de lado) com **cinco biomas** em volta
-  do vale original, que fica no centro-norte como o coração de Greenland.
-  As fronteiras são deformadas por ruído e a luz, o clima e as partículas
-  mudam suavemente ao cruzá-las. Cada bioma tem **fauna e inimigos próprios**
-  (≈ 450 criaturas no mundo):
-  - **Greenland** (oeste e em volta do vale): florestas densas de carvalhos
-    antigos, carvalhos, pinheiros e salgueiros, um **grande rio** descendo das
-    montanhas de neve com **lagoas** pelo caminho (e um segundo rio a leste do
-    vale), samambaias, flores grandes; **javalis** (investida), raposas,
-    cervos, lobos, limos e bandoleiros.
-  - **Snowland** (norte): neve **constante**, luz fria e mais escura,
-    **pinheiros altíssimos** nevados (copa 3×3), lagos e rios **congelados**
-    (gelo andável), montanhas nevadas com paredão, pedras com neve, arbustos
-    congelados, cristais de gelo; **ursos-polares** (erguem-se e esmagam o
-    chão), lebres-da-neve, lobos-da-neve, cervos claros e Errantes.
-  - **Blockland** (leste): chão de pedra, cascalho e capim seco, **blocos de
-    pedra** em aglomerados, muitas montanhas, quase sem vegetação, um único
-    riacho, veios de minério; **golens de pedra** (lentos, resistentes ao
-    empurrão, esmagam), cabras-montesas, limos de pedra e bandoleiros.
-  - **Blackland** (sudeste): terra arrasada de cinzas e obsidiana, muito
-    escura, rachaduras em brasa, **cristais** roxos e ciano que **brilham**,
-    árvores de cristal e árvores mortas, fungos luminosos, espinheiros, ossos,
-    poças do vazio; cinzas caindo e brasas subindo; **aranhas de cristal**
-    (saltam no herói), muitos Errantes e limos do vazio.
-  - **Dustland** (sul): dunas, arenito, mesas com paredões em camadas,
-    cactos, arbustos secos, crânios, vento de areia e **oásis** com palmeiras
-    — o Rio Serro atravessa o deserto e morre num oásis; **escorpiões**
-    (ferroada rápida), lagartos, bandoleiros, limos de areia e lobos do deserto.
-- Montanhas: manchas grandes de ruído viram **maciços** intransponíveis; as
-  duas fileiras de baixo de cada maciço são o paredão (arte própria por bioma).
-- Só uma **janela** de 72×48 tiles em volta da câmera vira tilemap; o mundo
-  inteiro fica em arrays compactos (`src/systems/TileWindow.ts`) e a colisão é
-  resolvida direto nesses arrays (`src/systems/TileCollision.ts`). Assim o
-  mundo pode crescer sem criar milhões de objetos no celular.
-- Arte de todos os biomas gerada por código em `scripts/generate-assets.mjs`
-  (linhas 8–15 do tileset), no mesmo estilo do resto do mapa.
+### Mundo e biomas (`src/systems/WorldGenerator.ts`, `src/systems/Terrain.ts`)
+- Mundo de **1536×1536 tiles** (≈ 24.600 px de lado, ~10× a área do mundo
+  anterior), cercado de **mar** (no Blackland, de **abismo**). Gerado em ~2 s
+  ao abrir o jogo, determinístico pela seed. **Cinco biomas** + o **Vale de
+  Vaelmor** (o entorno da capital, um Greenland mais calmo). Cada bioma tem
+  **fauna e inimigos próprios** (≈ 3.300 criaturas no mundo):
+  - **Greenland** (centro-oeste): florestas densas de carvalhos antigos,
+    carvalhos, pinheiros e salgueiros, muitos **rios** serpenteando até o mar e
+    **lagoas**; javalis, raposas, cervos, lobos, limos e bandoleiros.
+  - **Snowland** (norte): neve constante, pinheiros altíssimos nevados, lagos e
+    rios **congelados** (gelo andável), mar com orla de gelo, montanhas nevadas;
+    ursos-polares, lebres, lobos-da-neve, cervos claros e Errantes.
+  - **Blockland** (leste): pedra, cascalho, blocos em aglomerados, muitas
+    montanhas, veios de minério; golens, cabras, limos de pedra e bandoleiros.
+  - **Blackland** (sudeste): cinzas e obsidiana, muito escura, **cristais que
+    brilham**, poças e rios do vazio, abismo na borda do mundo; aranhas de
+    cristal, Errantes e limos do vazio.
+  - **Dustland** (sul): dunas, arenito, mesas, cactos, crânios e **oásis** com
+    palmeiras; escorpiões, lagartos, bandoleiros, limos de areia.
+- **Fronteiras**: curvas largas de ruído com ondulação fina por cima (nada de
+  linha reta) e uma **faixa de mistura** de ~14 tiles de cada lado, onde
+  aparecem manchas do bioma vizinho (neve na grama, areia nas cinzas…), com
+  as árvores e a decoração daquela mancha.
+- **Transições suaves de terreno** (`Terrain.ts`): cada tile tem um material
+  com prioridade; o material mais alto "derrama" meio tile sobre o vizinho
+  numa camada própria (`edge`), com contorno orgânico, linha de borda e sombra
+  leve — sem as escadinhas de tiles quadrados. Vale para fronteiras de bioma,
+  margens de rios e lagos (areia, gelo), estradas (a grama cobre a beira da
+  terra), clareiras de floresta e **o contorno das montanhas**.
+- Montanhas: maciços intransponíveis com paredão de 2 tiles embaixo; recuam
+  em volta das cidades e abrem passagens irregulares onde as estradas cruzam.
 
-### Vale de Vaelmor (`src/systems/MapGenerator.ts`)
-- O vale original, **120×120 tiles** gerado por código com ruído de valor/fbm
-  (determinístico pela seed), em **6 camadas de tilemap**: chão, água,
-  penhascos, decoração, copas (acima das entidades) e colisão (invisível).
-- **Planalto ao norte** e **vale ao sul**, separados por uma escarpa contínua
-  de penhascos (3 tiles: borda, face, base) que **bloqueia o movimento**.
-  Só há **duas passagens**: uma escadaria de pedra (a estrada para Pedrafria)
-  e uma rampa de terra a oeste.
-- **Rio Serro**: nasce num lago no topo do mapa, desce pelo planalto (mais
-  estreito), despenca na **Queda do Serro** — cachoeira animada de 4 frames
-  com espuma animada e névoa de partículas na base — e atravessa o vale de
-  norte a sul. A água tem **animação de fluxo** (4 frames, ondas descendo para
-  o sul) e margens de areia com juncos e vitórias-régias.
-- **Árvores em 3 variantes**: carvalho (vale, concentrado em manchas de
-  floresta), pinheiro (planalto, mais denso na encosta perto da escarpa) e
-  salgueiro (2–4 tiles da margem do rio). **Tronco com colisão**, copa 3×2
-  sem colisão desenhada acima do jogador.
-- **Brumavale** (margem leste do rio, início do jogo) e **Pedrafria** (na
-  encosta do planalto, logo acima da escadaria): 5 casas cada, praça de
-  calçamento, cercas simples, tochas e um poço em Brumavale. Ligadas por uma
-  **estrada de terra** que sobe a escadaria. Uma segunda estrada cruza o rio
-  por uma ponte e sobe a rampa oeste; uma trilha leva ao mirante da queda.
-- Flores (4 cores), arbustos (com e sem frutas), pedras, capim alto,
-  cogumelos, tocos e placas como decoração.
-- Ao entrar numa vila, perto da queda ou num bioma novo, o nome aparece na tela.
+### Cidades e estradas (`src/systems/Cities.ts`)
+- **14 cidades muradas**, 2–3 por bioma: **Brumavale** (capital, início do
+  jogo), Carvalhal e Pontealta (Greenland); Pedrafria, Invernia e Gelomar
+  (Snowland); Rochedo, Forjaval e Muralha Velha (Blockland); Umbravale e
+  Cinzalva (Blackland); Areia Rubra, Miragem e Solgrave (Dustland).
+- Cada cidade: **muralha** com torres e **4 portões**, avenidas calçadas em
+  cruz até a **praça** (fonte, barracas de feira, bancos, vasos), ruas
+  secundárias em grade, **quarteirões cheios de casas** (pequenas, médias e
+  grandes — a capital tem ~75), quintais com barris, caixotes, feno e sacos,
+  estandartes nos portões e **tochas** nas avenidas. Em Greenland, **fazendas**
+  cercadas com plantações e ovelhas do lado de fora.
+- **Arte por bioma** (`scripts/world-art.mjs`): casas de enxaimel com telhado
+  vermelho/palha (Greenland), cabanas de tronco com neve no telhado
+  (Snowland), casas de pedra com ardósia (Blockland), pedra escura com
+  telhado roxo, espinhos e janelas violeta (Blackland), adobe com teto plano,
+  toldos e **cúpulas** (Dustland); muralhas, torres e calçamento próprios.
+  À noite, as janelas acendem.
+- **Estradas de terra** ligam as cidades (árvore geradora mínima + atalhos),
+  saindo pelos portões, com **pontes** sobre rios e o vazio.
+- Ao entrar numa cidade aparece o nome e "Cidade de <bioma>".
+
+### Desempenho do mundo grande (`src/systems/Streamer.ts`)
+- Só uma **janela** de 72×48 tiles em volta da câmera vira tilemap; o mundo
+  fica em arrays compactos (`TileWindow.ts`) e a colisão é resolvida direto
+  neles (`TileCollision.ts`).
+- **Streaming por células** de 32×32 tiles: criaturas, casas, torres, tochas e
+  luzes só existem nas células perto da câmera (5×5); longe, são destruídas e
+  voltam ao retornar. Ficam ~350 objetos vivos em vez de dezenas de milhares.
+- O mapa do debug é desenhado com 1 px a cada 2×2 tiles.
 
 ### Coleta e mochila (`src/systems/Gathering.ts`, `src/systems/Inventory.ts`)
 - **Todo recurso do mapa é coletável**: árvores, pedras, blocos, minério,
@@ -150,9 +148,10 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   próximo).
 - **Voo** (atravessa montanhas, água e árvores, 3× mais rápido),
   **Invencível**, **Dia** e **Noite**.
-- **+50 pontos** de atributo, **Zerar atributos** e **Spot: próximo**
-  (teleporta para cada spot de up, um por toque). O MAPA marca os spots com
-  um círculo dourado e o nome.
+- **+50 pontos** de atributo, **Zerar atributos**, **Spot: próximo** e
+  **Cidade: próxima** (teleporta para cada spot / cidade, um por toque). O
+  MAPA marca as cidades (retângulo branco com o nome) e os spots (círculo
+  dourado).
 
 ### Atributos e spots de up — estilo MU (`src/systems/Progress.ts`, `src/systems/SpawnSpots.ts`, `src/ui/AttributesPanel.ts`)
 - Cada abate rende **pontos de atributo**: **0,5 na criatura básica** (slime,
@@ -177,8 +176,8 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   Legionária Força 40 + Vitalidade 20, Arcano Energia 50, Caçador Agilidade
   40. Na mochila, o item bloqueado fica apagado com o que falta; a tela de
   atributos lista os bloqueados. Zerar os atributos devolve a espada/couro.
-- **Spots de up** (16): 1 perto de Brumavale (Charco dos Slimes) e 3 por
-  bioma (ex.: Covil dos Lobos, Gruta dos Ursos, Pedreira dos Golens, Cripta
+- **Spots de up** (32): 2 no Vale de Vaelmor (Charco dos Slimes, Trilha dos
+  Lobos) e até 6 por bioma, longe das cidades (ex.: Covil dos Lobos, Gruta dos Ursos, Pedreira dos Golens, Cripta
   Errante, Ninho de Escorpiões). Ao chegar perto, o spot já está cheio (6–12
   criaturas) e **repõe uma a cada 3,5–7 s** (o dobro da pressa quando está
   pela metade); ao entrar aparece o nome e o nível. Longe (> 60 tiles), o spot
@@ -187,8 +186,8 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - Mostra o bioma atual, o tile e o FPS.
 
 ### Vida
-- **Ovelhas** (13, em rebanhos perto de Brumavale) e **cervos** (11, nas
-  florestas e no planalto) vagam aleatoriamente perto de seu ponto de origem
+- **Ovelhas** (em rebanhos nas fazendas das cidades de Greenland) e
+  **cervos** vagam aleatoriamente perto de seu ponto de origem
   e **fogem** quando o jogador se aproxima (cervos percebem de mais longe e
   correm mais rápido); contornam obstáculos ao fugir.
 - **Pássaros** (7) sobrevoam o mapa em trajetos levemente ondulados, com
@@ -550,15 +549,17 @@ src/
   scenes/                 BootScene (carga/animações), WorldScene (mundo), UIScene (HUD + controles)
   entities/               Player (+ heroSheet/heroSheets), Beast (inimigos dos biomas), Critters (fauna dos biomas),
                           Slime, Wolf, Bandit, Wraith, Sheep, Deer, Bird (+ Creature, Enemy, Animal, Flame, Projectile)
-  data/                   weapons (armas e classes), items (recursos por região)
-  systems/                WorldGenerator (biomas), MapGenerator (vale), TileWindow, TileCollision, Gathering, Inventory,
-                          BiomeFx, DayNightSystem, WeatherSystem (+ Tiles, Noise)
-  ui/                     DebugPanel (teleporte, mapa, voo), InventoryPanel (mochila)
+  data/                   weapons (armas e classes), items (recursos por região), buildings (gerado: medidas das casas)
+  systems/                WorldGenerator (mundo e biomas), Terrain (transições), Cities (cidades e estradas),
+                          Streamer (objetos por região), TileWindow, TileCollision, Gathering, Inventory, Progress,
+                          SpawnSpots, BiomeFx, DayNightSystem, WeatherSystem (+ Tiles, Noise)
+  ui/                     DebugPanel (teleporte, mapa, voo), InventoryPanel (mochila), AttributesPanel (atributos)
   input/                  VirtualControls, InputState
 public/
   manifest.json, sw.js, icons/
   assets/                 tilesets/, sprites/, tiles/ (PNG placeholder + README de layout)
 scripts/generate-assets.mjs   gerador da pixel art placeholder (mapa, inimigos, efeitos)
+scripts/world-art.mjs         transições de terreno, tiles de cidade e construções por bioma
 scripts/hero/                 Teren: receita e camadas LPC + montagem do spritesheet
 scripts/wraith/               Errante: arte conceitual + animação procedural
 CREDITS.md                fontes e licenças

@@ -108,6 +108,27 @@ export const T = {
   TRUNK_PALM: 242,
   TRUNK_BIGOAK: 243,
   TRUNK_CRYSTAL: 244,
+
+  // ---- transições (linhas 16–28): EDGE + material × 16 + máscara dos cantos
+  EDGE: 256,
+  // ---- cidades (linhas 29–31) — ver scripts/world-art.mjs
+  /** Muralha por estilo (green, snow, block, black, dust): topo = +2·i, frente = +2·i+1. */
+  WALL: 464,
+  BRIDGE_V: 474,
+  /** Calçamento por estilo: green usa COBBLE; snow, block, black, dust. */
+  PAVE: [9, 475, 476, 477, 478],
+  BARREL: 480,
+  CRATE: 481,
+  CRATES: 482,
+  BENCH: 483,
+  FLOWER_POT: 484,
+  HAY: 485,
+  SACKS: 486,
+  CROP_YOUNG: 487,
+  CROP_RIPE: 488,
+  FIELD: 489,
+  PLAZA: 490,
+  BANNER: 491,
 } as const;
 
 export const ANIM_FRAMES = 4;

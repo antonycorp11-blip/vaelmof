@@ -27,6 +27,8 @@ export class DebugPanel {
   private flyBtn!: Btn;
   private spotBtn!: Btn;
   private spotIdx = -1;
+  private cityBtn!: Btn;
+  private cityIdx = -1;
   private spotMarks: Phaser.GameObjects.GameObject[] = [];
   private godBtn!: Btn;
 
@@ -88,13 +90,20 @@ export class DebugPanel {
       world.teleport(sp.x, sp.y + sp.r + 24);
       this.refresh();
     }, '#3a2414');
+    this.cityBtn = add('Cidade: próxima', () => {
+      const list = world.map.cities;
+      this.cityIdx = (this.cityIdx + 1) % list.length;
+      const c = list[this.cityIdx];
+      world.teleport(c.cx * TILE + 8, (c.cy + 3) * TILE + 8);
+      this.refresh();
+    }, '#22507a');
 
     // mapa do mundo
     this.mapLayer = scene.add.container(0, 0).setDepth(2100).setVisible(false);
     this.mapBg = scene.add.rectangle(0, 0, 10, 10, 0x0b0a12, 0.9).setOrigin(0).setInteractive();
     this.mapImg = scene.add.image(0, 0, 'worldmap').setOrigin(0).setInteractive();
     this.mapDot = scene.add.circle(0, 0, 4, 0xff3b3b).setStrokeStyle(2, 0xffffff);
-    this.mapHint = scene.add.text(0, 0, 'toque no mapa para ir até lá · toque fora para fechar', { ...style, backgroundColor: undefined, fontSize: '10px' }).setOrigin(0.5, 0);
+    this.mapHint = scene.add.text(0, 0, 'toque no mapa para ir até lá · branco = cidade, dourado = spot · toque fora fecha', { ...style, backgroundColor: undefined, fontSize: '10px' }).setOrigin(0.5, 0);
     this.mapLayer.add([this.mapBg, this.mapImg, this.mapDot, this.mapHint]);
     this.mapImg.on('pointerdown', (p: Phaser.Input.Pointer, lx: number, ly: number, e: Phaser.Types.Input.EventData) => {
       e.stopPropagation();
@@ -131,6 +140,8 @@ export class DebugPanel {
   private refresh() {
     const sp = this.world.spots?.spots[this.spotIdx];
     this.spotBtn?.setText(sp ? `Spot: ${sp.name}` : 'Spot: próximo');
+    const city = this.world.map?.cities[this.cityIdx];
+    this.cityBtn?.setText(city ? `Cidade: ${city.name}` : 'Cidade: próxima');
     this.flyBtn.setText(`Voo: ${this.world.flying ? 'SIM' : 'não'}`).setStyle({ backgroundColor: this.world.flying ? '#2e7a3a' : '#2a2234' });
     this.godBtn.setText(`Invencível: ${this.world.player?.god ? 'SIM' : 'não'}`).setStyle({ backgroundColor: this.world.player?.god ? '#2e7a3a' : '#2a2234' });
   }
@@ -175,16 +186,24 @@ export class DebugPanel {
     // spots de up no mapa: círculo dourado com o nome
     for (const o of this.spotMarks) o.destroy();
     this.spotMarks = [];
-    const sc = this.mapImg.scaleX;
-    for (const sp of this.world.spots.spots) {
-      const x = this.mapImg.x + (sp.x / TILE) * sc;
-      const y = this.mapImg.y + (sp.y / TILE) * sc;
-      const c = this.scene.add.circle(x, y, Math.max(3 * u, (sp.r / TILE) * sc)).setStrokeStyle(Math.max(1, 1.5 * u), 0xffd34a, 1);
+    // px do mundo → px do mapa na tela
+    const k = this.mapImg.displayWidth / (this.world.map.width * TILE);
+    const mark = (wx: number, wy: number) => [this.mapImg.x + wx * k, this.mapImg.y + wy * k] as const;
+    for (const c of this.world.map.cities) {
+      const [x, y] = mark(c.x0 * TILE, c.y0 * TILE);
+      const r = this.scene.add.rectangle(x, y, (c.x1 - c.x0) * TILE * k, (c.y1 - c.y0) * TILE * k).setOrigin(0).setStrokeStyle(Math.max(1, 1.5 * u), 0xffffff, 0.9);
       const t = this.scene.add
-        .text(x, y - 6 * u, sp.name, { fontFamily: 'monospace', fontSize: `${Math.round(8 * u)}px`, color: '#ffd34a', fontStyle: 'bold', stroke: '#0b0a12', strokeThickness: 2 * u })
+        .text(x + ((c.x1 - c.x0) * TILE * k) / 2, y - 2 * u, c.name, { fontFamily: 'monospace', fontSize: `${Math.round(9 * u)}px`, color: '#ffffff', fontStyle: 'bold', stroke: '#0b0a12', strokeThickness: 3 * u })
         .setOrigin(0.5, 1);
-      this.mapLayer.add([c, t]);
-      this.spotMarks.push(c, t);
+      this.mapLayer.add([r, t]);
+      this.spotMarks.push(r, t);
+    }
+    for (const sp of this.world.spots.spots) {
+      const [x, y] = mark(sp.x, sp.y);
+      // spots: só o círculo dourado (com 36 spots, os nomes poluiriam o mapa)
+      const c = this.scene.add.circle(x, y, Math.max(2.5 * u, sp.r * k)).setStrokeStyle(Math.max(1, 1.5 * u), 0xffd34a, 1);
+      this.mapLayer.add(c);
+      this.spotMarks.push(c);
     }
     this.mapLayer.bringToTop(this.mapDot);
   }
@@ -199,8 +218,8 @@ export class DebugPanel {
       this.info.setText(`${BIOMES[w.biome].name} · tile ${tx},${ty} · ${Math.round(this.scene.game.loop.actualFps)} fps`);
     }
     if (this.showingMap) {
-      const s = this.mapImg.scaleX;
-      this.mapDot.setPosition(this.mapImg.x + (p.x / TILE) * s, this.mapImg.y + (p.y / TILE) * s);
+      const k = this.mapImg.displayWidth / (w.map.width * TILE);
+      this.mapDot.setPosition(this.mapImg.x + p.x * k, this.mapImg.y + p.y * k);
     }
   }
 }

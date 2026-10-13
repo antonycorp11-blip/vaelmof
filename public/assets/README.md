@@ -54,4 +54,4 @@ passo, passo B, passo), pés na linha 37. A espada: 32 quadros 28×28 com a
 empunhadura no centro, ângulo 0° apontando para a direita, sentido horário.
 
 ## tiles/
-`house-*.png`: 48×48, 2 frames (janelas apagadas / acesas). `well.png`: 32×32.
+`bld-<bioma>-<s|m|l>.png`: casas das cidades (48×48, 64×64, 96×80), variantes × (janelas apagadas, acesas) — medidas em `src/data/buildings.ts`. `tower.png` (32×48 por bioma), `stall.png` (32×32 × 3), `fountain.png` (48×40).

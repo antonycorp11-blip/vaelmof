@@ -100,6 +100,8 @@ export abstract class Enemy extends Creature {
       duration: 380,
       ease: 'Quad.easeIn',
       onComplete: () => {
+        // descarregada pelo streaming no meio da animação
+        if (!this.scene) return;
         this.setVisible(false);
         this.restoreTint();
         if (this.transient) {

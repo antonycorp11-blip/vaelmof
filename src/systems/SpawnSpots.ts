@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { TILE, WORLD_SEED } from '../config';
 import type { Enemy } from '../entities/Enemy';
 import type { WorldScene } from '../scenes/WorldScene';
-import type { SpawnKind } from './MapGenerator';
+import type { SpawnKind } from './WorldGenerator';
 import { Biome, BIOMES, type WorldData } from './WorldGenerator';
 
 /** Nível de cada região: multiplica a vida, o dano e os pontos das criaturas. */
@@ -29,31 +29,49 @@ interface SpotTemplate {
 }
 
 const TEMPLATES: Record<Biome, SpotTemplate[]> = {
-  [Biome.VALE]: [{ name: 'Charco dos Slimes', kinds: ['slime'], max: 8, every: 3500 }],
+  [Biome.VALE]: [
+    { name: 'Charco dos Slimes', kinds: ['slime'], max: 8, every: 3500 },
+    { name: 'Trilha dos Lobos', kinds: ['wolf', 'slime'], max: 7, every: 4500 },
+  ],
   [Biome.GREEN]: [
     { name: 'Toca dos Javalis', kinds: ['boar', 'boar', 'slime'], max: 10, every: 4500 },
     { name: 'Covil dos Lobos', kinds: ['wolf'], max: 8, every: 5000 },
     { name: 'Acampamento Bandido', kinds: ['bandit'], max: 7, every: 6000 },
+    { name: 'Clareira dos Javalis', kinds: ['boar', 'wolf'], max: 9, every: 4500 },
+    { name: 'Pântano Verde', kinds: ['slime'], max: 10, every: 3500 },
+    { name: 'Bosque dos Salteadores', kinds: ['bandit', 'wolf'], max: 8, every: 5500 },
   ],
   [Biome.DUST]: [
     { name: 'Ninho de Escorpiões', kinds: ['scorpion'], max: 10, every: 4500 },
     { name: 'Caravana Saqueada', kinds: ['bandit'], max: 8, every: 6000 },
     { name: 'Dunas Uivantes', kinds: ['wolf', 'scorpion'], max: 9, every: 5000 },
+    { name: 'Cânion Rubro', kinds: ['scorpion', 'bandit'], max: 9, every: 5000 },
+    { name: 'Oásis Perdido', kinds: ['slime', 'scorpion'], max: 9, every: 4500 },
+    { name: 'Ruínas de Areia', kinds: ['bandit'], max: 8, every: 6000 },
   ],
   [Biome.SNOW]: [
     { name: 'Matilha da Nevasca', kinds: ['wolf'], max: 10, every: 5000 },
     { name: 'Gruta dos Ursos', kinds: ['bear'], max: 6, every: 7000 },
     { name: 'Vigília Gélida', kinds: ['wraith', 'wolf'], max: 8, every: 6000 },
+    { name: 'Covil Branco', kinds: ['bear', 'wolf'], max: 7, every: 6500 },
+    { name: 'Lago Assombrado', kinds: ['wraith'], max: 7, every: 6000 },
+    { name: 'Encosta dos Lobos', kinds: ['wolf'], max: 11, every: 4500 },
   ],
   [Biome.BLOCK]: [
     { name: 'Pedreira dos Golens', kinds: ['golem'], max: 6, every: 7000 },
     { name: 'Ninho de Pedra', kinds: ['spider', 'slime'], max: 10, every: 4500 },
     { name: 'Forte Bandido', kinds: ['bandit'], max: 8, every: 6000 },
+    { name: 'Vale dos Golens', kinds: ['golem', 'spider'], max: 7, every: 6500 },
+    { name: 'Mina Abandonada', kinds: ['spider'], max: 11, every: 4000 },
+    { name: 'Pico Bandido', kinds: ['bandit', 'golem'], max: 7, every: 6000 },
   ],
   [Biome.BLACK]: [
     { name: 'Cripta Errante', kinds: ['wraith'], max: 8, every: 6000 },
     { name: 'Teia do Vazio', kinds: ['spider'], max: 12, every: 4000 },
     { name: 'Poço do Vazio', kinds: ['slime', 'wraith'], max: 10, every: 5000 },
+    { name: 'Fenda Sombria', kinds: ['wraith', 'spider'], max: 9, every: 5000 },
+    { name: 'Ossuário', kinds: ['wraith'], max: 8, every: 5500 },
+    { name: 'Ninho Profundo', kinds: ['spider'], max: 12, every: 4000 },
   ],
 };
 
@@ -93,27 +111,29 @@ export class SpawnSpots {
     const walk = (x: number, y: number) => x > 1 && y > 1 && x < m.width - 2 && y < m.height - 2 && !m.collision[y * m.width + x] && m.water[y * m.width + x] < 0;
     const sx = Math.floor(m.start.x / TILE);
     const sy = Math.floor(m.start.y / TILE);
+    // longe das cidades (e das fazendas em volta)
+    const nearCity = (x: number, y: number) => m.cities.some((c) => x > c.x0 - 30 && x < c.x1 + 30 && y > c.y0 - 30 && y < c.y1 + 30);
     const taken: [number, number][] = [];
     for (const b of Object.keys(TEMPLATES).map(Number) as Biome[]) {
       for (const t of TEMPLATES[b]) {
         let best: [number, number] | null = null;
         let bestScore = -1;
-        for (let k = 0; k < 2500; k++) {
+        for (let k = 0; k < 4000; k++) {
           let x: number;
           let y: number;
           if (b === Biome.VALE) {
             // o primeiro spot fica perto de Brumavale, para começar a upar
             const a = rnd.frac() * Math.PI * 2;
-            const d = 16 + rnd.frac() * 18;
+            const d = 60 + rnd.frac() * 40;
             x = Math.round(sx + Math.cos(a) * d);
             y = Math.round(sy + Math.sin(a) * d);
           } else {
             x = rnd.between(4, m.width - 5);
             y = rnd.between(4, m.height - 5);
           }
-          if (m.biome[y * m.width + x] !== b || !walk(x, y)) continue;
-          if (b !== Biome.VALE && Math.hypot(x - sx, y - sy) < 40) continue;
-          if (taken.some(([ox, oy]) => Math.hypot(ox - x, oy - y) < 42)) continue;
+          if (m.biome[y * m.width + x] !== b || !walk(x, y) || nearCity(x, y)) continue;
+          if (b !== Biome.VALE && Math.hypot(x - sx, y - sy) < 120) continue;
+          if (taken.some(([ox, oy]) => Math.hypot(ox - x, oy - y) < 90)) continue;
           // chão livre no círculo (e do mesmo bioma)
           let free = 0;
           let n = 0;

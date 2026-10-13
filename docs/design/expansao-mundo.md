@@ -321,6 +321,21 @@ interface Inventory {
   do finalizador, disparada da esquiva, poeira e recuo feitos em código.
 - O ser encapuzado do conceito é o mob **Errante** (`scripts/wraith/`).
 
+## 4.0 Mundo grande (aplicado nesta versão)
+
+- 1536×1536 tiles (≈10× a área do mundo de 480), mar em volta, abismo no
+  Blackland; o vale feito à mão (MapGenerator) saiu: o início agora é a
+  capital Brumavale, no Vale de Vaelmor (entorno da capital).
+- Fronteiras: deformação grande (grade de 4 tiles interpolada) + ondulação
+  fina + faixa de mistura de 14 tiles com manchas do vizinho (`look`).
+- Transições: marching squares nos cantos (Terrain.ts) com 17 materiais
+  (inclui os cumes das montanhas); tiles gerados em `scripts/world-art.mjs`.
+- Cidades: 14, 2–3 por bioma, com muralha, portões, praça, quarteirões e
+  fazendas; estradas por árvore geradora mínima com pontes e passagens.
+- Streaming de objetos por células de 32×32 tiles (Streamer.ts).
+- Próximos: NPCs e lojas nas cidades, interiores, minimapa com névoa de
+  exploração, gerar o mundo num Web Worker com barra de progresso.
+
 ## 4.1 Progressão estilo MU (aplicado nesta versão)
 
 - **Pontos por abate**: 0,5 na criatura básica × nível da região (1 / 1,5 /

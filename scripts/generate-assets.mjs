@@ -12,6 +12,7 @@ import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { drawBuildings, drawCityTiles, drawEdges } from './world-art.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'public');
@@ -225,7 +226,7 @@ function save(rel, img) {
 // Os índices precisam bater com src/systems/Tiles.ts.
 const T = 16;
 const COLS = 16;
-const ROWS = 16;
+const ROWS = 36;
 const tiles = new Img(COLS * T, ROWS * T);
 const at = (id) => [(id % COLS) * T, Math.floor(id / COLS) * T];
 
@@ -1138,6 +1139,10 @@ trunk(243, ['#5a3a20', '#40281a', '#7a5032'], false);
 }
 // marcador de colisão (não renderizado)
 tiles.rect(...at(112), T, T, '#ff00ff', 0.5);
+
+// transições suaves entre terrenos e tiles de cidade (linhas 16–31)
+drawEdges({ tiles, at, hex });
+drawCityTiles({ tiles, at, rng, PAL, Img });
 
 // exporta extrudado (margin 1, spacing 2)
 function extrude(src, cols, rows) {
@@ -2483,85 +2488,10 @@ quad('assets/sprites/deer.png', 4, (t, f) => {
   save('assets/sprites/items.png', img);
 }
 
-// ================================================================ CASAS
-// 48×48, 2 frames (janelas apagadas / acesas). Linha 0 do sprite (telhado)
-// fica fora da colisão para o jogador poder passar "atrás" da casa.
-function house(file, roof, wall, stone, seed) {
-  const img = new Img(96, 48);
-  for (let f = 0; f < 2; f++) {
-    const t = new Img(48, 48);
-    const r = rng(seed);
-    // paredes
-    t.rect(4, 24, 40, 22, wall[0]);
-    t.rect(4, 24, 40, 2, wall[1]);
-    if (stone) {
-      for (let y = 26; y < 46; y += 4)
-        for (let x = 4 + ((y / 4) % 2) * 3; x < 44; x += 6) {
-          t.rect(x, y, Math.min(5, 44 - x), 3, r() > 0.5 ? wall[0] : wall[2]);
-          t.rect(x, y + 3, Math.min(6, 44 - x), 1, wall[3]);
-        }
-    } else {
-      t.rect(4, 24, 2, 22, PAL.wood[1]);
-      t.rect(42, 24, 2, 22, PAL.wood[1]);
-      t.rect(4, 34, 40, 2, PAL.wood[1]);
-      t.rect(4, 44, 40, 2, PAL.wood[1]);
-    }
-    // porta
-    t.rect(20, 33, 8, 13, PAL.wood[1]);
-    t.rect(21, 34, 6, 12, PAL.wood[0]);
-    t.rect(24, 34, 1, 12, PAL.wood[1]);
-    t.set(26, 40, PAL.belt[1]);
-    // janelas
-    for (const wx of [8, 32]) {
-      t.rect(wx, 30, 8, 7, PAL.wood[1]);
-      t.rect(wx + 1, 31, 6, 5, f ? PAL.window[1] : PAL.window[0]);
-      t.rect(wx + 4, 31, 1, 5, PAL.wood[1]);
-      t.rect(wx + 1, 33, 6, 1, PAL.wood[1]);
-      if (f) t.set(wx + 2, 31, '#fff6d0');
-      else t.set(wx + 2, 31, '#5a6a90');
-    }
-    // telhado
-    for (let y = 0; y < 26; y++) {
-      const inset = Math.max(0, 12 - y);
-      const x0 = 1 + inset * 0.6;
-      const x1 = 47 - inset * 0.6;
-      for (let x = Math.floor(x0); x < x1; x++) {
-        const row = Math.floor(y / 3);
-        let c = row % 2 ? roof[0] : roof[1];
-        if (x < 24 && y > 2) c = row % 2 ? roof[2] : roof[0];
-        t.set(x, y + 2, c);
-      }
-    }
-    t.rect(1, 26, 46, 2, roof[1]);
-    t.rect(23, 2, 2, 24, roof[1]);
-    // chaminé
-    t.rect(34, 0, 5, 9, stone ? wall[3] : PAL.stoneWall[1]);
-    t.rect(34, 0, 5, 1, PAL.stoneWall[2]);
-    t.outline(0, 0, 48, 48);
-    composite(img, t, f * 48, 0);
-  }
-  save(file, img);
-}
-house('assets/tiles/house-brumavale-a.png', PAL.roofRed, PAL.plaster, false, 401);
-house('assets/tiles/house-brumavale-b.png', PAL.roofThatch, PAL.plaster, false, 402);
-house('assets/tiles/house-pedrafria-a.png', PAL.roofBlue, PAL.stoneWall, true, 403);
-house('assets/tiles/house-pedrafria-b.png', PAL.roofSlate, PAL.stoneWall, true, 404);
+// ================================================================ CONSTRUÇÕES
+// construções das cidades (por bioma), torres, fonte e barracas
+drawBuildings({ Img, rng, save, composite, PAL }, ROOT);
 
-// poço (decoração de praça, 32×32)
-{
-  const t = new Img(32, 32);
-  t.ellipse(16, 27, 11, 3, '#000000', 0.3);
-  t.rect(7, 16, 18, 10, PAL.stoneWall[0]);
-  for (let x = 7; x < 25; x += 4) t.rect(x, 20, 3, 1, PAL.stoneWall[3]);
-  t.ellipse(16, 16, 9, 3, PAL.stoneWall[2]);
-  t.ellipse(16, 16, 7, 2, PAL.water[1]);
-  t.rect(8, 4, 2, 12, PAL.wood[1]);
-  t.rect(22, 4, 2, 12, PAL.wood[1]);
-  t.rect(6, 2, 20, 3, PAL.roofRed[0]);
-  t.rect(15, 5, 2, 6, PAL.wood[0]);
-  t.outline(0, 0, 32, 32);
-  save('assets/tiles/well.png', t);
-}
 
 // ================================================================ ÍCONES PWA
 function icon(size) {

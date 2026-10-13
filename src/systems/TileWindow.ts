@@ -3,12 +3,14 @@ import { TILE } from '../config';
 import { ANIM_FRAMES, T } from './Tiles';
 import type { WorldData } from './WorldGenerator';
 
-type LayerName = 'ground' | 'water' | 'cliffs' | 'decor' | 'canopy';
+type LayerName = 'ground' | 'water' | 'edge' | 'cliffs' | 'decor' | 'canopy';
 
 /** Camadas desenhadas e a profundidade de cada uma. */
 const LAYERS: [LayerName, number][] = [
   ['ground', 0],
   ['water', 1],
+  // transições suaves por cima da água e do chão (ver Terrain.ts)
+  ['edge', 1.5],
   ['cliffs', 2],
   ['decor', 3],
   ['canopy', 3000],

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { BUILDINGS } from '../data/buildings';
 import { HERO } from '../entities/heroSheet';
 import { HERO_SHEETS } from '../entities/heroSheets';
 import { WRAITH_SHEET } from '../entities/wraithSheet';
@@ -47,9 +48,11 @@ export class BootScene extends Phaser.Scene {
     sheet('splash', 'splash.png', 8, 8);
     sheet('ui-icons', 'ui-icons.png');
     for (const k of ['pixel', 'raindrop', 'shadow', 'glow', 'fog']) this.load.image(k, `${S}${k}.png`);
-    for (const k of ['house-brumavale-a', 'house-brumavale-b', 'house-pedrafria-a', 'house-pedrafria-b'])
-      this.load.spritesheet(k, `assets/tiles/${k}.png`, { frameWidth: 48, frameHeight: 48 });
-    this.load.image('well', 'assets/tiles/well.png');
+    // construções das cidades (variantes × janelas apagadas/acesas), torres, fonte e barracas
+    for (const [k, B] of Object.entries(BUILDINGS)) this.load.spritesheet(`bld-${k}`, `assets/tiles/bld-${k}.png`, { frameWidth: B.w, frameHeight: B.h });
+    this.load.spritesheet('tower', 'assets/tiles/tower.png', { frameWidth: 32, frameHeight: 48 });
+    this.load.spritesheet('stall', 'assets/tiles/stall.png', { frameWidth: 32, frameHeight: 32 });
+    this.load.image('fountain', 'assets/tiles/fountain.png');
   }
 
   create() {

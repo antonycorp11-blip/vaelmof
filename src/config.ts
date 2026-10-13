@@ -8,8 +8,6 @@ const num = (key: string, fallback: number): number => {
 };
 
 export const TILE = 16;
-export const MAP_W = 120;
-export const MAP_H = 120;
 export const WORLD_SEED = num('seed', 1337);
 
 /** Área de mundo visível desejada (≈ 20×12 tiles); o zoom preserva essa área. */
