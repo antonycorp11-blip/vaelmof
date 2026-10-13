@@ -36,26 +36,27 @@ function sampleKeys(keys, u, loop) {
 }
 
 // ------------------------------------------------------------------ poses base
+// Proporções chibi (rig.mjs): quadril 0,545, ombros ~0,77, cabeça ~1,0.
 const STANCE = {
-  hips: [0, 0.9, 0],
-  footL: [0.13, 0.075, 0.16],
-  footR: [-0.13, 0.075, -0.15],
+  hips: [0, 0.535, 0],
+  footL: [0.085, 0.05, 0.07],
+  footR: [-0.085, 0.05, -0.06],
   footPitchL: 0,
   footPitchR: 0,
   hipsYaw: 0,
   hipsPitch: 0,
   chestYaw: -8,
-  chestPitch: 6,
+  chestPitch: 4,
   chestRoll: 0,
   headYaw: 6,
   headPitch: -2,
-  handR: [-0.24, 0.9, 0.2],
-  handL: [0.24, 0.86, 0.12],
+  handR: [-0.14, 0.56, 0.14],
+  handL: [0.15, 0.52, 0.07],
   blade: [-0.12, 0.62, 0.78],
   bladeFlat: [1, 0, 0],
   elbowPoleR: [-0.7, -0.3, -0.6],
   elbowPoleL: [0.7, -0.3, -0.6],
-  cape: { lift: 10, sway: 0 },
+  cape: { lift: 8, sway: 0 },
 };
 const P = (o) => ({ ...STANCE, ...o, cape: { ...STANCE.cape, ...(o.cape || {}) } });
 
@@ -67,32 +68,32 @@ function idle() {
   for (let i = 0; i < N; i++) {
     const b = Math.sin((i / N) * TAU);
     keys.push({
-      hips: [0.006 * b, 0.935 - 0.004 * (1 + b), 0],
+      hips: [0.004 * b, 0.545 - 0.003 * (1 + b), 0],
       hipsYaw: 0,
       hipsPitch: 0,
-      footL: [0.11, 0.075, 0.03],
-      footR: [-0.12, 0.075, -0.03],
+      footL: [0.075, 0.05, 0.02],
+      footR: [-0.08, 0.05, -0.02],
       footPitchL: 0,
       footPitchR: 0,
       chestYaw: -3,
-      chestPitch: 4 + 1.6 * b,
+      chestPitch: 2 + 1.5 * b,
       chestRoll: -1 * b,
       headYaw: 0,
-      headPitch: -1.2 * b,
+      headPitch: -1.5 * b,
       breath: (1 + b) / 2,
-      handR: [-0.25, 0.62 + 0.01 * b, 0.1],
-      handL: [0.25, 0.63 + 0.01 * b, 0.03],
-      blade: [-0.08, -0.5, 0.86],
+      handR: [-0.155, 0.45 + 0.006 * b, 0.06],
+      handL: [0.155, 0.455 + 0.006 * b, 0.02],
+      blade: [-0.1, -0.5, 0.86],
       bladeFlat: [0.5, 0, 0.85],
       elbowPoleR: [-0.6, -0.2, -1],
       elbowPoleL: [0.6, -0.2, -1],
-      cape: { lift: 7 + 2 * b, sway: 2 * Math.sin((i / N) * TAU + 1) },
+      cape: { lift: 5 + 2 * b, sway: 2 * Math.sin((i / N) * TAU + 1) },
     });
   }
   return { name: 'idle', loop: true, keys, durations: Array(N).fill(150) };
 }
 
-/** Corrida: 8 quadros, braços opostos às pernas, tronco inclinado, capa ao vento. */
+/** Corrida: 8 quadros, passada curta e saltitante, braços opostos às pernas. */
 function run() {
   const N = 8;
   const keys = [];
@@ -101,30 +102,30 @@ function run() {
     const s = Math.sin(ph);
     const foot = (p) => {
       const lift = Math.max(0, Math.cos(p + 0.6));
-      return { pos: [0, 0.075 + 0.2 * lift, 0.3 * Math.sin(p)], pitch: 28 * lift };
+      return { pos: [0, 0.05 + 0.11 * lift, 0.17 * Math.sin(p)], pitch: 22 * lift };
     };
     const fr = foot(ph);
     const fl = foot(ph + Math.PI);
     keys.push({
-      hips: [0, 0.9 + 0.03 * Math.cos(2 * ph), 0.03],
+      hips: [0, 0.54 + 0.02 * Math.cos(2 * ph), 0.02],
       hipsYaw: 8 * s,
-      hipsPitch: 4,
-      footR: [-0.085, fr.pos[1], fr.pos[2]],
-      footL: [0.085, fl.pos[1], fl.pos[2]],
+      hipsPitch: 3,
+      footR: [-0.065, fr.pos[1], fr.pos[2]],
+      footL: [0.065, fl.pos[1], fl.pos[2]],
       footPitchR: fr.pitch,
       footPitchL: fl.pitch,
-      chestYaw: -15 * s,
-      chestPitch: 11,
+      chestYaw: -12 * s,
+      chestPitch: 8,
       chestRoll: 0,
-      headYaw: 7 * s,
-      headPitch: -7,
-      handR: [-0.21, 0.86 - 0.05 * s, 0.05 - 0.25 * s],
-      handL: [0.21, 0.86 + 0.05 * s, 0.05 + 0.25 * s],
+      headYaw: 5 * s,
+      headPitch: -6,
+      handR: [-0.14, 0.56 - 0.03 * s, 0.03 - 0.15 * s],
+      handL: [0.14, 0.56 + 0.03 * s, 0.03 + 0.15 * s],
       blade: norm([-0.2, -0.38 + 0.2 * s, -0.9]),
       bladeFlat: [1, 0, 0],
       elbowPoleR: [-0.4, -0.3, -1],
       elbowPoleL: [0.4, -0.3, -1],
-      cape: { lift: 40 + 7 * Math.sin(2 * ph), sway: 6 * s },
+      cape: { lift: 34 + 6 * Math.sin(2 * ph), sway: 5 * s },
     });
   }
   return { name: 'run', loop: true, keys, durations: Array(N).fill(85) };
@@ -135,11 +136,11 @@ function atk1() {
   const flat = norm([0.5, 0.83, 0.24]);
   const keys = [
     P({ bladeFlat: flat }),
-    P({ chestYaw: -44, chestPitch: -4, hipsYaw: -10, headYaw: 20, handR: [-0.32, 1.32, -0.06], blade: [-0.35, 0.45, -0.82], bladeFlat: flat, cape: { lift: 14, sway: -6 } }),
-    P({ chestYaw: -24, chestPitch: 2, hipsYaw: -6, handR: [-0.24, 1.24, 0.3], blade: [0.0, 0.55, 0.83], bladeFlat: flat }),
-    P({ chestYaw: 18, chestPitch: 13, hipsYaw: 8, hips: [0, 0.87, 0.06], headYaw: 0, handR: [0.02, 0.98, 0.54], blade: [0.62, -0.3, 0.72], bladeFlat: flat, cape: { lift: 24, sway: 8 } }),
-    P({ chestYaw: 40, chestPitch: 12, hipsYaw: 12, hips: [0, 0.87, 0.07], headYaw: -8, handR: [0.27, 0.78, 0.3], blade: [0.85, -0.45, -0.28], bladeFlat: flat, cape: { lift: 22, sway: 10 } }),
-    P({ chestYaw: 30, chestPitch: 9, hipsYaw: 8, hips: [0, 0.88, 0.05], handR: [0.22, 0.82, 0.3], blade: [0.62, -0.25, 0.74], bladeFlat: flat, cape: { lift: 16, sway: 4 } }),
+    P({ chestYaw: -42, chestPitch: -3, hipsYaw: -10, headYaw: 18, handR: [-0.2, 0.86, -0.04], blade: [-0.35, 0.45, -0.82], bladeFlat: flat, cape: { lift: 12, sway: -6 } }),
+    P({ chestYaw: -24, chestPitch: 2, hipsYaw: -6, handR: [-0.15, 0.82, 0.2], blade: [0.0, 0.55, 0.83], bladeFlat: flat }),
+    P({ chestYaw: 18, chestPitch: 10, hipsYaw: 8, hips: [0, 0.525, 0.04], headYaw: 0, handR: [0.0, 0.66, 0.33], blade: [0.62, -0.3, 0.72], bladeFlat: flat, cape: { lift: 22, sway: 8 } }),
+    P({ chestYaw: 38, chestPitch: 9, hipsYaw: 12, hips: [0, 0.525, 0.045], headYaw: -8, handR: [0.17, 0.52, 0.2], blade: [0.85, -0.45, -0.28], bladeFlat: flat, cape: { lift: 20, sway: 10 } }),
+    P({ chestYaw: 28, chestPitch: 7, hipsYaw: 8, hips: [0, 0.53, 0.03], handR: [0.14, 0.55, 0.2], blade: [0.62, -0.25, 0.74], bladeFlat: flat, cape: { lift: 14, sway: 4 } }),
     P({ bladeFlat: [1, 0, 0] }),
   ];
   return { name: 'atk1', loop: false, keys, durations: [60, 55, 45, 55, 65, 70, 70], hit: 3, smear: [2, 3, 4] };
@@ -149,12 +150,12 @@ function atk1() {
 function atk2() {
   const flat = norm([0.1, 0.95, -0.3]);
   const keys = [
-    P({ chestYaw: 32, chestPitch: 9, handR: [0.22, 0.86, 0.28], blade: [0.8, -0.2, 0.55], bladeFlat: flat }),
-    P({ chestYaw: 46, chestPitch: 2, hipsYaw: 10, headYaw: -14, handR: [0.3, 1.1, 0.04], blade: [0.75, 0.45, -0.48], bladeFlat: flat, cape: { lift: 14, sway: 6 } }),
-    P({ chestYaw: 22, chestPitch: 6, handR: [0.18, 1.12, 0.42], blade: [0.4, 0.25, 0.88], bladeFlat: flat }),
-    P({ chestYaw: -18, chestPitch: 11, hipsYaw: -8, hips: [0, 0.87, 0.06], handR: [-0.16, 1.04, 0.52], blade: [-0.72, 0.1, 0.68], bladeFlat: flat, cape: { lift: 24, sway: -9 } }),
-    P({ chestYaw: -40, chestPitch: 9, hipsYaw: -12, hips: [0, 0.87, 0.06], headYaw: 10, handR: [-0.37, 1.08, 0.12], blade: [-0.82, 0.38, -0.42], bladeFlat: flat, cape: { lift: 22, sway: -10 } }),
-    P({ chestYaw: -22, chestPitch: 7, handR: [-0.29, 0.98, 0.18], blade: [-0.3, 0.6, 0.74], bladeFlat: flat, cape: { lift: 15, sway: -4 } }),
+    P({ chestYaw: 30, chestPitch: 7, handR: [0.14, 0.57, 0.18], blade: [0.8, -0.2, 0.55], bladeFlat: flat }),
+    P({ chestYaw: 44, chestPitch: 2, hipsYaw: 10, headYaw: -14, handR: [0.2, 0.74, 0.03], blade: [0.75, 0.45, -0.48], bladeFlat: flat, cape: { lift: 12, sway: 6 } }),
+    P({ chestYaw: 22, chestPitch: 5, handR: [0.12, 0.75, 0.27], blade: [0.4, 0.25, 0.88], bladeFlat: flat }),
+    P({ chestYaw: -18, chestPitch: 9, hipsYaw: -8, hips: [0, 0.525, 0.04], handR: [-0.1, 0.7, 0.33], blade: [-0.72, 0.1, 0.68], bladeFlat: flat, cape: { lift: 22, sway: -9 } }),
+    P({ chestYaw: -38, chestPitch: 7, hipsYaw: -12, hips: [0, 0.525, 0.04], headYaw: 10, handR: [-0.23, 0.72, 0.08], blade: [-0.82, 0.38, -0.42], bladeFlat: flat, cape: { lift: 20, sway: -10 } }),
+    P({ chestYaw: -22, chestPitch: 6, handR: [-0.18, 0.66, 0.12], blade: [-0.3, 0.6, 0.74], bladeFlat: flat, cape: { lift: 13, sway: -4 } }),
     P({}),
   ];
   return { name: 'atk2', loop: false, keys, durations: [55, 60, 45, 55, 65, 70, 70], hit: 3, smear: [2, 3, 4] };
@@ -165,12 +166,12 @@ function atk3() {
   const F = [1, 0, 0];
   const keys = [
     P({}),
-    P({ hips: [0, 0.86, -0.06], chestYaw: -38, chestPitch: -2, hipsYaw: -12, headYaw: 30, handR: [-0.2, 1.02, -0.22], blade: [0, 0.08, 1], bladeFlat: F, handL: [0.16, 1.0, 0.24], cape: { lift: 12 } }),
-    P({ hips: [0, 0.85, -0.08], chestYaw: -46, chestPitch: -4, hipsYaw: -14, headYaw: 36, handR: [-0.18, 1.04, -0.28], blade: [0, 0.1, 1], bladeFlat: F, handL: [0.15, 1.02, 0.26], cape: { lift: 10 } }),
-    P({ hips: [0, 0.84, 0.12], footL: [0.13, 0.075, 0.42], chestYaw: -6, chestPitch: 14, hipsYaw: -4, headYaw: 6, handR: [-0.06, 1.0, 0.45], blade: [0.02, -0.02, 1], bladeFlat: F, handL: [0.26, 0.95, 0.05], cape: { lift: 30 } }),
-    P({ hips: [0, 0.82, 0.2], footL: [0.13, 0.075, 0.54], footR: [-0.13, 0.075, -0.2], footPitchR: 20, chestYaw: 12, chestPitch: 20, hipsYaw: 6, headYaw: -10, handR: [0.0, 0.98, 0.8], blade: [0.02, -0.06, 1], bladeFlat: F, handL: [0.32, 0.9, -0.12], cape: { lift: 38, sway: 4 } }),
-    P({ hips: [0, 0.82, 0.2], footL: [0.13, 0.075, 0.54], footR: [-0.13, 0.075, -0.2], footPitchR: 20, chestYaw: 10, chestPitch: 18, hipsYaw: 6, headYaw: -10, handR: [0.0, 0.97, 0.76], blade: [0.02, -0.1, 1], bladeFlat: F, handL: [0.32, 0.9, -0.1], cape: { lift: 30, sway: 2 } }),
-    P({ hips: [0, 0.88, 0.08], footL: [0.13, 0.075, 0.3], chestYaw: 0, chestPitch: 10, handR: [-0.1, 0.95, 0.38], blade: [-0.05, 0.3, 0.95], bladeFlat: F, cape: { lift: 18 } }),
+    P({ hips: [0, 0.525, -0.04], chestYaw: -36, chestPitch: -2, hipsYaw: -12, headYaw: 28, handR: [-0.13, 0.68, -0.14], blade: [0, 0.08, 1], bladeFlat: F, handL: [0.1, 0.67, 0.15], cape: { lift: 10 } }),
+    P({ hips: [0, 0.52, -0.05], chestYaw: -44, chestPitch: -3, hipsYaw: -14, headYaw: 34, handR: [-0.12, 0.69, -0.18], blade: [0, 0.1, 1], bladeFlat: F, handL: [0.1, 0.68, 0.16], cape: { lift: 9 } }),
+    P({ hips: [0, 0.515, 0.07], footL: [0.085, 0.05, 0.26], chestYaw: -6, chestPitch: 11, hipsYaw: -4, headYaw: 6, handR: [-0.04, 0.67, 0.29], blade: [0.02, -0.02, 1], bladeFlat: F, handL: [0.17, 0.62, 0.03], cape: { lift: 26 } }),
+    P({ hips: [0, 0.505, 0.12], footL: [0.085, 0.05, 0.33], footR: [-0.085, 0.05, -0.12], footPitchR: 16, chestYaw: 12, chestPitch: 15, hipsYaw: 6, headYaw: -10, handR: [0.0, 0.66, 0.5], blade: [0.02, -0.06, 1], bladeFlat: F, handL: [0.2, 0.6, -0.08], cape: { lift: 34, sway: 4 } }),
+    P({ hips: [0, 0.505, 0.12], footL: [0.085, 0.05, 0.33], footR: [-0.085, 0.05, -0.12], footPitchR: 16, chestYaw: 10, chestPitch: 14, hipsYaw: 6, headYaw: -10, handR: [0.0, 0.655, 0.48], blade: [0.02, -0.1, 1], bladeFlat: F, handL: [0.2, 0.6, -0.07], cape: { lift: 26, sway: 2 } }),
+    P({ hips: [0, 0.53, 0.05], footL: [0.085, 0.05, 0.2], chestYaw: 0, chestPitch: 8, handR: [-0.06, 0.63, 0.24], blade: [-0.05, 0.3, 0.95], bladeFlat: F, cape: { lift: 16 } }),
     P({}),
   ];
   return { name: 'atk3', loop: false, keys, durations: [70, 60, 45, 40, 70, 75, 80, 80], hit: 4, smear: [3, 4], smearMode: 'thrust' };
@@ -180,36 +181,36 @@ function atk3() {
 function roll() {
   const N = 8;
   const curl = (k) => ({
-    hips: [0, 0.94 - 0.44 * k, 0.04 * k],
-    footL: [0.1, 0.075 + 0.28 * k, 0.04 + 0.2 * k],
-    footR: [-0.1, 0.075 + 0.25 * k, 0.0 + 0.18 * k],
+    hips: [0, 0.545 - 0.25 * k, 0.025 * k],
+    footL: [0.07, 0.05 + 0.16 * k, 0.03 + 0.12 * k],
+    footR: [-0.07, 0.05 + 0.14 * k, 0.0 + 0.1 * k],
     footPitchL: 40 * k,
     footPitchR: 40 * k,
     chestYaw: 0,
-    chestPitch: 6 + 64 * k,
-    headPitch: 28 * k,
+    chestPitch: 4 + 60 * k,
+    headPitch: 26 * k,
     headYaw: 0,
-    handR: [-0.16, 0.62 - 0.05 * k, 0.1 + 0.25 * k],
-    handL: [0.16, 0.62 - 0.05 * k, 0.05 + 0.27 * k],
+    handR: [-0.1, 0.45 - 0.04 * k, 0.06 + 0.15 * k],
+    handL: [0.1, 0.45 - 0.04 * k, 0.03 + 0.16 * k],
     blade: norm([0, -0.25, -1]),
     bladeFlat: [1, 0, 0],
     elbowPoleR: [-0.6, 0, -1],
     elbowPoleL: [0.6, 0, -1],
-    cape: { lift: 20 + 40 * k, sway: 0 },
+    cape: { lift: 18 + 36 * k, sway: 0 },
   });
   const keys = [];
   const curls = [0.55, 0.9, 1, 1, 1, 1, 0.85, 0.45];
   const angles = [10, 60, 110, 165, 215, 265, 315, 352];
-  for (let i = 0; i < N; i++) keys.push({ ...curl(curls[i]), roll: angles[i], rollPivot: [0, 0.4, 0.06] });
+  for (let i = 0; i < N; i++) keys.push({ ...curl(curls[i]), roll: angles[i], rollPivot: [0, 0.27, 0.04] });
   return { name: 'roll', loop: false, keys, durations: Array(N).fill(33), noInterp: true };
 }
 
 /** Dano: recuo do tronco e cabeça. */
 function hurt() {
   const keys = [
-    { ...P({}), hips: [0, 0.92, -0.06], chestPitch: -16, headPitch: -20, chestYaw: 6, handR: [-0.34, 0.86, -0.04], handL: [0.36, 0.92, -0.02], blade: norm([-0.3, -0.4, 0.86]), bladeFlat: [1, 0, 0] },
-    { ...P({}), hips: [0, 0.91, -0.08], chestPitch: -20, headPitch: -24, chestYaw: 8, handR: [-0.36, 0.84, -0.06], handL: [0.38, 0.9, -0.04], blade: norm([-0.32, -0.42, 0.85]), bladeFlat: [1, 0, 0] },
-    { ...P({}), hips: [0, 0.9, -0.03], chestPitch: -4, headPitch: -6 },
+    { ...P({}), hips: [0, 0.54, -0.04], chestPitch: -14, headPitch: -16, chestYaw: 6, handR: [-0.2, 0.52, -0.03], handL: [0.22, 0.55, -0.01], blade: norm([-0.3, -0.4, 0.86]), bladeFlat: [1, 0, 0] },
+    { ...P({}), hips: [0, 0.535, -0.05], chestPitch: -18, headPitch: -20, chestYaw: 8, handR: [-0.21, 0.51, -0.04], handL: [0.23, 0.54, -0.02], blade: norm([-0.32, -0.42, 0.85]), bladeFlat: [1, 0, 0] },
+    { ...P({}), hips: [0, 0.535, -0.02], chestPitch: -4, headPitch: -5 },
   ];
   return { name: 'hurt', loop: false, keys, durations: [80, 90, 90] };
 }
@@ -217,10 +218,10 @@ function hurt() {
 /** Conjurar a Chama: mão livre empurra uma bola de fogo para a frente. */
 function cast() {
   const keys = [
-    P({ chestYaw: 18, handL: [0.28, 1.04, -0.12], elbowPoleL: [1, -0.4, -0.4] }),
-    P({ chestYaw: 26, chestPitch: 2, handL: [0.3, 1.12, -0.18], elbowPoleL: [1, -0.4, -0.4], fire: 0.6 }),
-    P({ chestYaw: -12, chestPitch: 10, hips: [0, 0.88, 0.05], handL: [0.1, 1.16, 0.55], elbowPoleL: [1, -0.6, 0], fire: 1 }),
-    P({ chestYaw: -10, chestPitch: 9, hips: [0, 0.88, 0.05], handL: [0.1, 1.14, 0.52], elbowPoleL: [1, -0.6, 0], fire: 0.4 }),
+    P({ chestYaw: 18, handL: [0.18, 0.67, -0.07], elbowPoleL: [1, -0.4, -0.4] }),
+    P({ chestYaw: 26, chestPitch: 2, handL: [0.19, 0.71, -0.11], elbowPoleL: [1, -0.4, -0.4], fire: 0.6 }),
+    P({ chestYaw: -12, chestPitch: 8, hips: [0, 0.525, 0.03], handL: [0.06, 0.73, 0.34], elbowPoleL: [1, -0.6, 0], fire: 1 }),
+    P({ chestYaw: -10, chestPitch: 7, hips: [0, 0.525, 0.03], handL: [0.06, 0.72, 0.32], elbowPoleL: [1, -0.6, 0], fire: 0.4 }),
     P({}),
   ];
   return { name: 'cast', loop: false, keys, durations: [50, 50, 60, 70, 80], release: 2 };

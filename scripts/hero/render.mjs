@@ -1,16 +1,16 @@
 // Renderizador "3D → pixel art": ray marching ortográfico sobre as SDFs,
 // iluminação quantizada em rampas de cor, supersampling 2×2 com voto de
 // material, contorno seletivo e linhas de profundidade.
-import { COLORS, EMISSIVE, MAT_INDEX, THIN } from './palette.mjs';
+import { COLORS, EMISSIVE, MAT_INDEX, SOFT, THIN } from './palette.mjs';
 
 export const CFG = {
   W: 112, // frame final (px de arte)
   H: 112,
   FX: 56, // pés no frame final
   FY: 88,
-  S: 37, // px de arte por metro
+  S: 50, // px de arte por unidade do personagem
   SS: 2, // supersampling
-  elev: 30, // elevação da câmera (graus)
+  elev: 24, // elevação da câmera (graus)
 };
 
 const DEG = Math.PI / 180;
@@ -153,17 +153,22 @@ export function renderLayer(prims, yawDeg, under = null, opts = {}) {
       const prim = prims[best];
       let mat = matOf[best];
       let off = 0;
+      let flat = -1;
       if (prim.detail) {
         const res = prim.detail(prim.local(px, py, pz), [px, py, pz], [nx, ny, nz]);
         if (res) {
           if (res.mat) mat = MAT_INDEX[res.mat];
           if (res.off) off = res.off;
+          if (res.flat !== undefined) flat = res.flat;
         }
       }
       let shade;
-      if (EMISSIVE[mat]) shade = Math.min(4, 2 + Math.round((nx * V[0] + ny * V[1] + nz * V[2]) * 2)) + off;
+      if (flat >= 0) shade = flat;
+      else if (EMISSIVE[mat]) shade = Math.min(4, 2 + Math.round((nx * V[0] + ny * V[1] + nz * V[2]) * 2)) + off;
       else {
-        const lam = Math.max(0, nx * L[0] + ny * L[1] + nz * L[2]);
+        const nd = nx * L[0] + ny * L[1] + nz * L[2];
+        // pele: luz "half-lambert" (sombras suaves, rosto legível)
+        const lam = SOFT[mat] ? 0.35 + 0.65 * (0.5 + 0.5 * nd) : Math.max(0, nd);
         // oclusão ambiente barata (2 amostras ao longo da normal)
         const d1 = sceneD(px + nx * 0.02, py + ny * 0.02, pz + nz * 0.02, nc);
         const d2 = sceneD(px + nx * 0.05, py + ny * 0.05, pz + nz * 0.05, nc);
@@ -251,7 +256,7 @@ export function toRGBA(fin, ctxDepth = null, opts = {}) {
         const xx = x + dx, yy = y + dy;
         if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
         const j = yy * W + xx;
-        if (fin.mat[j] >= 0 && fin.depth[j] < d - 0.07) {
+        if (fin.mat[j] >= 0 && fin.depth[j] < d - 0.05) {
           shade[i] = Math.max(0, Math.min(shade[i], 4) - 1);
           break;
         }

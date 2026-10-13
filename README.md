@@ -95,10 +95,14 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 
 ### Teren (`src/entities/Player.ts`, `src/entities/HeroRig.ts`)
 - **Sprite "3D → pixel art"** gerado por `scripts/hero/` (ver
-  [Herói: pipeline e modularidade](#herói-pipeline-e-modularidade)): proporções
-  humanas reais (~56 px de arte de altura), **8 direções de sprite**, luz e
-  volume coerentes, contorno seletivo. A arte tem o dobro da densidade do
-  mapa e é exibida em escala 0,5 (≈ 1,75 tile de altura).
+  [Herói: pipeline e modularidade](#herói-pipeline-e-modularidade)) a partir
+  do conceito "aventureiro do Serro": estilo JRPG com ~3 cabeças de altura,
+  cabelo castanho espetado, olhos grandes com brilho, cachecol vermelho, capa
+  azul com barra e emblema dourados e forro vermelho, camisa creme bordada,
+  cintos com fivelas douradas, luvas, calça verde, botas altas e espada de
+  cabo azul. **8 direções de sprite**, luz e volume coerentes, contorno
+  seletivo. A arte tem o dobro da densidade do mapa e é exibida em escala
+  0,5 (≈ 27 px do mundo de altura, perto do tamanho dos outros personagens).
 - Animações: respiração parado (8 quadros), corrida (8), combo de 3 golpes
   (7 + 7 + 8), cambalhota (8), dano (3) e conjuração (5) — 54 quadros por
   direção, 432 por camada.
@@ -223,13 +227,15 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 5. **Herói por pipeline "3D → pixel art"** (`scripts/hero/`): um modelo de
    primitivas 3D com esqueleto e cinemática inversa é renderizado em pixel
    art (ray marching, luz quantizada em rampas de cor, supersampling 2×2,
-   contorno seletivo). É a técnica de jogos como Dead Cells; dá proporções
-   reais, 8 direções coerentes e animação por esqueleto. O Bandoleiro segue
-   no rig 2D simples de `scripts/generate-assets.mjs`.
+   contorno seletivo). É a técnica de jogos como Dead Cells; dá 8 direções
+   coerentes e animação por esqueleto. As proporções são chibi de JRPG
+   (cabeça grande, pernas curtas e retas), e o rosto é uma textura de pixels
+   desenhada à mão projetada na frente da cabeça. O Bandoleiro segue no rig 2D
+   simples de `scripts/generate-assets.mjs`.
 6. **Arte do herói com o dobro da densidade** do mapa (exibida a 0,5×):
-   um humano realista precisa de ~56 px de altura para ter rosto, mãos e
-   roupa legíveis; isso mistura densidades de pixel (o herói é mais
-   detalhado que o cenário), escolha consciente em favor do personagem.
+   olhos com brilho, fivelas e bordados precisam de ~55 px de arte de
+   altura; isso mistura densidades de pixel (o herói é mais detalhado que o
+   cenário), escolha consciente em favor do personagem.
 7. **Tempo de jogo único**: jogador e inimigos usam o relógio da cena
    (`this.time.now`); o impacto do golpe é medido no `update`, não com
    `delayedCall`, para não atrasar em quedas de FPS.
@@ -266,11 +272,11 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 | Arquivo | Conteúdo |
 |---|---|
 | `hero.json` | metadados: tamanho do quadro (112×112), pés (56, 88), escala 0,5, 8 direções, camadas, loadout, atlas por camada e as animações (quadros, duração de cada quadro, quadro de impacto `hit`, quadro de soltar a Chama `release`) |
-| `body-base` | corpo: pele, cabelo, rosto, camisa e calção de linho |
-| `legs-viajante` | calça e botas de cano alto |
-| `torso-viajante` | túnica com decote bordado, saia com pregas e barra dourada, mangas, braçadeiras, cinto, fivela e bolsa |
-| `cape-viajante` | capa carmim com barra dourada e fechos nos ombros |
-| `weapon-espada-serro` | espada: lâmina com sulco central e fio vivo, guarda curva dourada com rubis, empunhadura com tiras de couro e pomo com rubi |
+| `body-base` | corpo: pele, cabelo espetado, rosto (olhos, sobrancelhas, boca), camisa e calção de linho |
+| `legs-aventureiro` | calça verde e botas altas com dobra e fivela |
+| `torso-aventureiro` | camisa creme com decote de cordão e barra bordada, mangas bufantes, luvas, cinto com fivela grande, bolsa e alça transversal |
+| `cape-serro` | capa azul com barra e emblema dourados e forro vermelho, manto curto nos ombros, cachecol vermelho e broche dourado |
+| `weapon-espada-serro` | espada: lâmina com sulco e fio vivo, guarda dourada com gemas azuis, cabo azul com anéis dourados e pomo dourado |
 | `fx-espada-serro` | rastro dos golpes e o fogo da Chama na mão |
 
 Cada camada é um atlas recortado (PNG + JSON do Phaser) **com os mesmos nomes

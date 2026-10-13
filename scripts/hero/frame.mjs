@@ -45,10 +45,10 @@ export function renderFx(anim, i, J, yaw, underSS) {
   }
   const fire = J.pose.fire ?? 0;
   if (fire > 0.05) {
-    const c = v3.add(J.handL, v3.mul(J.chestB[2], 0.07));
+    const c = v3.add(J.handL, v3.mul(J.chestB[2], 0.055));
     const prims = [
-      ellipsoid(c, [0.06 * fire, 0.06 * fire, 0.06 * fire], J.chestB, 'fire', { slot: 'fx' }),
-      ellipsoid(v3.add(c, [0, 0.05 * fire, 0]), [0.035 * fire, 0.05 * fire, 0.035 * fire], J.chestB, 'fire', { slot: 'fx' }),
+      ellipsoid(c, [0.048 * fire, 0.048 * fire, 0.048 * fire], J.chestB, 'fire', { slot: 'fx' }),
+      ellipsoid(v3.add(c, [0, 0.04 * fire, 0]), [0.028 * fire, 0.04 * fire, 0.028 * fire], J.chestB, 'fire', { slot: 'fx' }),
     ];
     const fin = downsample(renderLayer(prims, yaw, underSS));
     const rgba = toRGBA(fin, null, { outline: false });

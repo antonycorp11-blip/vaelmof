@@ -19,16 +19,16 @@
   ],
   "loadout": {
     "body": "base",
-    "legs": "viajante",
-    "torso": "viajante",
-    "cape": "viajante",
+    "legs": "aventureiro",
+    "torso": "aventureiro",
+    "cape": "serro",
     "weapon": "espada-serro"
   },
   "atlases": {
     "body": "body-base",
-    "legs": "legs-viajante",
-    "torso": "torso-viajante",
-    "cape": "cape-viajante",
+    "legs": "legs-aventureiro",
+    "torso": "torso-aventureiro",
+    "cape": "cape-serro",
     "weapon": "weapon-espada-serro",
     "fx": "fx-espada-serro"
   },

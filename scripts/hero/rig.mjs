@@ -4,36 +4,41 @@
 // estão — não por ângulos de cada articulação.
 import { basis, eulerBasis, v3 } from './sdf.mjs';
 
+/**
+ * Proporções "chibi" de JRPG (~3 cabeças de altura): cabeça grande, tronco e
+ * pernas curtos. Unidades: "metros de personagem" (altura total ≈ 1,2).
+ */
 export const BONES = {
-  hipW: 0.095, // meia-distância entre as articulações do quadril
-  thigh: 0.45,
-  shin: 0.43,
-  spine: 0.27, // quadril → centro do peito
-  neck: 0.19, // centro do peito → base do pescoço
-  head: 0.14, // base do pescoço → centro da cabeça
-  shoulderW: 0.175,
-  shoulderY: 0.1,
-  upperArm: 0.28,
-  foreArm: 0.25,
-  hand: 0.075,
+  hipW: 0.066, // meia-distância entre as articulações do quadril
+  hipDrop: 0.03,
+  thigh: 0.245,
+  shin: 0.235,
+  spine: 0.17, // quadril → centro do peito
+  neck: 0.1, // centro do peito → base do pescoço
+  head: 0.165, // base do pescoço → centro da cabeça
+  shoulderW: 0.118,
+  shoulderY: 0.055,
+  upperArm: 0.155,
+  foreArm: 0.145,
+  hand: 0.05,
 };
 
 export const DEFAULT_POSE = {
-  hips: [0, 0.94, 0],
+  hips: [0, 0.545, 0],
   hipsYaw: 0,
   hipsPitch: 0,
   hipsRoll: 0,
   chestYaw: 0,
-  chestPitch: 4,
+  chestPitch: 2,
   chestRoll: 0,
   headYaw: 0,
   headPitch: 0,
-  footL: [0.11, 0.075, 0.02],
-  footR: [-0.11, 0.075, -0.02],
+  footL: [0.075, 0.05, 0.01],
+  footR: [-0.075, 0.05, -0.01],
   footPitchL: 0,
   footPitchR: 0,
-  handL: [0.25, 0.62, 0.04],
-  handR: [-0.25, 0.62, 0.08],
+  handL: [0.16, 0.44, 0.02],
+  handR: [-0.16, 0.44, 0.04],
   elbowPoleL: [0.6, -0.2, -1],
   elbowPoleR: [-0.6, -0.2, -1],
   // espada: direção da lâmina e normal da face (eixo da espessura)
@@ -42,7 +47,7 @@ export const DEFAULT_POSE = {
   cape: { lift: 6, sway: 0 },
   breath: 0,
   roll: 0, // rotação global (cambalhota), graus em torno de x
-  rollPivot: [0, 0.4, 0],
+  rollPivot: [0, 0.3, 0],
 };
 
 function ik(root, target, l1, l2, pole) {
@@ -72,11 +77,11 @@ export function solve(poseIn) {
   J.pelvisB = eulerBasis(P.hipsYaw, P.hipsPitch, P.hipsRoll);
   J.chestB = eulerBasis(P.hipsYaw + P.chestYaw, P.hipsPitch + P.chestPitch, P.hipsRoll + P.chestRoll);
   const up = J.chestB[1];
-  J.chest = v3.add(J.hips, v3.mul(up, B.spine + P.breath * 0.004));
+  J.chest = v3.add(J.hips, v3.mul(up, B.spine + P.breath * 0.003));
   J.neck = v3.add(J.chest, v3.mul(up, B.neck));
   J.headB = eulerBasis(P.hipsYaw + P.chestYaw + P.headYaw, P.hipsPitch + P.chestPitch * 0.4 + P.headPitch, 0);
   J.head = v3.add(J.neck, v3.mul(J.headB[1], B.head));
-  const sh = (side) => v3.inBasis(J.chest, J.chestB, side * B.shoulderW, B.shoulderY + P.breath * 0.006, -0.01);
+  const sh = (side) => v3.inBasis(J.chest, J.chestB, side * B.shoulderW, B.shoulderY + P.breath * 0.004, -0.005);
   J.shoulderL = sh(1);
   J.shoulderR = sh(-1);
   // braços (IK até o punho; a mão continua na direção do antebraço)
@@ -97,7 +102,7 @@ export function solve(poseIn) {
   J.grip = aR.hand;
   J.handBR = basis(v3.sub(aR.wrist, aR.elbow), bdir);
   // pernas
-  const hipJ = (side) => v3.inBasis(J.hips, J.pelvisB, side * B.hipW, -0.045, 0);
+  const hipJ = (side) => v3.inBasis(J.hips, J.pelvisB, side * B.hipW, -B.hipDrop, 0);
   J.hipL = hipJ(1);
   J.hipR = hipJ(-1);
   const knPole = v3.add(J.pelvisB[2], [0, 0.1, 0]);
@@ -107,7 +112,7 @@ export function solve(poseIn) {
   J.footBL = eulerBasis(P.hipsYaw, P.footPitchL, 0);
   J.footBR = eulerBasis(P.hipsYaw, P.footPitchR, 0);
   // âncora da capa (costas, entre as escápulas)
-  J.capeAnchor = v3.inBasis(J.chest, J.chestB, 0, 0.085, -0.13);
+  J.capeAnchor = v3.inBasis(J.chest, J.chestB, 0, 0.07, -0.1);
   J.capeB = (() => {
     const base = eulerBasis(P.hipsYaw + P.chestYaw * 0.6, P.cape.lift, P.cape.sway);
     return base;
