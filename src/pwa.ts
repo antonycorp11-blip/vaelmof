@@ -1,9 +1,28 @@
 /** Integração PWA/mobile: service worker, trava de orientação e gestos. */
 export function setupPwa() {
-  // service worker (somente no build de produção)
+  // service worker (somente no build de produção), com atualização forçada:
+  // procura versão nova ao abrir, ao voltar para o app e a cada minuto; quando
+  // a versão nova assume, a página recarrega sozinha (uma vez).
   if ('serviceWorker' in navigator && import.meta.env.PROD) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('SW não registrado', e));
+    window.addEventListener('load', async () => {
+      try {
+        const reg = await navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' });
+        const check = () => reg.update().catch(() => undefined);
+        check();
+        setInterval(check, 60_000);
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') check();
+        });
+      } catch (e) {
+        console.warn('SW não registrado', e);
+      }
+    });
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloading) return;
+      reloading = true;
+      window.location.reload();
     });
   }
 

@@ -13,6 +13,7 @@ export class UIScene extends Phaser.Scene {
   private areaText!: Phaser.GameObjects.Text;
   private toast!: Phaser.GameObjects.Text;
   private fps?: Phaser.GameObjects.Text;
+  private version!: Phaser.GameObjects.Text;
   private u = 1;
   private lastHp = -1;
 
@@ -29,6 +30,8 @@ export class UIScene extends Phaser.Scene {
     this.areaText = this.add.text(0, 0, '', { ...style, fontSize: '20px', color: '#ffe9a8' }).setOrigin(0.5).setAlpha(0);
     this.toast = this.add.text(0, 0, '', { ...style, fontSize: '14px' }).setOrigin(0.5).setAlpha(0);
     if (DEBUG) this.fps = this.add.text(0, 0, '', { ...style, fontSize: '10px' });
+    // versão (commit) — confere se o PWA pegou a atualização
+    this.version = this.add.text(0, 0, `v ${__BUILD_ID__}`, { ...style, fontSize: '9px', color: '#d8d8d8' }).setOrigin(0.5, 0).setAlpha(0.7);
     this.controls = new VirtualControls(this, touch);
 
     this.layout();
@@ -57,6 +60,7 @@ export class UIScene extends Phaser.Scene {
     this.areaText.setPosition(width / 2, height * 0.24).setFontSize(Math.round(20 * u)).setStroke('#1e1a24', 4 * u);
     this.toast.setPosition(width / 2, height * 0.36).setFontSize(Math.round(13 * u)).setStroke('#1e1a24', 3 * u);
     this.fps?.setPosition(safeLeft, 40 * u).setFontSize(Math.round(10 * u));
+    this.version.setPosition(width / 2, 6 * u).setFontSize(Math.round(9 * u)).setStroke('#1e1a24', 2 * u);
     this.controls.hudBottom = 44 * u;
     this.controls.layout(width, height, u);
     this.lastHp = -1;

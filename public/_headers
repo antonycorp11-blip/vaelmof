@@ -1,0 +1,13 @@
+# Cloudflare Pages / Netlify: o service worker, o manifest e o index.html
+# nunca ficam presos no cache HTTP (senão a atualização do PWA não chega).
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+/index.html
+  Cache-Control: no-cache
+/
+  Cache-Control: no-cache
+/manifest.json
+  Cache-Control: no-cache
+  Content-Type: application/manifest+json
+/assets/hero/*
+  Cache-Control: no-cache

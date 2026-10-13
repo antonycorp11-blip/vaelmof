@@ -16,7 +16,8 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((cache) => cache.addAll(PRECACHE))
+      // cache: 'reload' ignora o cache HTTP da CDN e baixa a versão nova de verdade
+      .then((cache) => cache.addAll(PRECACHE.map((u) => new Request(u, { cache: 'reload' }))))
       .then(() => self.skipWaiting()),
   );
 });
@@ -30,24 +31,34 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// cache-first para arquivos do próprio site; navegação cai no index.html offline
+// páginas: rede primeiro (pega o index.html novo); demais arquivos: cache primeiro
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-  event.respondWith(
-    caches.match(req, { ignoreSearch: req.mode === 'navigate' }).then((hit) => {
-      if (hit) return hit;
-      return fetch(req)
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      fetch(req, { cache: 'no-store' })
         .then((res) => {
-          if (res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy));
-          }
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put('./index.html', copy));
           return res;
         })
-        .catch(() => (req.mode === 'navigate' ? caches.match('./index.html') : Response.error()));
+        .catch(() => caches.match('./index.html')),
+    );
+    return;
+  }
+  event.respondWith(
+    caches.match(req).then((hit) => {
+      if (hit) return hit;
+      return fetch(req).then((res) => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
+        return res;
+      });
     }),
   );
 });

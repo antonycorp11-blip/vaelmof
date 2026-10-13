@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
@@ -22,7 +23,7 @@ function precacheManifest(): Plugin {
         }
       };
       walk(outDir);
-      const list = files.filter((f) => f !== 'sw.js' && !f.endsWith('-preview.png') && !f.endsWith('.md')).sort();
+      const list = files.filter((f) => f !== 'sw.js' && f !== '_headers' && !f.endsWith('-preview.png') && !f.endsWith('.md')).sort();
       const hash = createHash('sha1');
       for (const f of list) hash.update(f).update(readFileSync(join(outDir, f)));
       const swPath = join(outDir, 'sw.js');
@@ -34,7 +35,19 @@ function precacheManifest(): Plugin {
   };
 }
 
+/** Identificador da versão (commit), exibido no HUD para conferir se o PWA atualizou. */
+function buildId(): string {
+  const env = process.env.CF_PAGES_COMMIT_SHA || process.env.COMMIT_REF || process.env.GITHUB_SHA;
+  if (env) return env.slice(0, 7);
+  try {
+    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  } catch {
+    return 'dev';
+  }
+}
+
 export default defineConfig({
+  define: { __BUILD_ID__: JSON.stringify(buildId()) },
   // caminhos relativos: funciona na raiz (Netlify) e em subpasta (GitHub Pages)
   base: './',
   build: {
