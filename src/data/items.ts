@@ -54,10 +54,10 @@ export const itemId = (family: keyof typeof FAMILY, region: Region) => `${family
 
 // armas (a arma define a classe) — ícones de ui-icons.png
 const WEAPON_ITEM: Record<WeaponId, { icon: number; weight: number; info: string }> = {
-  sword: { icon: 0, weight: 3, info: 'combo de 3 cortes · Investida' },
-  greatsword: { icon: 5, weight: 8, info: 'lento e forte · Giro' },
-  staff: { icon: 6, weight: 2, info: 'raio arcano · Chama' },
-  bow: { icon: 7, weight: 2, info: 'flechas de longe · Tiro triplo' },
+  sword: { icon: 0, weight: 3, info: 'combo de 3 cortes · Investida, Redemoinho, Grito de guerra' },
+  greatsword: { icon: 5, weight: 8, info: 'lento e forte · Giro, Golpe sísmico, Fúria' },
+  staff: { icon: 6, weight: 2, info: 'raio arcano · Chama, Lança de gelo, Nova arcana' },
+  bow: { icon: 7, weight: 2, info: 'flechas de longe · Tiro triplo, Flecha perfurante, Chuva de flechas' },
 };
 for (const [id, w] of Object.entries(WEAPON_ITEM) as [WeaponId, (typeof WEAPON_ITEM)[WeaponId]][]) {
   const sh = HERO_SHEETS[id];

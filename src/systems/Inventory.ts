@@ -8,7 +8,7 @@ export interface ItemStack {
 }
 
 /**
- * Mochila no estilo Albion (sem slots de equipamento por enquanto): 48 espaços,
+ * Mochila no estilo Albion: 48 espaços,
  * pilhas de até 999, peso total. Acima da carga máxima o herói fica mais lento.
  * Emite 'change' a cada alteração (a UI escuta).
  */
@@ -19,6 +19,14 @@ export class Inventory extends Phaser.Events.EventEmitter {
   readonly slots: (ItemStack | null)[] = Array(Inventory.SLOTS).fill(null);
   /** Equipado (fora da mochila): uma arma e uma armadura completa. */
   equipped: { weapon: WeaponId; armor: OutfitId } = { weapon: 'sword', armor: 'leather' };
+  /** Requisitos de atributo: devolve o que falta para usar o item ('' = pode). */
+  missing: (id: string) => string = () => '';
+  /** Carga extra (kg) dada pela Força. */
+  extraWeight = 0;
+
+  get maxWeight(): number {
+    return Inventory.MAX_WEIGHT + this.extraWeight;
+  }
 
   /**
    * Equipa o item do espaço `i`: ele sai da mochila e o que estava equipado
@@ -28,6 +36,11 @@ export class Inventory extends Phaser.Events.EventEmitter {
     const s = this.slots[i];
     const def = s && ITEMS[s.id];
     if (!def?.equip) return false;
+    const need = this.missing(def.id);
+    if (need) {
+      this.emit('denied', need);
+      return false;
+    }
     const e = def.equip;
     const old = e.kind === 'weapon' ? `weapon_${this.equipped.weapon}` : `armor_${this.equipped.armor}`;
     if (e.kind === 'weapon') this.equipped.weapon = e.id;
@@ -38,9 +51,24 @@ export class Inventory extends Phaser.Events.EventEmitter {
     return true;
   }
 
-  /** Próxima arma da mochila (atalho Q / botão de classe). */
+  /** Próxima arma da mochila que dá para usar (atalho Q). */
   nextWeaponSlot(): number {
-    return this.slots.findIndex((s) => !!s && ITEMS[s.id].equip?.kind === 'weapon');
+    return this.slots.findIndex((s) => !!s && ITEMS[s.id].equip?.kind === 'weapon' && !this.missing(s.id));
+  }
+
+  /**
+   * Tira o que não cumpre mais os requisitos (ex.: atributos zerados) e volta
+   * para a espada / o traje de couro, que não exigem nada.
+   */
+  enforce() {
+    const fix = (kind: 'weapon' | 'armor', base: string) => {
+      const cur = kind === 'weapon' ? `weapon_${this.equipped.weapon}` : `armor_${this.equipped.armor}`;
+      if (!this.missing(cur)) return;
+      const i = this.slots.findIndex((s) => s?.id === `${kind}_${base}`);
+      if (i >= 0) this.equipAt(i);
+    };
+    fix('weapon', 'sword');
+    fix('armor', 'leather');
   }
 
   /** Adiciona; devolve quanto coube. Equipamentos não empilham. */
@@ -76,7 +104,7 @@ export class Inventory extends Phaser.Events.EventEmitter {
 
   /** Multiplicador de velocidade pela carga: 100% até a carga máxima, cai até 40% em 150%. */
   get speedFactor(): number {
-    const k = this.weight / Inventory.MAX_WEIGHT;
+    const k = this.weight / this.maxWeight;
     if (k <= 1) return 1;
     return Math.max(0.4, 1 - (k - 1) * 1.2);
   }

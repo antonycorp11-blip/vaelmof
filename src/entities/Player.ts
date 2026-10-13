@@ -1,16 +1,18 @@
 import Phaser from 'phaser';
 import { PLAYER } from '../config';
-import { WEAPONS, type Move, type WeaponDef } from '../data/weapons';
+import { BUFFS, WEAPONS, type BuffId, type Effect, type Move, type WeaponDef } from '../data/weapons';
 import { consume, inputState } from '../input/InputState';
 import type { WorldScene } from '../scenes/WorldScene';
-import { Creature } from './Creature';
+import { Creature, DEPTH } from './Creature';
 import { Flame } from './Flame';
 import { HERO, LPC_DIR } from './heroSheet';
 import { HERO_SHEETS, OUTFITS, type OutfitId, type WeaponId } from './heroSheets';
 import { Projectile } from './Projectile';
 
 type PlayerState = 'normal' | 'attack' | 'roll' | 'hurt' | 'gather' | 'dead';
-type Action = 'attack' | 'dodge' | 'flame' | 'gather';
+type Action = 'attack' | 'dodge' | 'flame' | 'skill2' | 'skill3' | 'gather';
+/** Botão de cada habilidade (1, 2, 3). */
+const SKILL_ACTIONS = ['flame', 'skill2', 'skill3'] as const;
 interface BigAnim {
   frame: number;
   frames: number;
@@ -29,6 +31,8 @@ interface Keys {
   attack: Phaser.Input.Keyboard.Key;
   dodge: Phaser.Input.Keyboard.Key;
   flame: Phaser.Input.Keyboard.Key;
+  skill2: Phaser.Input.Keyboard.Key;
+  skill3: Phaser.Input.Keyboard.Key;
   gather: Phaser.Input.Keyboard.Key;
 }
 
@@ -75,8 +79,7 @@ const bigOf = (w: WeaponId, anim: string) => (HERO_SHEETS[w].big as unknown as R
  * próximo, ou para onde o jogador arrastar o botão; andando, disparam sem parar.
  */
 export class Player extends Creature {
-  hp = PLAYER.maxHp;
-  readonly maxHp = PLAYER.maxHp;
+  hp = 0;
   state2: PlayerState = 'normal';
   /** Direção para onde Teren olha (unitário). */
   facing = new Phaser.Math.Vector2(0, 1);
@@ -98,7 +101,14 @@ export class Player extends Creature {
   /** Direção do disparo/golpe atual (mira). */
   private aim = new Phaser.Math.Vector2(0, 1);
   private lastDodge = -99999;
-  private lastSkill = -99999;
+  private lastSkill = [-99999, -99999, -99999];
+  /** Fortalecimentos ativos (até quando). */
+  private buffs = new Map<BuffId, number>();
+  private lastBuffFx = 0;
+  /** Velocidade do movimento atual (atributos × fúria). */
+  private moveRate = 1;
+  private lastHurt = -99999;
+  private regen = 0;
   private lastGhost = 0;
   private nextShot = 0;
   private pendingShot?: { at: number; move: Move; aim: Phaser.Math.Vector2 };
@@ -107,7 +117,7 @@ export class Player extends Creature {
   private lastWalkCol = -1;
   private keys?: Keys;
   /** Buffer de entrada: ação pedida fica válida por alguns ms (toques rápidos não se perdem). */
-  private buffered: Record<Action, number> = { attack: 0, dodge: 0, flame: 0, gather: 0 };
+  private buffered: Record<Action, number> = { attack: 0, dodge: 0, flame: 0, skill2: 0, skill3: 0, gather: 0 };
   private readonly shadow: Phaser.GameObjects.Image;
   /** Camadas: fundo do traje, arma atrás, arma na frente. */
   private readonly back: Phaser.GameObjects.Sprite;
@@ -153,11 +163,53 @@ export class Player extends Creature {
         attack: k(K.J),
         dodge: k(K.K),
         flame: k(K.L),
+        skill2: k(K.U),
+        skill3: k(K.I),
         gather: k(K.E),
       };
-      for (const action of ['attack', 'dodge', 'flame', 'gather'] as const) this.keys[action].on('down', () => this.queue(action));
+      for (const action of ['attack', 'dodge', 'flame', 'skill2', 'skill3', 'gather'] as const) this.keys[action].on('down', () => this.queue(action));
     }
+    this.hp = this.maxHp;
     this.stand();
+  }
+
+  /** Vida máxima: cresce com a Vitalidade. */
+  get maxHp(): number {
+    return this.scene.progress.maxHp;
+  }
+
+  /** Multiplicador de dano: Força (espadas), Agilidade (arco) ou Energia (cajado), × fortalecimentos. */
+  get dmgMul(): number {
+    const P = this.scene.progress;
+    const id = this.weapon.id;
+    const base = id === 'bow' ? P.rangedMul : id === 'staff' ? P.magicMul : P.meleeMul;
+    let k = base;
+    for (const b of this.activeBuffs) k *= BUFFS[b].dmg;
+    return k;
+  }
+
+  /** Velocidade de ataque: Agilidade × fúria. */
+  get attackRate(): number {
+    let k = this.scene.progress.attackRate;
+    for (const b of this.activeBuffs) k *= BUFFS[b].rate;
+    return k;
+  }
+
+  /** Quanto do dano a armadura (e o grito de guerra) absorve. */
+  get defense(): number {
+    let d = OUTFITS[this.outfit].defense;
+    for (const b of this.activeBuffs) d += BUFFS[b].defense;
+    return Math.min(0.8, d);
+  }
+
+  get activeBuffs(): BuffId[] {
+    const now = this.scene.time.now;
+    return [...this.buffs].filter(([, until]) => until > now).map(([b]) => b);
+  }
+
+  /** Quanto falta de cada fortalecimento (ms), para o HUD. */
+  buffLeft(b: BuffId): number {
+    return Math.max(0, (this.buffs.get(b) ?? 0) - this.scene.time.now);
   }
 
   setScale(x: number, y?: number): this {
@@ -198,8 +250,9 @@ export class Player extends Creature {
     return p && p !== 'flame' ? p.range * 0.9 : 46;
   }
 
-  private get skillCooldown(): number {
-    return this.weapon.skill.cooldown * (OUTFITS[this.outfit].bonus === 'cooldown' ? 0.7 : 1);
+  /** Recarga da habilidade `i`: traje arcano −30%, Energia até −50%. */
+  skillCooldown(i: number): number {
+    return this.weapon.skills[i].cooldown * (OUTFITS[this.outfit].bonus === 'cooldown' ? 0.7 : 1) * this.scene.progress.cooldownMul;
   }
 
   private get dodgeCooldown(): number {
@@ -444,14 +497,16 @@ export class Player extends Creature {
     const move = this.readMove();
     const wantAttack = this.pressed('attack', time);
     const wantDodge = this.pressed('dodge', time);
-    const wantSkill = this.pressed('flame', time);
+    const wantSkill = SKILL_ACTIONS.map((a) => this.pressed(a, time));
     const st = this.state2;
     const W = this.weapon;
     const O = OUTFITS[this.outfit];
 
     inputState.cooldowns.attack = st === 'attack' && !this.isSkill ? Phaser.Math.Clamp((this.stateUntil - time) / this.moveDur, 0, 1) : 0;
     inputState.cooldowns.dodge = Phaser.Math.Clamp(1 - (time - this.lastDodge) / this.dodgeCooldown, 0, 1);
-    inputState.cooldowns.flame = Phaser.Math.Clamp(1 - (time - this.lastSkill) / this.skillCooldown, 0, 1);
+    SKILL_ACTIONS.forEach((a, i) => (inputState.cooldowns[a] = Phaser.Math.Clamp(1 - (time - this.lastSkill[i]) / this.skillCooldown(i), 0, 1)));
+    this.regenerate(time, dt);
+    this.buffFx(time);
     inputState.hp = this.hp;
     inputState.maxHp = this.maxHp;
 
@@ -497,7 +552,7 @@ export class Player extends Creature {
       this.facing.copy(move).normalize();
       if (st === 'normal') this.updateDir(move.x, move.y);
     }
-    const speed = PLAYER.speed * O.speed * this.speedMul * this.weightMul;
+    const speed = PLAYER.speed * O.speed * this.speedMul * this.weightMul * this.scene.progress.moveMul;
 
     // ações — a esquiva cancela tudo; o golpe pode ser encadeado no fim da recuperação
     if (wantDodge && time - this.lastDodge >= this.dodgeCooldown) {
@@ -520,10 +575,11 @@ export class Player extends Creature {
       }
     }
     const skillOk = this.state2 === 'normal' || (this.state2 === 'attack' && !this.isSkill);
-    if (wantSkill && skillOk && time - this.lastSkill >= this.skillCooldown) {
-      this.lastSkill = time;
-      this.buffered.flame = 0;
-      this.startMove(time, W.skill, this.resolveAim(inputState.skillAim));
+    const si = wantSkill.findIndex((w, i) => w && time - this.lastSkill[i] >= this.skillCooldown(i));
+    if (si >= 0 && skillOk) {
+      this.lastSkill[si] = time;
+      this.buffered[SKILL_ACTIONS[si]] = 0;
+      this.startMove(time, W.skills[si], this.resolveAim(inputState.skillAim));
       inputState.skillAim = null;
       this.combo = 0;
       this.comboUntil = 0;
@@ -533,7 +589,7 @@ export class Player extends Creature {
       if (time >= this.nextShot) {
         this.buffered.attack = 0;
         const M = W.combo[0];
-        this.nextShot = time + sum(M.frames) * 0.8;
+        this.nextShot = time + (sum(M.frames) * 0.8) / this.attackRate;
         this.pendingShot = { at: time + 70, move: M, aim: this.resolveAim() };
       }
     } else {
@@ -559,7 +615,7 @@ export class Player extends Creature {
         }
         const k = M.projectile ? 0.45 : 0.15;
         this.body.setVelocity(this.aim.x * lunge + move.x * speed * k, this.aim.y * lunge + move.y * speed * k);
-        this.attackPose(M, t);
+        this.attackPose(M, t * this.moveRate);
         this.sortDepth();
         if (time >= this.stateUntil) this.toIdle();
         return;
@@ -574,6 +630,10 @@ export class Player extends Creature {
   /** Pose do movimento atual: animação grande da arma, giro ou tiro com arco. */
   private attackPose(M: Move, t: number) {
     const i = frameAt(M.frames, t);
+    if (M.anim === 'cast') {
+      this.setPose(HERO.rows.cast, Math.min(6, M.cols ? M.cols[i] : i));
+      return;
+    }
     if (M.anim === 'shoot') {
       this.setPose(HERO.rows.shoot, M.cols ? M.cols[i] : i);
       return;
@@ -613,9 +673,10 @@ export class Player extends Creature {
 
   private startMove(time: number, M: Move, aim: Phaser.Math.Vector2) {
     this.move = M;
-    this.isSkill = M === this.weapon.skill;
-    this.moveDur = sum(M.frames);
-    this.moveHitAt = startOf(M.frames, M.hit);
+    this.isSkill = this.weapon.skills.includes(M as never);
+    this.moveRate = this.attackRate;
+    this.moveDur = sum(M.frames) / this.moveRate;
+    this.moveHitAt = startOf(M.frames, M.hit) / this.moveRate;
     this.stateStart = time;
     this.state2 = 'attack';
     this.stateUntil = time + this.moveDur;
@@ -632,14 +693,19 @@ export class Player extends Creature {
     // sai do corpo (não à frente): um inimigo colado também é atingido
     const ox = this.fx + Math.cos(a) * 3;
     const oy = this.fy - 10 + Math.sin(a) * 2;
+    if (M.effect) {
+      this.effect(M.effect, aim);
+      return;
+    }
+    const mul = this.dmgMul;
     if (M.projectile === 'flame') {
-      new Flame(this.scene, ox, oy, a);
+      new Flame(this.scene, ox, oy, a, mul);
       return;
     }
     if (M.projectile) {
       const n = M.count ?? 1;
       const spread = Phaser.Math.DegToRad(M.spread ?? 0);
-      for (let i = 0; i < n; i++) new Projectile(this.scene, ox, oy, a + (i - (n - 1) / 2) * spread, M.projectile);
+      for (let i = 0; i < n; i++) new Projectile(this.scene, ox, oy, a + (i - (n - 1) / 2) * spread, M.projectile, mul);
       if (this.weapon.id === 'staff') this.scene.fx.burst(ox, oy, 0xb46cec, 6);
       return;
     }
@@ -666,6 +732,7 @@ export class Player extends Creature {
       }
     }
     const half = Phaser.Math.DegToRad(M.arcDeg / 2);
+    const dmg = Math.max(1, Math.round(M.damage * this.dmgMul));
     let hit = false;
     for (const e of s.enemies) {
       if (e.dead) continue;
@@ -673,7 +740,7 @@ export class Player extends Creature {
       if (d > M.range + 6) continue;
       const diff = Math.abs(Phaser.Math.Angle.Wrap(Phaser.Math.Angle.Between(cx, cy, e.fx, e.fy) - angle));
       if (diff <= half || d < 10) {
-        e.takeDamage(M.damage, this.fx, this.fy, M.knockback);
+        e.takeDamage(dmg, this.fx, this.fy, M.knockback);
         s.fx.burst((e.fx + cx) / 2 + (e.fx - cx) * 0.3, e.fy - 6, 0xffffff, 5);
         hit = true;
       }
@@ -682,6 +749,168 @@ export class Player extends Creature {
       const heavy = M.damage >= 3;
       s.cameras.main.shake(heavy ? 120 : 70, heavy ? 0.005 : 0.0025);
       s.hitStop(heavy ? 80 : 45);
+    }
+  }
+
+  // ---------------------------------------------------------------- habilidades especiais
+  /** Fortalecimento ou dano em área (habilidades 2 e 3 de cada arma). */
+  private effect(E: Effect, aim: Phaser.Math.Vector2) {
+    const s = this.scene;
+    if (E.kind === 'buff') {
+      const B = BUFFS[E.buff];
+      this.buffs.set(E.buff, s.time.now + E.ms);
+      this.ring(this.fx, this.fy - 6, 34, B.color, 380);
+      s.fx.burst(this.x, this.y - 14, B.color, 16);
+      s.fx.floatText(this.x, this.y - 30, `${B.name}!`, '#' + B.color.toString(16).padStart(6, '0'));
+      s.cameras.main.shake(90, 0.003);
+      return;
+    }
+    let cx = this.fx;
+    let cy = this.fy;
+    if (E.at === 'front') {
+      cx += aim.x * 22;
+      cy += aim.y * 22;
+    } else if (E.at === 'target') {
+      const t = this.targetAlong(aim, 160);
+      cx = t.x;
+      cy = t.y;
+    }
+    const mul = this.dmgMul;
+    const waves = E.waves ?? 1;
+    for (let w = 0; w < waves; w++)
+      s.time.delayedCall(w * (E.every ?? 0), () => {
+        if (E.style === 'rain') {
+          // flechas caindo em pontos sorteados; o dano sai na queda
+          for (let k = 0; k < 4; k++) {
+            const r = Math.sqrt(Math.random()) * E.radius;
+            const a = Math.random() * Math.PI * 2;
+            this.fallingArrow(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.7);
+          }
+          s.time.delayedCall(130, () => this.areaHit(cx, cy, E.radius, E.damage * mul, E.knockback, E.stun));
+          return;
+        }
+        this.areaHit(cx, cy, E.radius, E.damage * mul, E.knockback, E.stun);
+        this.ring(cx, cy, E.radius, E.color, E.style === 'quake' ? 320 : 420);
+        if (E.style === 'quake') {
+          s.cameras.main.shake(220, 0.009);
+          for (let k = 0; k < 10; k++) {
+            const a = (k / 10) * Math.PI * 2;
+            s.fx.burst(cx + Math.cos(a) * E.radius * 0.6, cy + Math.sin(a) * E.radius * 0.45, E.color, 2);
+          }
+          this.cracks(cx, cy, E.radius);
+          s.hitStop(70);
+        } else {
+          s.cameras.main.shake(140, 0.005);
+          s.fx.burst(cx, cy - 6, E.color, 22);
+        }
+      });
+    if (E.style === 'rain') this.ring(cx, cy, E.radius, 0xff6060, 1300, true);
+  }
+
+  /** Ponto do alvo na direção da mira: o inimigo mais alinhado, ou ~90 px à frente. */
+  private targetAlong(aim: Phaser.Math.Vector2, range: number) {
+    let best = { x: this.fx + aim.x * 90, y: this.fy + aim.y * 90 };
+    let bestScore = Infinity;
+    for (const e of this.scene.enemies) {
+      if (e.dead || !e.body.enable) continue;
+      const dx = e.fx - this.fx;
+      const dy = e.fy - this.fy;
+      const d = Math.hypot(dx, dy);
+      if (d > range) continue;
+      const cos = (dx * aim.x + dy * aim.y) / (d || 1);
+      if (cos < 0.6) continue;
+      const score = d * (2 - cos);
+      if (score < bestScore) {
+        bestScore = score;
+        best = { x: e.fx, y: e.fy };
+      }
+    }
+    return best;
+  }
+
+  private areaHit(x: number, y: number, r: number, dmg: number, kb: number, stun?: number) {
+    let hit = false;
+    for (const e of this.scene.enemies) {
+      if (e.dead || !e.body.enable) continue;
+      if (Phaser.Math.Distance.Between(x, y, e.fx, e.fy) > r) continue;
+      e.takeDamage(Math.max(1, Math.round(dmg)), x, y, kb);
+      if (stun) e.stun(stun);
+      hit = true;
+    }
+    return hit;
+  }
+
+  /** Anel que se expande (onda de choque) — ou que pisca no lugar (`hold`). */
+  private ring(x: number, y: number, r: number, color: number, ms: number, hold = false) {
+    const s = this.scene;
+    const c = s.add.ellipse(x, y, r * 2, r * 1.4).setStrokeStyle(1.5, color, 0.9).setDepth(DEPTH.fx);
+    if (hold) {
+      c.setFillStyle(color, 0.08);
+      s.tweens.add({ targets: c, alpha: 0.25, yoyo: true, repeat: 2, duration: ms / 6, onComplete: () => c.destroy() });
+      return;
+    }
+    c.setScale(0.15);
+    s.tweens.add({ targets: c, scale: 1, alpha: 0, duration: ms, ease: 'Quad.easeOut', onComplete: () => c.destroy() });
+  }
+
+  /** Rachaduras no chão do golpe sísmico. */
+  private cracks(x: number, y: number, r: number) {
+    const s = this.scene;
+    const g = s.add.graphics().setDepth(this.depth - 3);
+    g.lineStyle(1, 0x2a2018, 0.8);
+    for (let k = 0; k < 7; k++) {
+      let a = (k / 7) * Math.PI * 2 + Math.random() * 0.4;
+      let px = x;
+      let py = y;
+      for (let j = 0; j < 4; j++) {
+        const l = (r / 4) * (0.7 + Math.random() * 0.5);
+        const nx = px + Math.cos(a) * l;
+        const ny = py + Math.sin(a) * l * 0.7;
+        g.lineBetween(px, py, nx, ny);
+        px = nx;
+        py = ny;
+        a += (Math.random() - 0.5) * 0.8;
+      }
+    }
+    s.tweens.add({ targets: g, alpha: 0, delay: 900, duration: 700, onComplete: () => g.destroy() });
+  }
+
+  private fallingArrow(x: number, y: number) {
+    const s = this.scene;
+    const a = s.add.image(x + 6, y - 46, 'arrow').setRotation(Math.PI / 2 + 0.15).setScale(0.8).setDepth(DEPTH.fx);
+    s.tweens.add({
+      targets: a,
+      x,
+      y,
+      duration: 130,
+      ease: 'Quad.easeIn',
+      onComplete: () => {
+        s.fx.burst(x, y, 0xcbb89a, 3);
+        s.tweens.add({ targets: a, alpha: 0, delay: 250, duration: 250, onComplete: () => a.destroy() });
+      },
+    });
+  }
+
+  /** Brilho nos pés enquanto houver fortalecimento ativo. */
+  private buffFx(time: number) {
+    if (time - this.lastBuffFx < 160) return;
+    const b = this.activeBuffs;
+    if (!b.length) return;
+    this.lastBuffFx = time;
+    for (const id of b) this.scene.fx.burst(this.x + Phaser.Math.Between(-5, 5), this.y - 2, BUFFS[id].color, 1);
+  }
+
+  /** Fora de combate (6 s sem levar dano) a vida volta aos poucos. */
+  private regenerate(time: number, dt: number) {
+    if (this.dead || this.hp >= this.maxHp || time - this.lastHurt < 6000) {
+      this.regen = 0;
+      return;
+    }
+    this.regen += dt * Math.max(0.5, this.maxHp * 0.03);
+    if (this.regen >= 1) {
+      const k = Math.floor(this.regen);
+      this.regen -= k;
+      this.hp = Math.min(this.maxHp, this.hp + k);
     }
   }
 
@@ -736,8 +965,9 @@ export class Player extends Creature {
     if (this.invulnerable) return;
     const s = this.scene;
     // a armadura absorve parte do dano (mínimo 1)
-    const dmg = Math.max(1, Math.round(amount * (1 - OUTFITS[this.outfit].defense)));
+    const dmg = Math.max(1, Math.round(amount * (1 - this.defense)));
     this.hp = Math.max(0, this.hp - dmg);
+    this.lastHurt = s.time.now;
     this.invulnUntil = s.time.now + PLAYER.hurtInvuln;
     s.fx.damageText(this.x, this.y - 24, dmg, '#ff6060');
     s.cameras.main.shake(120, 0.006);
@@ -771,6 +1001,7 @@ export class Player extends Creature {
         s.tiles.recenter(this.spawnX, this.spawnY);
         this.setAngle(0).setAlpha(1);
         this.hp = this.maxHp;
+        this.buffs.clear();
         this.dir = 0;
         this.toIdle();
         this.invulnUntil = s.time.now + 2000;

@@ -12,6 +12,10 @@ export interface ProjectileDef {
   pierce?: boolean;
   /** Cor das faíscas e do brilho. */
   color: number;
+  /** Deixa o alvo lento (gelo). */
+  slow?: { k: number; ms: number };
+  /** Tom do sprite (o raio de gelo usa o do raio arcano). */
+  tint?: number;
 }
 
 /** Flecha do arco / raio arcano do cajado: voa reto e acerta o primeiro inimigo. */
@@ -29,6 +33,8 @@ export class Projectile extends Phaser.GameObjects.Sprite {
     y: number,
     angle: number,
     private def: ProjectileDef,
+    /** Multiplicador de dano (atributos e fortalecimentos do herói). */
+    private mul = 1,
   ) {
     super(scene, x, y, def.texture, 0);
     scene.add.existing(this);
@@ -37,6 +43,8 @@ export class Projectile extends Phaser.GameObjects.Sprite {
       this.play('bolt-fly');
       this.light = scene.add.image(x, y, 'glow').setBlendMode(Phaser.BlendModes.ADD).setTint(def.color).setScale(0.6).setDepth(DEPTH.lights);
     } else this.setScale(0.8);
+    if (def.tint !== undefined) this.setTint(def.tint);
+    if (def.slow) this.setScale(1.25, 0.9);
     this.vx = Math.cos(angle) * def.speed;
     this.vy = Math.sin(angle) * def.speed;
   }
@@ -53,7 +61,8 @@ export class Projectile extends Phaser.GameObjects.Sprite {
       if (e.dead || this.hitSet.has(e)) continue;
       if (Phaser.Math.Distance.Between(this.x, this.y + 6, e.fx, e.fy) < 11) {
         this.hitSet.add(e);
-        e.takeDamage(this.def.damage, this.x - this.vx * 0.05, this.y - this.vy * 0.05, this.def.knockback);
+        e.takeDamage(Math.max(1, Math.round(this.def.damage * this.mul)), this.x - this.vx * 0.05, this.y - this.vy * 0.05, this.def.knockback);
+        if (this.def.slow) e.slow(this.def.slow.ms);
         this.scene.fx.burst(this.x, this.y, this.def.color, 5);
         if (!this.def.pierce) return this.end();
       }

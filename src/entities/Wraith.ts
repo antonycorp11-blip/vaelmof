@@ -32,7 +32,7 @@ export class Wraith extends Enemy {
     this.body.setOffset((frameW - 16) / 2, footY - 9);
     this.barOffset = 28;
     this.eyeGlow = scene.add.image(x, y, 'glow').setBlendMode(Phaser.BlendModes.ADD).setTint(0xb8ccff).setScale(0.22);
-    scene.events.on(Phaser.Scenes.Events.PRE_RENDER, () => {
+    const sync = () => {
       const night = scene.dayNight?.lightLevel ?? 0;
       const charging = this.mode === 'charge';
       const [ex, ey] = WRAITH_SHEET.eyes[this.dir];
@@ -42,6 +42,12 @@ export class Wraith extends Enemy {
         .setScale(charging ? 0.4 : 0.22)
         .setAlpha((charging ? 1 : night * 0.85) * this.alpha)
         .setVisible(this.visible && !this.dead && this.dir !== 3 && (charging || night > 0.02));
+    };
+    scene.events.on(Phaser.Scenes.Events.PRE_RENDER, sync);
+    // criaturas de spot somem de vez: leva o brilho dos olhos junto
+    this.once(Phaser.GameObjects.Events.DESTROY, () => {
+      scene.events.off(Phaser.Scenes.Events.PRE_RENDER, sync);
+      this.eyeGlow.destroy();
     });
     this.play('wraith-idle-0');
   }
@@ -121,7 +127,7 @@ export class Wraith extends Enemy {
         const p = this.scene.player;
         if (!this.touched && Phaser.Math.Distance.Between(this.fx, this.fy, p.fx, p.fy) < 14) {
           this.touched = true;
-          p.hurt(2, this.fx, this.fy);
+          p.hurt(2 * this.dmgMul, this.fx, this.fy);
           this.scene.fx.burst(p.x, p.y - 12, 0xa8c0ff, 8);
         }
         if (time >= this.stateUntil) this.go('fade', 700);

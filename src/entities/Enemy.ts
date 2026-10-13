@@ -18,8 +18,17 @@ export abstract class Enemy extends Creature {
   contactDamage = 0;
   /** Altura (px acima de y) da barra de vida e do número de dano. */
   barOffset = 16;
+  /** Pontos de atributo que o abate rende (0,5 na criatura básica × nível da região). */
+  points = 0.5;
+  /** Multiplicador do dano que causa (regiões e spots mais fortes). */
+  dmgMul = 1;
+  /** Nível da região/spot (1 = Greenland). */
+  tier = 1;
+  /** Criatura de spot: some de vez ao morrer (o spot repõe outra). */
+  transient = false;
   readonly homeX: number;
   readonly homeY: number;
+  private slowUntil = 0;
   protected stunUntil = 0;
   private respawnAt = 0;
   /** Escala normal do sprite (a animação de morte achata a partir dela). */
@@ -32,6 +41,28 @@ export abstract class Enemy extends Creature {
     this.hp = hp;
     this.homeX = x;
     this.homeY = y;
+  }
+
+  /** Fortalece pela região: mais vida, mais dano, mais pontos. */
+  applyTier(tier: number, basePoints: number) {
+    this.tier = tier;
+    this.maxHp = this.hp = Math.round(this.maxHp * tier);
+    this.dmgMul = 1 + (tier - 1) * 0.5;
+    this.points = basePoints * tier;
+  }
+
+  /** Atordoa por `ms`. */
+  stun(ms: number) {
+    this.stunUntil = Math.max(this.stunUntil, this.scene.time.now + ms);
+  }
+
+  /** Lentidão (gelo): velocidade limitada e animação mais lenta por `ms`. */
+  slow(ms: number) {
+    if (this.dead) return;
+    this.slowUntil = this.scene.time.now + ms;
+    this.body.setMaxSpeed(30);
+    this.anims.timeScale = 0.5;
+    this.setTint(0x9fe8ff);
   }
 
   get stunned(): boolean {
@@ -54,6 +85,7 @@ export abstract class Enemy extends Creature {
 
   die() {
     this.dead = true;
+    this.scene.events.emit('enemy-killed', this);
     this.body.setVelocity(0, 0);
     this.body.enable = false;
     this.scene.fx.burst(this.x, this.y - 4, this.fxColor, 14);
@@ -70,6 +102,11 @@ export abstract class Enemy extends Creature {
       onComplete: () => {
         this.setVisible(false);
         this.restoreTint();
+        if (this.transient) {
+          this.scene.events.emit('enemy-gone', this);
+          this.destroy();
+          return;
+        }
         this.respawnAt = this.scene.time.now + RESPAWN_MS;
       },
     });
@@ -109,6 +146,12 @@ export abstract class Enemy extends Creature {
       return;
     }
     if (!this.body.enable) this.body.enable = true;
+    if (this.slowUntil && time >= this.slowUntil) {
+      this.slowUntil = 0;
+      this.body.setMaxSpeed(-1);
+      this.anims.timeScale = 1;
+      this.restoreTint();
+    }
     if (!this.stunned) this.think(time, delta);
     else this.body.velocity.scale(0.86);
     this.sortDepth();

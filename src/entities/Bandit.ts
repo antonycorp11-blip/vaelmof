@@ -144,6 +144,6 @@ export class Bandit extends Enemy {
     const p = this.scene.player;
     const d = Phaser.Math.Distance.Between(this.fx, this.fy, p.fx, p.fy);
     const diff = Math.abs(Phaser.Math.Angle.Wrap(Phaser.Math.Angle.Between(this.fx, this.fy, p.fx, p.fy) - angle));
-    if (d < Bandit.REACH + 10 && diff < Phaser.Math.DegToRad(80)) p.hurt(2, this.fx, this.fy);
+    if (d < Bandit.REACH + 10 && diff < Phaser.Math.DegToRad(80)) p.hurt(2 * this.dmgMul, this.fx, this.fy);
   }
 }

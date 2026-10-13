@@ -1,7 +1,10 @@
 import Phaser from 'phaser';
 import { inputState } from './InputState';
 
-type ButtonId = 'attack' | 'dodge' | 'flame' | 'gather';
+type ButtonId = 'attack' | 'dodge' | 'flame' | 'skill2' | 'skill3' | 'gather';
+/** Botões de habilidade: saem ao soltar (arrastar antes mira). */
+const SKILLS: ButtonId[] = ['flame', 'skill2', 'skill3'];
+const isSkill = (id: ButtonId) => SKILLS.includes(id);
 
 interface Button {
   id: ButtonId;
@@ -61,9 +64,11 @@ export class VirtualControls {
     this.joyKnob = scene.add.circle(0, 0, 10, 0xffffff, 0.42).setStrokeStyle(2, 0x1e1a24, 0.5).setDepth(depth + 1);
     const defs: [ButtonId, string, number, number][] = [
       ['attack', 'GOLPE', 0, 44],
-      ['dodge', 'ESQUIVA', 1, 34],
-      ['flame', 'GIRO', 4, 34],
-      ['gather', 'COLETAR', 10, 34],
+      ['dodge', 'ESQUIVA', 1, 32],
+      ['flame', 'GIRO', 4, 30],
+      ['skill2', '', 4, 30],
+      ['skill3', '', 4, 30],
+      ['gather', 'COLETAR', 10, 30],
     ];
     for (const [id, label, icon, radius] of defs) {
       const bg = scene.add.circle(0, 0, 10, 0x0b0a12, 0.38).setDepth(depth);
@@ -103,11 +108,14 @@ export class VirtualControls {
     const safe = safeAreas();
     const right = width - (safe.right + 18) * u;
     const bottom = height - (safe.bottom + 16) * u;
+    // habilidades em arco em volta do golpe; esquiva e coleta mais à esquerda
     const pos: Record<ButtonId, [number, number]> = {
       attack: [right - 44 * u, bottom - 44 * u],
-      dodge: [right - 44 * u - 98 * u, bottom - 30 * u],
-      flame: [right - 34 * u, bottom - 44 * u - 92 * u],
-      gather: [right - 44 * u - 98 * u, bottom - 30 * u - 84 * u],
+      flame: [right - 134 * u, bottom - 36 * u],
+      skill2: [right - 112 * u, bottom - 112 * u],
+      skill3: [right - 36 * u, bottom - 134 * u],
+      dodge: [right - 214 * u, bottom - 30 * u],
+      gather: [right - 198 * u, bottom - 108 * u],
     };
     for (const b of this.buttons) {
       const [x, y] = pos[b.id];
@@ -116,8 +124,8 @@ export class VirtualControls {
       const r = b.radius * u;
       b.bg.setPosition(b.x, b.y).setRadius(r);
       b.ring.setPosition(b.x, b.y).setRadius(r);
-      b.img.setPosition(b.x, b.y - 5 * u).setScale(((b.radius > 40 ? 2.6 : 2.1) * u));
-      b.text.setPosition(b.x, b.y + r * 0.58).setFontSize(Math.round(9 * u));
+      b.img.setPosition(b.x, b.y - 5 * u).setScale((b.radius > 40 ? 2.6 : 1.9) * u);
+      b.text.setPosition(b.x, b.y + r * 0.6).setFontSize(Math.round((b.radius > 40 ? 9 : 8) * u));
     }
     this.joyRadius = 54 * u;
     this.joyRest.set((safe.left + 34) * u + this.joyRadius, height - (safe.bottom + 28) * u - this.joyRadius);
@@ -155,7 +163,7 @@ export class VirtualControls {
       if (b.pointerId === null) {
         b.pointerId = p.id;
         // a habilidade sai ao soltar (dá para arrastar para mirar antes)
-        if (b.id !== 'flame') inputState[b.id] = true;
+        if (!isSkill(b.id)) inputState[b.id] = true;
         inputState.held[b.id] = true;
         this.dragged = null;
         b.bg.setFillStyle(0xffffff, 0.3);
@@ -174,7 +182,7 @@ export class VirtualControls {
   private dragged: { x: number; y: number } | null = null;
 
   private onMove(p: Phaser.Input.Pointer) {
-    const b = this.buttons.find((x) => x.pointerId === p.id && (x.id === 'attack' || x.id === 'flame'));
+    const b = this.buttons.find((x) => x.pointerId === p.id && (x.id === 'attack' || isSkill(x.id)));
     if (b) {
       const dx = p.x - b.x;
       const dy = p.y - b.y;
@@ -220,11 +228,11 @@ export class VirtualControls {
       if (b.pointerId === p.id) {
         b.pointerId = null;
         inputState.held[b.id] = false;
-        if (b.id === 'flame') {
-          inputState.flame = true;
+        if (isSkill(b.id)) {
+          inputState[b.id] = true;
           inputState.skillAim = this.dragged;
         }
-        if (b.id === 'attack' || b.id === 'flame') {
+        if (b.id === 'attack' || isSkill(b.id)) {
           inputState.aim = { x: 0, y: 0, active: false };
           this.dragged = null;
         }

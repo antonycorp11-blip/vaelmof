@@ -20,6 +20,9 @@ import { DayNightSystem, mulColor } from '../systems/DayNightSystem';
 import { BiomeFx } from '../systems/BiomeFx';
 import { Gathering } from '../systems/Gathering';
 import { Inventory } from '../systems/Inventory';
+import type { SpawnKind } from '../systems/MapGenerator';
+import { fmtPts, Progress } from '../systems/Progress';
+import { BIOME_TIER, SpawnSpots, type Spot } from '../systems/SpawnSpots';
 import { Biome, BIOMES, generateWorld, type WorldData } from '../systems/WorldGenerator';
 import { TileCollision } from '../systems/TileCollision';
 import { TileWindow } from '../systems/TileWindow';
@@ -36,6 +39,8 @@ const BIRD_COUNT = 14;
 /** Tom de cada variante de criatura por bioma. */
 const VARIANT_TINT: Record<string, number> = { snow: 0xe6eeff, stone: 0xa09c94, void: 0x9a70d8, sand: 0xe8c47a };
 /** Rótulo do clima próprio de cada bioma (substitui o clima geral). */
+/** Pontos por abate de cada criatura (antes do nível da região): 0,5 nas básicas. */
+const KILL_POINTS: Partial<Record<SpawnKind, number>> = { slime: 0.5, wolf: 0.5, boar: 0.5, bandit: 0.75, spider: 0.75, scorpion: 0.75, wraith: 1, bear: 1, golem: 1.25 };
 const BIOME_WEATHER: Partial<Record<Biome, string>> = { [Biome.SNOW]: 'Neve', [Biome.BLACK]: 'Cinzas', [Biome.DUST]: 'Seco' };
 
 /** Mundo: mapa, entidades, ciclo de dia/noite, clima e câmera. */
@@ -56,6 +61,9 @@ export class WorldScene extends Phaser.Scene {
     floatText: (x: number, y: number, text: string, color?: string) => void;
   };
   inventory = new Inventory();
+  /** Atributos e pontos (estilo MU), salvos no aparelho. */
+  progress = new Progress();
+  spots!: SpawnSpots;
   private gathering!: Gathering;
 
   private ambient!: Phaser.GameObjects.Rectangle;
@@ -110,46 +118,18 @@ export class WorldScene extends Phaser.Scene {
     // jogador
     this.player = new Player(this, map.start.x, map.start.y);
 
-    // criaturas (variantes de bioma ganham um tom próprio)
+    // criaturas (variantes de bioma ganham um tom próprio; inimigos ficam mais fortes nas regiões difíceis)
     for (const sp of map.spawns) {
-      let c: Enemy | Animal;
-      switch (sp.kind) {
-        case 'sheep':
-          this.animals.push((c = new Sheep(this, sp.x, sp.y)));
-          break;
-        case 'deer':
-          this.animals.push((c = new Deer(this, sp.x, sp.y)));
-          break;
-        case 'slime':
-          this.enemies.push((c = new Slime(this, sp.x, sp.y)));
-          break;
-        case 'wolf':
-          this.enemies.push((c = new Wolf(this, sp.x, sp.y)));
-          break;
-        case 'bandit':
-          this.enemies.push((c = new Bandit(this, sp.x, sp.y)));
-          break;
-        case 'wraith':
-          this.enemies.push((c = new Wraith(this, sp.x, sp.y)));
-          break;
-        case 'fox':
-        case 'hare':
-        case 'goat':
-        case 'lizard':
-          this.animals.push((c = makeCritter(this, sp.kind, sp.x, sp.y)));
-          break;
-        default:
-          this.enemies.push((c = new Beast(this, sp.x, sp.y, BEASTS[sp.kind])));
-      }
-      const tint = sp.variant ? VARIANT_TINT[sp.variant] : undefined;
-      if (tint !== undefined) {
-        c.baseTint = tint;
-        c.setTint(tint);
-      }
+      if (sp.kind === 'sheep') this.animals.push(this.tinted(new Sheep(this, sp.x, sp.y), sp.variant));
+      else if (sp.kind === 'deer') this.animals.push(this.tinted(new Deer(this, sp.x, sp.y), sp.variant));
+      else if (sp.kind === 'fox' || sp.kind === 'hare' || sp.kind === 'goat' || sp.kind === 'lizard') this.animals.push(this.tinted(makeCritter(this, sp.kind, sp.x, sp.y), sp.variant));
+      else this.spawnEnemy(sp.kind, sp.x, sp.y, sp.variant, BIOME_TIER[this.biomeAt(sp.x, sp.y)], false);
     }
     for (let i = 0; i < BIRD_COUNT; i++) new Bird(this, W, H);
 
     this.collision.add(this.player.body, ...this.enemies.map((e) => e.body), ...this.animals.map((a) => a.body));
+    this.spots = new SpawnSpots(this, map);
+    this.setupProgress();
 
     // câmera
     const cam = this.cameras.main;
@@ -170,6 +150,8 @@ export class WorldScene extends Phaser.Scene {
     this.gathering = new Gathering(this);
     this.aimGfx = this.add.graphics().setDepth(DEPTH.fx + 3);
     this.inventory.on('change', () => (this.player.weightMul = this.inventory.speedFactor));
+    this.inventory.missing = (id) => this.progress.missing(id);
+    this.inventory.extraWeight = this.progress.extraWeight;
     // equipar: arma (define a classe) e armadura (corpo inteiro)
     this.inventory.on('equip', (kind: 'weapon' | 'armor', id: string) => {
       if (kind === 'weapon') this.player.setWeapon(id as WeaponId);
@@ -178,6 +160,7 @@ export class WorldScene extends Phaser.Scene {
     // começa com a espada e o traje de couro equipados; o resto vai na mochila
     for (const w of ['greatsword', 'staff', 'bow']) this.inventory.add(`weapon_${w}`, 1);
     for (const a of ['plate', 'legion', 'arcane', 'hunter']) this.inventory.add(`armor_${a}`, 1);
+    this.inventory.on('denied', (msg: string) => this.events.emit('toast', msg));
     this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.Q).on('down', () => {
       const i = this.inventory.nextWeaponSlot();
       if (i >= 0) this.inventory.equipAt(i);
@@ -201,6 +184,79 @@ export class WorldScene extends Phaser.Scene {
     if (DEBUG) {
       (window as unknown as { vaelmor: unknown }).vaelmor = { scene: this, input: inputState };
     }
+  }
+
+  // ------------------------------------------------------------------ criaturas
+  private tinted<T extends Enemy | Animal>(c: T, variant?: string): T {
+    const tint = variant ? VARIANT_TINT[variant] : undefined;
+    if (tint !== undefined) {
+      c.baseTint = tint;
+      c.setTint(tint);
+    }
+    return c;
+  }
+
+  /** Cria um inimigo (do mapa ou de um spot) já no nível da região. */
+  spawnEnemy(kind: SpawnKind, x: number, y: number, variant?: string, tier = 1, collide = true): Enemy {
+    let e: Enemy;
+    switch (kind) {
+      case 'slime':
+        e = new Slime(this, x, y);
+        break;
+      case 'wolf':
+        e = new Wolf(this, x, y);
+        break;
+      case 'bandit':
+        e = new Bandit(this, x, y);
+        break;
+      case 'wraith':
+        e = new Wraith(this, x, y);
+        break;
+      default:
+        e = new Beast(this, x, y, BEASTS[kind as keyof typeof BEASTS]);
+    }
+    // só criaturas que têm variante naquele bioma mudam de tom
+    if (variant && (kind === 'wolf' || kind === 'slime' || kind === 'deer')) this.tinted(e, variant);
+    else if (variant && !collide) this.tinted(e, variant);
+    e.applyTier(tier, KILL_POINTS[kind] ?? 0.5);
+    this.enemies.push(e);
+    if (collide) this.collision.add(e.body);
+    return e;
+  }
+
+  /** Tira um inimigo do mundo (spot esvaziado ou criatura de spot morta). */
+  removeEnemy(e: Enemy) {
+    Phaser.Utils.Array.Remove(this.enemies, e);
+    this.collision.remove(e.body);
+    if (e.active) e.destroy();
+  }
+
+  /** Abates rendem pontos de atributo; atributos mudam vida, carga e requisitos. */
+  private setupProgress() {
+    const P = this.progress;
+    this.events.on('enemy-killed', (e: Enemy) => {
+      P.addKill(e.points);
+      this.fx.floatText(e.x, e.y - e.barOffset - 4, `+${fmtPts(e.points)} pt`, '#ffd34a');
+      if (Math.floor(P.points + 1e-6) > Math.floor(P.points - e.points + 1e-6)) this.events.emit('points', P.free);
+    });
+    this.events.on('enemy-gone', (e: Enemy) => {
+      this.spots.release(e);
+      Phaser.Utils.Array.Remove(this.enemies, e);
+      this.collision.remove(e.body);
+    });
+    let lastMax = P.maxHp;
+    P.on('change', () => {
+      const p = this.player;
+      // vida máxima subiu: ganha a diferença na hora
+      if (P.maxHp !== lastMax) {
+        p.hp = Phaser.Math.Clamp(p.hp + P.maxHp - lastMax, 1, P.maxHp);
+        lastMax = P.maxHp;
+      }
+      this.inventory.extraWeight = P.extraWeight;
+      this.inventory.enforce();
+      this.player.weightMul = this.inventory.speedFactor;
+      this.inventory.emit('change');
+    });
   }
 
   // ------------------------------------------------------------------ mapa
@@ -406,6 +462,7 @@ export class WorldScene extends Phaser.Scene {
     this.dayNight.update(dt);
     this.player.update(time);
     this.gathering.update(time);
+    this.spots.update(time);
     this.drawAim(time);
 
     const cam = this.cameras.main;
@@ -418,7 +475,7 @@ export class WorldScene extends Phaser.Scene {
       const dy = e.y - cy;
       e.tick(time, dt, dx * dx + dy * dy < r2);
       if (!e.dead && e.contactDamage > 0 && !p.invulnerable) {
-        if (Phaser.Math.Distance.Between(e.fx, e.fy, p.fx, p.fy) < 10) p.hurt(e.contactDamage, e.fx, e.fy);
+        if (Phaser.Math.Distance.Between(e.fx, e.fy, p.fx, p.fy) < 10) p.hurt(e.contactDamage * e.dmgMul, e.fx, e.fy);
       }
     }
     for (const a of this.animals) {
@@ -588,9 +645,21 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private lastBiome = -1;
+  private spot?: Spot;
 
   private updateArea() {
     const p = this.player;
+    // spots de up têm nome próprio
+    const spot = this.spots.at(p.x, p.y);
+    if (spot !== this.spot) {
+      this.spot = spot;
+      if (spot) {
+        this.area = spot.name;
+        this.events.emit('area', spot.name, `Spot de up · nível ${spot.tier} · ${spot.max} criaturas`);
+        return;
+      }
+    }
+    if (spot) return;
     let name = '';
     for (const v of this.map.villages) if (Phaser.Math.Distance.Between(p.x, p.y, v.cx, v.cy) < 12 * TILE) name = v.name;
     const wf = this.map.waterfall;

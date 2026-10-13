@@ -2236,7 +2236,7 @@ quad('assets/sprites/deer.png', 4, (t, f) => {
 
 // ícones dos botões (16×16): golpe, esquiva, chama, coração (+ armas e ações, abaixo)
 {
-  const img = new Img(16 * 13, 16);
+  const img = new Img(16 * 21, 16);
   const s = new Img(16, 16);
   s.line(3, 12, 11, 4, PAL.steel[0]);
   s.line(4, 12, 12, 4, PAL.steel[1]);
@@ -2331,6 +2331,66 @@ quad('assets/sprites/deer.png', 4, (t, f) => {
       for (let a = Math.PI + 0.4; a < Math.PI * 2 - 0.4; a += 0.08) t.set(8 + Math.cos(a) * 5, 7 - Math.sin(a) * 5, '#ffe9a8');
       t.rect(12, 7, 2, 3, '#ffe9a8');
       t.rect(2, 6, 2, 3, '#ffe9a8');
+    });
+    // habilidades novas: 13 grito de guerra, 14 golpe sísmico, 15 fúria, 16 lança de gelo,
+    // 17 nova arcana, 18 flecha perfurante, 19 chuva de flechas, 20 atributos
+    ic(13, (t) => {
+      t.rect(2, 6, 4, 5, PAL.wood[1]);
+      t.line(5, 6, 9, 3, PAL.wood[2]);
+      t.line(5, 10, 9, 13, PAL.wood[2]);
+      t.line(9, 3, 9, 13, PAL.wood[0]);
+      for (const r of [3, 5.5]) for (let a = -0.9; a <= 0.9; a += 0.12) t.set(9 + Math.cos(a) * r, 8 + Math.sin(a) * r, '#ffe9a8');
+    });
+    ic(14, (t) => {
+      t.rect(1, 11, 14, 3, PAL.rock[2]);
+      t.rect(1, 11, 14, 1, PAL.rock[4]);
+      t.line(8, 11, 6, 14, '#1e1a24');
+      t.line(8, 11, 11, 14, '#1e1a24');
+      t.line(7, 2, 7, 10, PAL.steel[0]);
+      t.line(8, 2, 8, 10, PAL.steel[1]);
+      t.rect(5, 2, 5, 1, PAL.belt[1]);
+      for (const x of [2, 13]) t.set(x, 9, '#e0c090');
+    });
+    ic(15, (t) => {
+      t.ellipse(8, 9, 5, 5.5, '#7a1f2a');
+      t.ellipse(8, 7, 3, 5, '#e04848');
+      t.ellipse(8, 10, 2.5, 3, '#ff9a3a');
+      t.rect(5, 8, 2, 1, '#ffffff');
+      t.rect(9, 8, 2, 1, '#ffffff');
+    });
+    ic(16, (t) => {
+      t.line(2, 14, 12, 4, '#5ec8ee');
+      t.line(3, 14, 13, 4, '#cdf2ff');
+      t.line(12, 2, 14, 4, '#ffffff');
+      t.rect(12, 3, 2, 2, '#ffffff');
+      for (const [x, y] of [[4, 9], [8, 13], [10, 9]]) t.set(x, y, '#9fe8ff');
+    });
+    ic(17, (t) => {
+      for (const [r, c] of [[6.5, '#b46cec'], [4, '#e6b8ff']]) for (let a = 0; a < Math.PI * 2; a += 0.1) t.set(8 + Math.cos(a) * r, 8 + Math.sin(a) * r, c);
+      t.ellipse(8, 8, 1.6, 1.6, '#ffffff');
+    });
+    ic(18, (t) => {
+      t.line(1, 8, 13, 8, PAL.wood[2]);
+      t.rect(12, 7, 3, 3, PAL.steel[0]);
+      t.rect(1, 7, 2, 3, '#e04848');
+      for (const x of [5, 9]) {
+        t.line(x, 4, x, 6, '#ffffff');
+        t.line(x, 10, x, 12, '#ffffff');
+      }
+    });
+    ic(19, (t) => {
+      for (const [x, y] of [[3, 2], [8, 4], [12, 1]]) {
+        t.line(x, y, x, y + 7, PAL.wood[2]);
+        t.rect(x - 1, y + 7, 3, 2, PAL.steel[0]);
+      }
+      t.ellipse(8, 14, 6, 1.5, '#e04848');
+    });
+    ic(20, (t) => {
+      t.rect(2, 12, 3, 3, '#5ec8ee');
+      t.rect(6, 9, 3, 6, '#78ba60');
+      t.rect(10, 6, 3, 9, '#ffe9a8');
+      t.line(3, 7, 7, 3, '#ffffff');
+      t.rect(6, 2, 3, 2, '#ffffff');
     });
   }
   save('assets/sprites/ui-icons.png', img);

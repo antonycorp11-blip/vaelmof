@@ -321,6 +321,20 @@ interface Inventory {
   do finalizador, disparada da esquiva, poeira e recuo feitos em código.
 - O ser encapuzado do conceito é o mob **Errante** (`scripts/wraith/`).
 
+## 4.1 Progressão estilo MU (aplicado nesta versão)
+
+- **Pontos por abate**: 0,5 na criatura básica × nível da região (1 / 1,5 /
+  2 / 2,5 / 3). Pontos podem ter fração; só os inteiros se distribuem.
+- **Atributos** FOR / AGI / VIT / ENE de 10 a 1000 — com ~0,5–3 pontos por
+  abate, chegar a 1000 em um atributo leva milhares de abates (proposital).
+- **Requisitos de item** em `REQUIREMENTS` (`src/systems/Progress.ts`):
+  armas e armaduras novas (raridades, forja) só precisam entrar nessa tabela.
+- **Spots** (`src/systems/SpawnSpots.ts`): modelos por bioma (nome, criaturas,
+  máximo vivo, intervalo). Próximos passos: chefe de spot raro, drop de
+  materiais por spot, contador de abates por spot, spots noturnos.
+- **Ainda não**: nível/experiência separada dos pontos, reset pago de
+  atributos, drop de itens, forja.
+
 ## 5. Ordem sugerida de implementação
 
 1. **Mundo em chunks** com um bioma só (Greenland) e streaming — base técnica.

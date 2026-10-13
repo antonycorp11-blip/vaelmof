@@ -11,7 +11,13 @@ export class Flame extends Phaser.GameObjects.Sprite {
   private traveled = 0;
   private light: Phaser.GameObjects.Image;
 
-  constructor(scene: WorldScene, x: number, y: number, angle: number) {
+  constructor(
+    scene: WorldScene,
+    x: number,
+    y: number,
+    angle: number,
+    private mul = 1,
+  ) {
     super(scene, x, y, 'flame', 0);
     scene.add.existing(this);
     this.setRotation(angle).setDepth(DEPTH.fx);
@@ -44,7 +50,7 @@ export class Flame extends Phaser.GameObjects.Sprite {
     const R = PLAYER.flame.radius;
     for (const e of s.enemies) {
       if (e.dead) continue;
-      if (Phaser.Math.Distance.Between(this.x, this.y + 4, e.fx, e.fy) <= R) e.takeDamage(PLAYER.flame.damage, this.x, this.y, 190);
+      if (Phaser.Math.Distance.Between(this.x, this.y + 4, e.fx, e.fy) <= R) e.takeDamage(Math.max(1, Math.round(PLAYER.flame.damage * this.mul)), this.x, this.y, 190);
     }
     const boom = s.add.sprite(this.x, this.y, 'explosion', 0).setDepth(DEPTH.fx);
     boom.play('explosion');

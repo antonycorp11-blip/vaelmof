@@ -8,10 +8,13 @@ export const inputState = {
   touchY: 0,
   attack: false,
   dodge: false,
+  /** Habilidades 1, 2 e 3 da arma (a 1 se chama "flame" por herança). */
   flame: false,
+  skill2: false,
+  skill3: false,
   gather: false,
   /** Botões mantidos pressionados (segurar repete o golpe e a coleta). */
-  held: { attack: false, dodge: false, flame: false, gather: false },
+  held: { attack: false, dodge: false, flame: false, skill2: false, skill3: false, gather: false },
   /** Mira manual: o botão de ataque arrastado (direção unitária enquanto ativo). */
   aim: { x: 0, y: 0, active: false },
   /** Mira da habilidade: o botão arrastado e solto (null = mira automática). */
@@ -21,12 +24,12 @@ export const inputState = {
   /** Há um recurso ao alcance: mostra o botão COLETAR. */
   canGather: false,
   /** Cooldowns normalizados (0 = pronto, 1 = recém-usado) para o HUD. */
-  cooldowns: { attack: 0, dodge: 0, flame: 0 },
+  cooldowns: { attack: 0, dodge: 0, flame: 0, skill2: 0, skill3: 0 },
   hp: 10,
   maxHp: 10,
 };
 
-export function consume(key: 'attack' | 'dodge' | 'flame' | 'gather'): boolean {
+export function consume(key: 'attack' | 'dodge' | 'flame' | 'skill2' | 'skill3' | 'gather'): boolean {
   const v = inputState[key];
   inputState[key] = false;
   return v;

@@ -29,6 +29,13 @@ export class TileCollision {
     for (const b of bodies) this.bodies.add(b);
   }
 
+  remove(...bodies: Body[]) {
+    for (const b of bodies) {
+      this.bodies.delete(b);
+      this.ghosts.delete(b);
+    }
+  }
+
   solid(tx: number, ty: number): boolean {
     if (tx < 0 || ty < 0 || tx >= this.w || ty >= this.h) return true;
     return this.grid[ty * this.w + tx] === 1;

@@ -133,7 +133,7 @@ export class Beast extends Enemy {
           if (D.attack === 'strike' && !this.struck && time >= this.until - 40) {
             this.struck = true;
             const p = this.scene.player;
-            if (Phaser.Math.Distance.Between(this.fx, this.fy, p.fx, p.fy) < 16) p.hurt(D.damage, this.fx, this.fy);
+            if (Phaser.Math.Distance.Between(this.fx, this.fy, p.fx, p.fy) < 16) p.hurt(D.damage * this.dmgMul, this.fx, this.fy);
           }
           if (D.attack === 'lunge' && !this.body.blocked.none) this.until = 0;
         }
@@ -157,7 +157,7 @@ export class Beast extends Enemy {
     s.fx.burst(cx, cy - 2, D.fx, 12);
     s.cameras.main.shake(110, 0.004);
     const p = s.player;
-    if (Phaser.Math.Distance.Between(cx, cy, p.fx, p.fy) < (D.radius ?? 20)) p.hurt(D.damage, this.fx, this.fy);
+    if (Phaser.Math.Distance.Between(cx, cy, p.fx, p.fy) < (D.radius ?? 20)) p.hurt(D.damage * this.dmgMul, this.fx, this.fy);
   }
 }
 

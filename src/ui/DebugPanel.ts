@@ -25,6 +25,9 @@ export class DebugPanel {
   private showingMap = false;
   private u = 1;
   private flyBtn!: Btn;
+  private spotBtn!: Btn;
+  private spotIdx = -1;
+  private spotMarks: Phaser.GameObjects.GameObject[] = [];
   private godBtn!: Btn;
 
   constructor(
@@ -68,6 +71,23 @@ export class DebugPanel {
     });
     add('Dia', () => (world.dayNight.time = 0.45));
     add('Noite', () => (world.dayNight.time = 0.92));
+    // progressão (estilo MU)
+    add('+50 pontos', () => {
+      const P = world.progress;
+      P.points += 50;
+      P.earned += 50;
+      P.emit('change');
+      P.save();
+    }, '#6a4a10');
+    add('Zerar atributos', () => world.progress.reset(), '#5a2a2a');
+    this.spotBtn = add('Spot: próximo', () => {
+      const list = world.spots.spots;
+      if (!list.length) return;
+      this.spotIdx = (this.spotIdx + 1) % list.length;
+      const sp = list[this.spotIdx];
+      world.teleport(sp.x, sp.y + sp.r + 24);
+      this.refresh();
+    }, '#3a2414');
 
     // mapa do mundo
     this.mapLayer = scene.add.container(0, 0).setDepth(2100).setVisible(false);
@@ -109,6 +129,8 @@ export class DebugPanel {
   }
 
   private refresh() {
+    const sp = this.world.spots?.spots[this.spotIdx];
+    this.spotBtn?.setText(sp ? `Spot: ${sp.name}` : 'Spot: próximo');
     this.flyBtn.setText(`Voo: ${this.world.flying ? 'SIM' : 'não'}`).setStyle({ backgroundColor: this.world.flying ? '#2e7a3a' : '#2a2234' });
     this.godBtn.setText(`Invencível: ${this.world.player?.god ? 'SIM' : 'não'}`).setStyle({ backgroundColor: this.world.player?.god ? '#2e7a3a' : '#2a2234' });
   }
@@ -150,6 +172,21 @@ export class DebugPanel {
     this.mapImg.setScale(s).setPosition((width - this.mapImg.width * s) / 2, (height - this.mapImg.height * s) / 2 + 10 * u);
     this.mapHint.setFontSize(Math.round(10 * u)).setPosition(width / 2, this.mapImg.y - 18 * u);
     this.mapDot.setRadius(4 * u);
+    // spots de up no mapa: círculo dourado com o nome
+    for (const o of this.spotMarks) o.destroy();
+    this.spotMarks = [];
+    const sc = this.mapImg.scaleX;
+    for (const sp of this.world.spots.spots) {
+      const x = this.mapImg.x + (sp.x / TILE) * sc;
+      const y = this.mapImg.y + (sp.y / TILE) * sc;
+      const c = this.scene.add.circle(x, y, Math.max(3 * u, (sp.r / TILE) * sc)).setStrokeStyle(Math.max(1, 1.5 * u), 0xffd34a, 1);
+      const t = this.scene.add
+        .text(x, y - 6 * u, sp.name, { fontFamily: 'monospace', fontSize: `${Math.round(8 * u)}px`, color: '#ffd34a', fontStyle: 'bold', stroke: '#0b0a12', strokeThickness: 2 * u })
+        .setOrigin(0.5, 1);
+      this.mapLayer.add([c, t]);
+      this.spotMarks.push(c, t);
+    }
+    this.mapLayer.bringToTop(this.mapDot);
   }
 
   update() {

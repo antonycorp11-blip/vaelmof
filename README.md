@@ -37,11 +37,12 @@ preciso rodar se você alterar `scripts/generate-assets.mjs`).
 | Mover | joystick flutuante na metade esquerda da tela (analógico) | WASD ou setas |
 | Ataque da arma (golpe / raio / flecha) | botão grande (segurar repete) | J (segurar repete) |
 | Esquiva | botão **ESQUIVA** | K |
-| Habilidade da arma | terceiro botão (muda com a arma) | L |
+| Habilidades da arma (3) | três botões em arco em volta do golpe (mudam com a arma; saem ao soltar) | L · U · I |
 | Coletar recurso | botão **COLETAR** (aparece perto de árvore, pedra, cristal…; segurar repete) | E |
 | Mirar (arco, cajado, habilidades) | automático no inimigo mais próximo; **segure e arraste** o botão para mirar à mão (linha pontilhada) — a habilidade sai ao soltar | mouse (mira para onde ele aponta) |
 | Trocar de arma / armadura | na **MOCHILA** (botão de classe ou MOCHILA na barra do topo): toque no item → EQUIPAR | Q (próxima arma) |
-| Mochila | botão **MOCHILA** na barra do topo | — |
+| Mochila | botão **MOCHILA** na barra do topo | B |
+| Atributos (estilo MU) | botão **ATRIBUTOS** na barra do topo (mostra +N quando há pontos) | C |
 
 Os botões aparecem em aparelhos com toque (ou ao primeiro toque na tela).
 Em desktop sem toque, use `?touch=1` para exibi-los.
@@ -149,6 +150,40 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   próximo).
 - **Voo** (atravessa montanhas, água e árvores, 3× mais rápido),
   **Invencível**, **Dia** e **Noite**.
+- **+50 pontos** de atributo, **Zerar atributos** e **Spot: próximo**
+  (teleporta para cada spot de up, um por toque). O MAPA marca os spots com
+  um círculo dourado e o nome.
+
+### Atributos e spots de up — estilo MU (`src/systems/Progress.ts`, `src/systems/SpawnSpots.ts`, `src/ui/AttributesPanel.ts`)
+- Cada abate rende **pontos de atributo**: **0,5 na criatura básica** (slime,
+  lobo, javali), 0,75 em bandido/aranha/escorpião, 1 em errante/urso, 1,25 no
+  golem — **× o nível da região** (Vale/Greenland 1, Dustland 1,5, Snowland 2,
+  Blockland 2,5, Blackland 3). O nível também multiplica a vida das criaturas
+  e aumenta o dano delas (+50% por nível acima de 1).
+- **Tela de ATRIBUTOS** (C no teclado): Força, Agilidade, Vitalidade e
+  Energia começam em 10 e vão até **1000** cada (up longo de propósito);
+  botões +1 / +10, barra até 1000, efeito de cada atributo e os números finais
+  do herói. Salvo no aparelho (localStorage).
+
+  | Atributo | Efeito |
+  |---|---|
+  | Força | dano das espadas +1% por ponto; +0,5 kg de carga por ponto |
+  | Agilidade | dano do arco +1% por ponto; velocidade de ataque (até 2,2× em 1000); passo (até +20%) |
+  | Vitalidade | +1 de vida a cada 2 pontos (10 → 505) |
+  | Energia | dano do cajado +1% por ponto; recarga das habilidades (até −50%) |
+
+- **Requisitos**: espada e traje de couro são livres; Montante pede Força 60,
+  Cajado Energia 25, Arco Agilidade 30; Placas Força 80 + Vitalidade 40,
+  Legionária Força 40 + Vitalidade 20, Arcano Energia 50, Caçador Agilidade
+  40. Na mochila, o item bloqueado fica apagado com o que falta; a tela de
+  atributos lista os bloqueados. Zerar os atributos devolve a espada/couro.
+- **Spots de up** (16): 1 perto de Brumavale (Charco dos Slimes) e 3 por
+  bioma (ex.: Covil dos Lobos, Gruta dos Ursos, Pedreira dos Golens, Cripta
+  Errante, Ninho de Escorpiões). Ao chegar perto, o spot já está cheio (6–12
+  criaturas) e **repõe uma a cada 3,5–7 s** (o dobro da pressa quando está
+  pela metade); ao entrar aparece o nome e o nível. Longe (> 60 tiles), o spot
+  se esvazia para poupar memória.
+- Fora de combate (6 s sem levar dano) a vida regenera aos poucos.
 - Mostra o bioma atual, o tile e o FPS.
 
 ### Vida
@@ -206,12 +241,15 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   de arma no botão de classe da barra do topo (ou Q / 1–4). Cada arma tem
   folha de sprites, combo e habilidade próprios (`src/data/weapons.ts`):
 
-  | Arma | Classe | Ataque | Habilidade |
+  | Arma | Classe | Ataque | Habilidades (1 · 2 · 3) |
   |---|---|---|---|
-  | Espada | Guerreiro | corte descendente → corte ascendente → giro de 360° | **Investida** (avança cortando) |
-  | Montante | Guerreiro pesado | corte → corte reverso → estocada longa (lento, dano alto, alcance maior) | **Giro** de 360° |
-  | Cajado | Mago | **Raio** arcano (projétil) | **Chama** (explode em área) |
-  | Arco | Arqueiro | **Flecha** (rápida, longe) | **Tiro triplo** (3 flechas que atravessam) |
+  | Espada | Guerreiro | corte descendente → corte ascendente → giro de 360° | **Investida** (avança cortando) · **Redemoinho** (giro avançando) · **Grito de guerra** (dano +35% e defesa +25% por 8 s) |
+  | Montante | Guerreiro pesado | corte → corte reverso → estocada longa (lento, dano alto, alcance maior) | **Giro** de 360° · **Golpe sísmico** (onda à frente, atordoa 1,2 s) · **Fúria** (ataque 1,4× mais rápido e dano +30% por 7 s) |
+  | Cajado | Mago | **Raio** arcano (projétil) | **Chama** (explode em área) · **Lança de gelo** (atravessa e deixa lento 3 s) · **Nova arcana** (explosão em volta do herói) |
+  | Arco | Arqueiro | **Flecha** (rápida, longe) | **Tiro triplo** (3 flechas que atravessam) · **Flecha perfurante** (dano 5, atravessa) · **Chuva de flechas** (6 ondas no alvo) |
+
+  Cada habilidade tem a sua recarga (3–16 s, reduzida pelo traje arcano e pela
+  Energia). O dano de tudo é multiplicado pelo atributo da arma.
 
   O dano sai no quadro em que a lâmina passa ou o disparo acontece; apertar de
   novo no fim do golpe encadeia o combo; a habilidade pode interromper o golpe.

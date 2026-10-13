@@ -61,6 +61,7 @@ export class InventoryPanel {
       this.cells.push({ box, icon, qty });
     }
     inv.on('change', () => this.refresh());
+    inv.on('denied', () => this.refresh());
     this.refresh();
   }
 
@@ -92,7 +93,7 @@ export class InventoryPanel {
     icon.setScale((size * (sheet === 'armor-icons' ? 0.86 : 0.62)) / h);
   }
 
-  private refresh() {
+  refresh() {
     const inv = this.inv;
     this.cells.forEach((c, i) => {
       const s = inv.slots[i];
@@ -112,18 +113,27 @@ export class InventoryPanel {
       e.name.setText(def.name);
     });
     const w = inv.weight;
-    const over = w > Inventory.MAX_WEIGHT;
-    this.weight.setText(`${w.toFixed(1)} / ${Inventory.MAX_WEIGHT} kg`).setColor(over ? '#ff8080' : '#ffffff');
+    const over = w > inv.maxWeight;
+    this.weight.setText(`${w.toFixed(1)} / ${Math.round(inv.maxWeight)} kg`).setColor(over ? '#ff8080' : '#ffffff');
     const s = this.selected >= 0 ? inv.slots[this.selected] : null;
     const d = s ? ITEMS[s.id] : null;
+    const need = d?.equip ? inv.missing(d.id) : '';
     if (s && d) {
       const extra = d.info ? ` · ${d.info}` : '';
-      this.detail.setText(`${d.name}${s.qty > 1 ? ` · ${s.qty} un` : ''}${extra} · ${(d.weight * s.qty).toFixed(1)} kg`).setColor('#ffffff');
+      const req = need ? ` · ${need}` : '';
+      this.detail.setText(`${d.name}${s.qty > 1 ? ` · ${s.qty} un` : ''}${extra} · ${(d.weight * s.qty).toFixed(1)} kg${req}`).setColor(need ? '#ff9a80' : '#ffffff');
     } else
       this.detail
         .setText(over ? 'carga acima do máximo: Teren fica mais lento' : 'toque num item para ver; armas e armaduras podem ser equipadas')
         .setColor(over ? '#ff8080' : '#c8c0d8');
-    this.equipBtn.setVisible(!!d?.equip);
+    this.equipBtn.setVisible(!!d?.equip).setText(need ? 'BLOQUEADO' : 'EQUIPAR').setBackgroundColor(need ? '#5a4c6a' : '#2e7a3a');
+    // itens que o herói ainda não pode usar ficam apagados
+    this.cells.forEach((c, i) => {
+      const id = inv.slots[i]?.id;
+      const locked = !!id && !!ITEMS[id].equip && !!inv.missing(id);
+      c.icon.setAlpha(locked ? 0.4 : 1);
+      if (locked && i !== this.selected) c.box.setStrokeStyle(Math.max(1, this.u), 0x8a3a3a, 1);
+    });
   }
 
   layout(u: number) {
