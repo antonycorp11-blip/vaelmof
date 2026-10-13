@@ -109,9 +109,9 @@ export class Bandit extends Enemy {
         this.anims.stop();
         this.setFrame(this.dir * Bandit.ROW + 10);
         if (Math.floor(time / 60) % 2) this.setTint(0xffa0a0);
-        else this.clearTint();
+        else this.restoreTint();
         if (time >= this.stateUntil) {
-          this.clearTint();
+          this.restoreTint();
           this.strikeAngle = a;
           this.struck = false;
           this.play(`bandit-atk-${this.dir}`, true);

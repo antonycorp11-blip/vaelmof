@@ -40,9 +40,13 @@ export class Animal extends Creature {
 
   tick(time: number, active: boolean) {
     if (!active) {
-      this.body.setVelocity(0, 0);
+      if (this.body.enable) {
+        this.body.setVelocity(0, 0);
+        this.body.enable = false;
+      }
       return;
     }
+    if (!this.body.enable) this.body.enable = true;
     const t = this.traits;
     const p = this.scene.player;
     const d = Phaser.Math.Distance.Between(this.fx, this.fy, p.fx, p.fy);

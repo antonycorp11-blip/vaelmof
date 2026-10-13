@@ -2,11 +2,13 @@ import Phaser from 'phaser';
 import { DEBUG, FORCE_TOUCH } from '../config';
 import { inputState } from '../input/InputState';
 import { VirtualControls } from '../input/VirtualControls';
+import { DebugPanel } from '../ui/DebugPanel';
 import type { WorldScene } from './WorldScene';
 
 /** HUD (vida, relógio, clima, nome da área) + controles virtuais. */
 export class UIScene extends Phaser.Scene {
   private controls!: VirtualControls;
+  private debug!: DebugPanel;
   private hpBar!: Phaser.GameObjects.Graphics;
   private heart!: Phaser.GameObjects.Image;
   private info!: Phaser.GameObjects.Text;
@@ -33,6 +35,8 @@ export class UIScene extends Phaser.Scene {
     // versão (commit) — confere se o PWA pegou a atualização
     this.version = this.add.text(0, 0, `v ${__BUILD_ID__}`, { ...style, fontSize: '9px', color: '#d8d8d8' }).setOrigin(0.5, 0).setAlpha(0.7);
     this.controls = new VirtualControls(this, touch);
+    this.debug = new DebugPanel(this, this.scene.get('World') as WorldScene);
+    this.controls.blocker = (x, y) => this.debug.contains(x, y);
 
     this.layout();
     this.scale.on('resize', this.layout, this);
@@ -59,7 +63,8 @@ export class UIScene extends Phaser.Scene {
     this.info.setPosition(width - 14 * u, 10 * u).setFontSize(Math.round(12 * u)).setStroke('#1e1a24', 3 * u);
     this.areaText.setPosition(width / 2, height * 0.24).setFontSize(Math.round(20 * u)).setStroke('#1e1a24', 4 * u);
     this.toast.setPosition(width / 2, height * 0.36).setFontSize(Math.round(13 * u)).setStroke('#1e1a24', 3 * u);
-    this.fps?.setPosition(safeLeft, 40 * u).setFontSize(Math.round(10 * u));
+    this.fps?.setPosition(width - 14 * u, 30 * u).setOrigin(1, 0).setFontSize(Math.round(10 * u));
+    this.debug.layout(u, 40 * u);
     this.version.setPosition(width / 2, 6 * u).setFontSize(Math.round(9 * u)).setStroke('#1e1a24', 2 * u);
     this.controls.hudBottom = 44 * u;
     this.controls.layout(width, height, u);
@@ -117,6 +122,7 @@ export class UIScene extends Phaser.Scene {
     }
     this.info.setText(`${this.registry.get('clock') ?? ''}  ${this.registry.get('weather') ?? ''}`);
     this.controls.update();
+    this.debug.update();
     if (this.fps) {
       const w = this.scene.get('World') as WorldScene;
       const active = w.enemies.filter((e) => !e.dead).length;

@@ -23,7 +23,7 @@ export interface MapData {
   houses: HouseDef[];
   wells: { tx: number; ty: number }[];
   torches: { x: number; y: number }[];
-  spawns: { kind: SpawnKind; x: number; y: number }[];
+  spawns: { kind: SpawnKind; x: number; y: number; variant?: string }[];
   start: { x: number; y: number };
   waterfall: { x0: number; x1: number; top: number; base: number };
   villages: { name: string; cx: number; cy: number }[];

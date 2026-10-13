@@ -220,12 +220,12 @@ function save(rel, img) {
 }
 
 // ================================================================ TILESET
-// Layout (16 colunas × 8 linhas de tiles 16×16, exportado com margin 1 e
+// Layout (16 colunas × 16 linhas de tiles 16×16, exportado com margin 1 e
 // spacing 2 — "extrudado" — para evitar costuras com zoom fracionado).
 // Os índices precisam bater com src/systems/Tiles.ts.
 const T = 16;
 const COLS = 16;
-const ROWS = 8;
+const ROWS = 16;
 const tiles = new Img(COLS * T, ROWS * T);
 const at = (id) => [(id % COLS) * T, Math.floor(id / COLS) * T];
 
@@ -612,6 +612,530 @@ function trunk(id, P, pineSkirt) {
 trunk(96, PAL.trunk, false);
 trunk(97, ['#5a3a22', '#40281a', '#7a5032'], true);
 trunk(98, ['#7a6a52', '#5a4c3a', '#9a8a70'], false);
+// ================================================================ BIOMAS (linhas 8–15)
+// Snowland 128–143 · Blockland 144–159 · Blackland 160–175 · Dustland/Greenland 176–191
+// copas grandes 192+ (linhas 12–14) e troncos na linha 15. Índices em src/systems/Tiles.ts.
+const BP = {
+  snow: ['#e6edf5', '#d3ddea', '#f6faff', '#b6c4d8', '#98aac4', '#7d90ad'],
+  ice: ['#a9d3ec', '#8ec0e0', '#cde9f8', '#6fa2c9', '#ffffff'],
+  stone: ['#8c8983', '#787570', '#a3a099', '#64615c', '#bbb8b1', '#4e4b47'],
+  dry: ['#a89a5c', '#8e8048', '#c2b474'],
+  ash: ['#2c2731', '#25202a', '#36303c', '#1c1821', '#433b4a'],
+  ember: ['#ff7a3a', '#c8401e', '#ffd07a'],
+  crysP: ['#b46cec', '#7b3cc2', '#e6b8ff', '#4a2282'],
+  crysC: ['#5ee0ea', '#2a9ab8', '#cafcff', '#1a5a78'],
+  dune: ['#e2b86e', '#d4a65c', '#eecb8a', '#c08e48', '#f6dea6'],
+  sstone: ['#c98a52', '#b07440', '#dea26c', '#8e5a30', '#6e4424'],
+  cactus: ['#5c9c4a', '#457c38', '#78ba60', '#2f5c27'],
+  lush: ['#3f8a3a', '#2f6e2e', '#58a548', '#77bf5a', '#22521f'],
+};
+// --- Snowland
+{
+  const S = BP.snow;
+  const flakes = (ox, oy, r, n) => {
+    for (let i = 0; i < n; i++) tiles.set(ox + Math.floor(r() * 16), oy + Math.floor(r() * 16), S[2]);
+  };
+  noiseTile(128, [S[0], S[1], S[2]], [0.6, 0.25, 0.15], 401, (ox, oy, r) => flakes(ox, oy, r, 3));
+  noiseTile(129, [S[0], S[2], S[1]], [0.55, 0.3, 0.15], 402, (ox, oy, r) => {
+    for (let i = 0; i < 2; i++) {
+      const x = ox + 2 + Math.floor(r() * 10), y = oy + 3 + Math.floor(r() * 10);
+      tiles.rect(x, y, 4, 1, S[3]);
+      tiles.rect(x + 1, y - 1, 3, 1, S[2]);
+    }
+  });
+  noiseTile(130, [S[1], S[0], S[3]], [0.55, 0.33, 0.12], 403, (ox, oy, r) => flakes(ox, oy, r, 2));
+  noiseTile(131, [S[3], S[4], S[1]], [0.55, 0.3, 0.15], 404, (ox, oy, r) => {
+    for (let i = 0; i < 3; i++) tiles.set(ox + Math.floor(r() * 16), oy + Math.floor(r() * 16), S[5]);
+  });
+  const I = BP.ice;
+  noiseTile(132, [I[0], I[1], I[2]], [0.6, 0.25, 0.15], 405, (ox, oy) => {
+    tiles.line(ox + 2, oy + 3, ox + 6, oy + 1, I[4]);
+    tiles.line(ox + 9, oy + 11, ox + 13, oy + 9, I[2]);
+  });
+  noiseTile(133, [I[0], I[1], I[2]], [0.55, 0.3, 0.15], 406, (ox, oy) => {
+    tiles.line(ox + 1, oy + 4, ox + 8, oy + 9, I[3]);
+    tiles.line(ox + 8, oy + 9, ox + 14, oy + 7, I[3]);
+    tiles.line(ox + 8, oy + 9, ox + 9, oy + 15, I[3]);
+    tiles.line(ox + 3, oy + 2, ox + 6, oy + 1, I[4]);
+  });
+  // pedra com neve
+  {
+    const [ox, oy] = at(134);
+    tiles.ellipse(ox + 8, oy + 12.5, 6, 2, '#000000', 0.22);
+    tiles.ellipse(ox + 8, oy + 10, 5.5, 3.8, RK[1]);
+    tiles.ellipse(ox + 7, oy + 9, 3.5, 2.2, RK[0]);
+    tiles.ellipse(ox + 8, oy + 7.5, 5, 2, S[0]);
+    tiles.ellipse(ox + 7, oy + 7, 3, 1.2, S[2]);
+    tiles.outline(ox, oy, T, T);
+  }
+  // arbusto congelado
+  {
+    const [ox, oy] = at(135);
+    tiles.ellipse(ox + 8, oy + 13.5, 6, 2, '#000000', 0.22);
+    tiles.ellipse(ox + 8, oy + 9.5, 6, 4.5, PAL.pine[1]);
+    tiles.ellipse(ox + 7, oy + 8.5, 4.5, 3.2, PAL.pine[0]);
+    tiles.ellipse(ox + 8, oy + 6.5, 5, 1.8, S[0]);
+    for (const [x, y] of [[4, 9], [11, 8], [8, 11]]) tiles.set(ox + x, oy + y, S[2]);
+    tiles.outline(ox, oy, T, T);
+  }
+  // cristais de gelo
+  {
+    const [ox, oy] = at(136);
+    tiles.ellipse(ox + 8, oy + 13.5, 5, 1.6, '#000000', 0.2);
+    for (const [x, h, w] of [[5, 7, 2], [8, 10, 3], [11, 6, 2]]) {
+      for (let y = 0; y < h; y++) {
+        const ww = Math.max(1, Math.round(w * (1 - y / h)));
+        tiles.rect(ox + x - (ww >> 1), oy + 13 - y, ww, 1, y > h * 0.6 ? I[4] : I[0]);
+      }
+      tiles.set(ox + x - 1, oy + 12, I[3]);
+    }
+    tiles.outline(ox, oy, T, T);
+  }
+  // capim saindo da neve
+  {
+    const [ox, oy] = at(137);
+    const r = rng(407);
+    for (let i = 0; i < 5; i++) {
+      const x = ox + 3 + Math.floor(r() * 10);
+      tiles.line(x, oy + 13, x + (r() > 0.5 ? 1 : -1), oy + 9 - Math.floor(r() * 3), BP.dry[i % 2]);
+    }
+    tiles.rect(ox + 2, oy + 13, 12, 1, S[0]);
+  }
+  // cume de montanha nevada / paredão
+  noiseTile(138, [S[0], S[1], RK[1], S[2]], [0.5, 0.25, 0.15, 0.1], 408, (ox, oy, r) => {
+    for (let i = 0; i < 2; i++) {
+      const x = ox + 2 + Math.floor(r() * 11), y = oy + 2 + Math.floor(r() * 11);
+      tiles.rect(x, y, 3, 2, RK[2]);
+      tiles.rect(x, y, 3, 1, RK[0]);
+    }
+  });
+  {
+    const [ox, oy] = at(139);
+    tiles.rect(ox, oy, T, T, RK[2]);
+    tiles.rect(ox, oy, T, 3, S[0]);
+    tiles.rect(ox, oy + 3, T, 1, S[3]);
+    for (let x = 0; x < T; x += 4) {
+      tiles.line(ox + x + 1, oy + 4, ox + x + 2, oy + 15, RK[3]);
+      tiles.rect(ox + x + 2, oy + 5, 1, 6, RK[1]);
+    }
+    tiles.set(ox + 3, oy + 3, S[0]);
+    tiles.set(ox + 10, oy + 3, S[0]);
+    tiles.rect(ox, oy + 15, T, 1, RK[5]);
+  }
+  // toco com neve
+  {
+    const [sx, sy] = at(140);
+    tiles.ellipse(sx + 8, sy + 12, 6, 2, '#000000', 0.22);
+    tiles.rect(sx + 4, sy + 7, 8, 5, PAL.wood[1]);
+    tiles.ellipse(sx + 8, sy + 7, 4.5, 1.8, S[0]);
+    tiles.outline(sx, sy, T, T);
+  }
+  // flor-de-gelo
+  {
+    const [ox, oy] = at(141);
+    for (const [x, y] of [[5, 8], [10, 10]]) {
+      tiles.line(ox + x, oy + y + 1, ox + x, oy + y + 4, PAL.pine[2]);
+      tiles.set(ox + x - 1, oy + y, I[2]);
+      tiles.set(ox + x + 1, oy + y, I[2]);
+      tiles.set(ox + x, oy + y - 1, I[2]);
+      tiles.set(ox + x, oy + y, '#6c8de0');
+    }
+  }
+  // monte de neve
+  {
+    const [ox, oy] = at(142);
+    tiles.ellipse(ox + 8, oy + 11, 7, 3.5, S[1]);
+    tiles.ellipse(ox + 7, oy + 10, 5, 2.4, S[0]);
+    tiles.ellipse(ox + 6, oy + 9.5, 2.5, 1, S[2]);
+  }
+}
+// --- Blockland
+{
+  const B = BP.stone;
+  noiseTile(144, [B[0], B[1], B[2]], [0.55, 0.3, 0.15], 421, (ox, oy, r) => {
+    tiles.line(ox + Math.floor(r() * 8), oy + 5, ox + 8 + Math.floor(r() * 8), oy + 6, B[3]);
+  });
+  noiseTile(145, [B[0], B[2], B[1]], [0.5, 0.3, 0.2], 422, (ox, oy) => {
+    tiles.rect(ox, oy + 7, T, 1, B[3]);
+    tiles.rect(ox + 7, oy, 1, 7, B[3]);
+    tiles.rect(ox + 3, oy + 8, 1, 8, B[3]);
+    tiles.rect(ox, oy + 8, T, 1, B[4]);
+  });
+  noiseTile(146, [B[1], B[0], B[3]], [0.5, 0.35, 0.15], 423);
+  noiseTile(147, [B[1], B[2], B[3], B[4]], [0.4, 0.25, 0.2, 0.15], 424, (ox, oy, r) => {
+    for (let i = 0; i < 6; i++) {
+      const x = ox + Math.floor(r() * 15), y = oy + Math.floor(r() * 15);
+      tiles.rect(x, y, 2, 1, B[3]);
+      tiles.set(x, y, B[4]);
+    }
+  });
+  noiseTile(148, [B[0], B[1], BP.dry[1]], [0.55, 0.3, 0.15], 425, (ox, oy, r) => tufts(ox, oy, r, 3, BP.dry[0], BP.dry[2]));
+  // bloco de pedra (cubo)
+  const block = (id, moss) => {
+    const [ox, oy] = at(id);
+    tiles.ellipse(ox + 8, oy + 14.5, 7, 1.5, '#000000', 0.3);
+    tiles.rect(ox + 2, oy + 5, 12, 9, B[1]);
+    tiles.rect(ox + 2, oy + 2, 12, 4, B[2]);
+    tiles.rect(ox + 2, oy + 2, 12, 1, B[4]);
+    tiles.rect(ox + 12, oy + 5, 2, 9, B[3]);
+    tiles.line(ox + 5, oy + 7, ox + 7, oy + 11, B[3]);
+    if (moss) {
+      tiles.rect(ox + 2, oy + 2, 7, 2, PAL.forest[2]);
+      tiles.rect(ox + 3, oy + 4, 3, 2, PAL.forest[0]);
+    }
+    tiles.outline(ox, oy, T, T);
+  };
+  block(149, false);
+  block(150, true);
+  {
+    const [ox, oy] = at(151); // seixos
+    for (const [x, y, w] of [[3, 10, 3], [8, 12, 2], [11, 8, 3], [6, 6, 2]]) {
+      tiles.ellipse(ox + x, oy + y, w / 2 + 0.6, 1.2, B[1]);
+      tiles.set(ox + x - 1, oy + y - 1, B[4]);
+    }
+    tiles.outline(ox, oy, T, T);
+  }
+  {
+    const [ox, oy] = at(152); // touceira seca
+    const r = rng(426);
+    for (let i = 0; i < 7; i++) {
+      const x = ox + 3 + Math.floor(r() * 10);
+      tiles.line(x, oy + 14, x + (r() > 0.5 ? 2 : -2), oy + 8 - Math.floor(r() * 3), BP.dry[i % 3]);
+    }
+  }
+  noiseTile(153, [B[2], B[0], B[4], B[1]], [0.45, 0.3, 0.15, 0.1], 427, (ox, oy, r) => {
+    for (let i = 0; i < 3; i++) {
+      const x = ox + 1 + Math.floor(r() * 12), y = oy + 1 + Math.floor(r() * 12);
+      tiles.rect(x, y, 3, 3, B[1]);
+      tiles.rect(x, y, 3, 1, B[4]);
+    }
+  });
+  {
+    const [ox, oy] = at(154);
+    tiles.rect(ox, oy, T, T, B[1]);
+    tiles.rect(ox, oy, T, 2, B[4]);
+    for (let x = 0; x < T; x += 5) {
+      tiles.rect(ox + x, oy + 2, 1, 14, B[3]);
+      tiles.rect(ox + x + 1, oy + 2, 1, 14, B[0]);
+    }
+    tiles.rect(ox, oy + 9, T, 1, B[3]);
+    tiles.rect(ox, oy + 15, T, 1, B[5]);
+  }
+  {
+    const [ox, oy] = at(155); // veio de minério
+    tiles.ellipse(ox + 8, oy + 13, 6, 2, '#000000', 0.25);
+    tiles.ellipse(ox + 8, oy + 9.5, 6, 4.5, B[1]);
+    tiles.ellipse(ox + 7, oy + 8.5, 4, 3, B[0]);
+    for (const [x, y] of [[5, 9], [9, 7], [10, 11], [7, 11]]) {
+      tiles.set(ox + x, oy + y, '#e0b84a');
+      tiles.set(ox + x + 1, oy + y, '#a07a22');
+    }
+    tiles.outline(ox, oy, T, T);
+  }
+  {
+    const [ox, oy] = at(156); // bloquinho solto
+    tiles.ellipse(ox + 8, oy + 13, 4.5, 1.2, '#000000', 0.25);
+    tiles.rect(ox + 5, oy + 8, 6, 5, B[1]);
+    tiles.rect(ox + 5, oy + 7, 6, 2, B[2]);
+    tiles.rect(ox + 10, oy + 8, 1, 5, B[3]);
+    tiles.outline(ox, oy, T, T);
+  }
+}
+// --- Blackland
+{
+  const A = BP.ash;
+  noiseTile(160, [A[0], A[1], A[2]], [0.55, 0.3, 0.15], 441, (ox, oy, r) => {
+    for (let i = 0; i < 2; i++) tiles.set(ox + Math.floor(r() * 16), oy + Math.floor(r() * 16), A[4]);
+  });
+  noiseTile(161, [A[1], A[0], A[3]], [0.5, 0.35, 0.15], 442);
+  noiseTile(162, [A[0], A[2], A[4]], [0.6, 0.3, 0.1], 443);
+  noiseTile(163, [A[0], A[1], A[3]], [0.55, 0.3, 0.15], 444, (ox, oy) => {
+    const E = BP.ember;
+    tiles.line(ox + 1, oy + 5, ox + 7, oy + 8, E[1]);
+    tiles.line(ox + 7, oy + 8, ox + 14, oy + 6, E[1]);
+    tiles.line(ox + 7, oy + 8, ox + 8, oy + 14, E[1]);
+    tiles.set(ox + 7, oy + 8, E[2]);
+    tiles.set(ox + 4, oy + 6, E[0]);
+    tiles.set(ox + 11, oy + 7, E[0]);
+  });
+  noiseTile(164, ['#1a1622', '#221d2c', '#2e2840'], [0.6, 0.28, 0.12], 445, (ox, oy) => {
+    tiles.line(ox + 2, oy + 2, ox + 6, oy + 6, '#5a4c7a');
+    tiles.line(ox + 9, oy + 10, ox + 13, oy + 12, '#46396a');
+  });
+  const crystal = (id, P, big) => {
+    const [ox, oy] = at(id);
+    tiles.ellipse(ox + 8, oy + 14, big ? 7 : 5, 1.6, '#000000', 0.35);
+    const shards = big ? [[4, 9, 3], [8, 14, 4], [12, 8, 3], [6, 6, 2]] : [[5, 6, 2], [8, 9, 3], [11, 5, 2]];
+    for (const [x, h, w] of shards) {
+      for (let y = 0; y < h; y++) {
+        const ww = Math.max(1, Math.round(w * (1 - (y / h) * 0.8)));
+        for (let k = 0; k < ww; k++) tiles.set(ox + x - (ww >> 1) + k, oy + 14 - y, k === 0 ? P[2] : k === ww - 1 ? P[1] : P[0]);
+      }
+      tiles.set(ox + x, oy + 14 - h + 1, P[2]);
+    }
+    tiles.outline(ox, oy, T, T);
+  };
+  crystal(165, BP.crysP, false);
+  crystal(166, BP.crysC, false);
+  crystal(167, BP.crysP, true);
+  {
+    const [ox, oy] = at(168); // fungo luminoso
+    for (const [x, y, s] of [[5, 10, 2.5], [10, 12, 2], [9, 7, 1.6]]) {
+      tiles.rect(ox + x, oy + y, 1, 3, '#a8b0c0');
+      tiles.ellipse(ox + x + 0.5, oy + y, s, s * 0.7, BP.crysC[0]);
+      tiles.set(ox + x, oy + y - 1, BP.crysC[2]);
+    }
+    tiles.outline(ox, oy, T, T);
+  }
+  {
+    const [ox, oy] = at(169); // espinheiro negro
+    const r = rng(446);
+    for (let i = 0; i < 6; i++) {
+      const x = ox + 4 + Math.floor(r() * 8);
+      const top = oy + 3 + Math.floor(r() * 5);
+      tiles.line(x, oy + 14, x + (r() > 0.5 ? 3 : -3), top, '#3a2a40');
+      tiles.set(x + (r() > 0.5 ? 1 : -1), top + 3, '#8a2a3a');
+    }
+    tiles.outline(ox, oy, T, T);
+  }
+  {
+    const [ox, oy] = at(170); // ossos
+    tiles.rect(ox + 3, oy + 10, 8, 1, '#d8d0bc');
+    tiles.rect(ox + 2, oy + 9, 2, 3, '#e8e2d0');
+    tiles.rect(ox + 10, oy + 9, 2, 3, '#e8e2d0');
+    tiles.ellipse(ox + 11, oy + 6, 2.5, 2, '#e8e2d0');
+    tiles.set(ox + 10, oy + 6, '#3a3040');
+    tiles.outline(ox, oy, T, T);
+  }
+  noiseTile(171, [A[2], A[0], A[4], '#4a3a5a'], [0.45, 0.3, 0.15, 0.1], 447, (ox, oy, r) => {
+    for (let i = 0; i < 2; i++) tiles.set(ox + 2 + Math.floor(r() * 12), oy + 2 + Math.floor(r() * 12), BP.crysP[0]);
+  });
+  {
+    const [ox, oy] = at(172);
+    tiles.rect(ox, oy, T, T, '#1f1a26');
+    tiles.rect(ox, oy, T, 2, A[4]);
+    for (let x = 1; x < T; x += 5) tiles.line(ox + x, oy + 2, ox + x + 1, oy + 15, '#120e18');
+    tiles.set(ox + 4, oy + 8, BP.crysP[0]);
+    tiles.set(ox + 12, oy + 5, BP.crysP[2]);
+    tiles.rect(ox, oy + 15, T, 1, '#0c0a10');
+  }
+  noiseTile(173, ['#140f1e', '#1c1530', '#26204a'], [0.6, 0.3, 0.1], 448, (ox, oy) => {
+    tiles.set(ox + 4, oy + 5, BP.crysP[2]);
+    tiles.set(ox + 11, oy + 10, BP.crysP[0]);
+  });
+  {
+    const [ox, oy] = at(174); // capim de brasa
+    const r = rng(449);
+    for (let i = 0; i < 6; i++) {
+      const x = ox + 3 + Math.floor(r() * 10);
+      tiles.line(x, oy + 14, x + (r() > 0.5 ? 1 : -1), oy + 9 - Math.floor(r() * 3), i % 2 ? '#7a2a2a' : '#a8401e');
+    }
+  }
+}
+// --- Dustland
+{
+  const D2 = BP.dune;
+  noiseTile(176, [D2[0], D2[1], D2[2]], [0.6, 0.25, 0.15], 461);
+  noiseTile(177, [D2[0], D2[2], D2[1]], [0.55, 0.3, 0.15], 462, (ox, oy) => {
+    for (let y = 3; y < T; y += 6) {
+      tiles.line(ox + 1, oy + y, ox + 7, oy + y - 1, D2[3]);
+      tiles.line(ox + 7, oy + y - 1, ox + 14, oy + y, D2[3]);
+      tiles.line(ox + 2, oy + y - 1, ox + 7, oy + y - 2, D2[4]);
+    }
+  });
+  noiseTile(178, [D2[1], D2[0], D2[3]], [0.55, 0.33, 0.12], 463);
+  noiseTile(179, [D2[0], D2[2], D2[1]], [0.55, 0.3, 0.15], 464, (ox, oy) => {
+    for (let y = 2; y < T; y += 4) tiles.line(ox, oy + y, ox + 15, oy + y + 1, D2[3]);
+  });
+  const SS = BP.sstone;
+  noiseTile(180, [SS[0], SS[1], SS[2]], [0.55, 0.3, 0.15], 465, (ox, oy) => {
+    tiles.rect(ox, oy + 6, T, 1, SS[3]);
+    tiles.rect(ox, oy + 12, T, 1, SS[3]);
+    tiles.rect(ox + 9, oy, 1, 6, SS[3]);
+  });
+  {
+    const [ox, oy] = at(181); // cacto grande (colisão)
+    const C = BP.cactus;
+    tiles.ellipse(ox + 8, oy + 14.5, 5, 1.4, '#000000', 0.3);
+    tiles.rect(ox + 6, oy + 1, 4, 14, C[0]);
+    tiles.rect(ox + 6, oy + 1, 1, 14, C[2]);
+    tiles.rect(ox + 9, oy + 1, 1, 14, C[1]);
+    tiles.rect(ox + 2, oy + 6, 2, 5, C[0]);
+    tiles.rect(ox + 2, oy + 10, 4, 2, C[0]);
+    tiles.rect(ox + 12, oy + 4, 2, 5, C[0]);
+    tiles.rect(ox + 10, oy + 8, 4, 2, C[0]);
+    tiles.set(ox + 8, oy, '#f2c94c');
+    tiles.outline(ox, oy, T, T);
+  }
+  {
+    const [ox, oy] = at(182); // cacto pequeno
+    const C = BP.cactus;
+    tiles.ellipse(ox + 8, oy + 14, 4, 1.2, '#000000', 0.3);
+    tiles.ellipse(ox + 8, oy + 11, 3, 3.5, C[0]);
+    tiles.ellipse(ox + 7, oy + 10, 1.5, 2, C[2]);
+    tiles.set(ox + 8, oy + 7, '#e0484a');
+    tiles.outline(ox, oy, T, T);
+  }
+  {
+    const [ox, oy] = at(183); // arbusto seco
+    const r = rng(466);
+    for (let i = 0; i < 8; i++) {
+      const a = Math.PI * (1.05 + r() * 0.9);
+      const l = 4 + r() * 4;
+      tiles.line(ox + 8, oy + 13, ox + 8 + Math.cos(a) * l, oy + 13 + Math.sin(a) * l, i % 2 ? '#8a6a3a' : '#6e5230');
+    }
+  }
+  {
+    const [ox, oy] = at(184); // crânio
+    tiles.ellipse(ox + 8, oy + 10, 3.5, 2.8, '#ece4d0');
+    tiles.rect(ox + 6, oy + 12, 4, 2, '#d8d0bc');
+    tiles.set(ox + 7, oy + 10, '#3a3040');
+    tiles.set(ox + 9, oy + 10, '#3a3040');
+    tiles.line(ox + 3, oy + 13, ox + 5, oy + 12, '#d8d0bc');
+    tiles.outline(ox, oy, T, T);
+  }
+  {
+    const [ox, oy] = at(185); // rocha de arenito
+    tiles.ellipse(ox + 8, oy + 13, 6.5, 2, '#000000', 0.25);
+    tiles.ellipse(ox + 8, oy + 10, 6, 4, SS[1]);
+    tiles.ellipse(ox + 7, oy + 8.5, 4.5, 2.6, SS[0]);
+    tiles.rect(ox + 3, oy + 10, 10, 1, SS[3]);
+    tiles.set(ox + 6, oy + 7, SS[2]);
+    tiles.outline(ox, oy, T, T);
+  }
+  noiseTile(186, [SS[0], SS[2], SS[1]], [0.5, 0.3, 0.2], 467, (ox, oy) => {
+    tiles.rect(ox, oy + 5, T, 1, SS[1]);
+    tiles.rect(ox, oy + 11, T, 1, SS[1]);
+  });
+  {
+    const [ox, oy] = at(187); // paredão da mesa (camadas)
+    for (let y = 0; y < T; y++) tiles.rect(ox, oy + y, T, 1, [SS[2], SS[0], SS[0], SS[1], SS[3]][Math.floor(y / 3.2)]);
+    for (let x = 2; x < T; x += 5) tiles.line(ox + x, oy + 3, ox + x + 1, oy + 15, SS[3]);
+    tiles.rect(ox, oy + 15, T, 1, SS[4]);
+  }
+  noiseTile(188, [G[2], G[1], G[4]], [0.55, 0.3, 0.15], 468, (ox, oy, r) => tufts(ox, oy, r, 4, G[3], G[4]));
+}
+// --- Greenland (extras)
+{
+  const [ox, oy] = at(189); // samambaia
+  const L = BP.lush;
+  for (const a of [-0.9, -0.45, 0, 0.45, 0.9]) {
+    for (let k = 0; k < 7; k++) {
+      const x = ox + 8 + Math.sin(a) * k;
+      const y = oy + 14 - Math.cos(a) * k * 1.1;
+      tiles.set(x, y, k > 4 ? L[3] : L[0]);
+      if (k % 2) tiles.set(x + 1, y, L[2]);
+    }
+  }
+  tiles.outline(ox, oy, T, T);
+}
+{
+  const [ox, oy] = at(190); // flor grande
+  tiles.line(ox + 8, oy + 14, ox + 8, oy + 7, BP.lush[1]);
+  tiles.rect(ox + 5, oy + 11, 3, 1, BP.lush[0]);
+  for (const [dx, dy] of [[-2, 0], [2, 0], [0, -2], [0, 2], [-1, -1], [1, 1], [1, -1], [-1, 1]]) tiles.set(ox + 8 + dx, oy + 6 + dy, PAL.flowers[4]);
+  tiles.set(ox + 8, oy + 6, PAL.flowers[1]);
+  tiles.outline(ox, oy, T, T);
+}
+// --- copas grandes: base (canto superior esquerdo), largura × altura em tiles
+function bigCanopy(base, w, h, draw) {
+  const img = new Img(w * 16, h * 16);
+  draw(img);
+  img.outline(0, 0, w * 16, h * 16);
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) tiles.blit(img, i * 16, j * 16, 16, 16, ...at(base + j * 16 + i));
+}
+// pinheiro alto nevado (3×3)
+bigCanopy(192, 3, 3, (img) => {
+  const P = ['#24543c', '#183c2b', '#2f6a4a', '#3f7e5a'];
+  const S = BP.snow;
+  for (let l = 0; l < 5; l++) {
+    const top = 1 + l * 9;
+    const half = 4 + l * 3.6;
+    for (let y = 0; y < 11; y++) {
+      const w = Math.round((half * (y + 1)) / 11);
+      for (let x = -w; x <= w; x++) img.set(24 + x, top + y, x < -w / 3 ? P[2] : x > w / 2 ? P[1] : P[0]);
+    }
+    // neve no topo de cada camada
+    for (let y = 0; y < 4; y++) {
+      const w = Math.round((half * (y + 1)) / 11);
+      for (let x = -w; x <= w; x++) img.set(24 + x, top + y, y === 0 ? S[2] : S[0]);
+    }
+    img.line(24 - Math.round(half * 0.8), top + 9, 24 - 2, top + 6, S[1]);
+  }
+});
+// árvore morta (3×2)
+bigCanopy(195, 3, 2, (img) => {
+  const W = ['#3a3040', '#2a2230', '#4a4054'];
+  const r = rng(481);
+  const branch = (x, y, a, len, d) => {
+    if (d > 4 || len < 2) return;
+    const x2 = x + Math.cos(a) * len, y2 = y + Math.sin(a) * len;
+    img.line(x, y, x2, y2, d < 2 ? W[0] : W[2]);
+    if (d < 2) img.line(x + 1, y, x2 + 1, y2, W[1]);
+    branch(x2, y2, a - 0.5 - r() * 0.3, len * 0.7, d + 1);
+    branch(x2, y2, a + 0.5 + r() * 0.3, len * 0.7, d + 1);
+  };
+  branch(24, 32, -Math.PI / 2, 12, 0);
+});
+// palmeira (3×2)
+bigCanopy(198, 3, 2, (img) => {
+  const P = ['#5a9a3a', '#447a2c', '#78b850', '#2e5a1e'];
+  img.line(24, 31, 23, 14, '#8a6a3a');
+  img.line(25, 31, 24, 14, '#6e5230');
+  for (const [a, l] of [[-2.8, 18], [-2.2, 16], [-1.7, 14], [-1.2, 15], [-0.6, 17], [-0.1, 18]]) {
+    for (let k = 0; k < l; k++) {
+      const x = 24 + Math.cos(a) * k;
+      const y = 13 + Math.sin(a) * k * 0.6 + (k * k) / 28;
+      img.set(x, y, P[0]);
+      img.set(x, y + 1, P[1]);
+      if (k % 3 === 0) img.set(x, y - 1, P[2]);
+    }
+  }
+  img.ellipse(24, 14, 2, 1.6, '#6e4426');
+});
+// carvalho antigo (3×2), mais escuro e cheio
+bigCanopy(201, 3, 2, (img) => {
+  const P = ['#2f7a34', '#235e28', '#45943f', '#64ad52', '#173f1a'];
+  leafy(img, 24, 17, 22, 14, P, 482);
+  leafy(img, 13, 13, 10, 9, P, 483);
+  leafy(img, 35, 12, 11, 9, P, 484);
+  leafy(img, 24, 8, 12, 7, P, 485);
+});
+// árvore de cristal (3×2)
+bigCanopy(204, 3, 2, (img) => {
+  const P = BP.crysP;
+  const C = BP.crysC;
+  for (const [x, y, h, w, pal] of [[24, 30, 22, 5, P], [15, 28, 14, 4, C], [33, 28, 16, 4, P], [20, 22, 10, 3, C], [29, 20, 9, 3, C]]) {
+    for (let k = 0; k < h; k++) {
+      const ww = Math.max(1, Math.round(w * (1 - (k / h) * 0.85)));
+      for (let i = 0; i < ww; i++) img.set(x - (ww >> 1) + i, y - k, i === 0 ? pal[2] : i === ww - 1 ? pal[1] : pal[0]);
+    }
+  }
+});
+// troncos (linha 15)
+trunk(240, ['#4a3222', '#34221a', '#6a4a32'], false);
+trunk(241, ['#3a3040', '#2a2230', '#4a4054'], false);
+{
+  const [ox, oy] = at(242); // base da palmeira
+  const img = new Img(16, 16);
+  img.ellipse(8, 13, 6, 2.2, '#000000', 0.3);
+  img.rect(7, 0, 3, 13, '#8a6a3a');
+  img.rect(7, 0, 1, 13, '#a88a52');
+  for (let y = 2; y < 13; y += 3) img.rect(7, y, 3, 1, '#6e5230');
+  img.outline(0, 0, 16, 16);
+  tiles.blit(img, 0, 0, 16, 16, ox, oy);
+}
+trunk(243, ['#5a3a20', '#40281a', '#7a5032'], false);
+{
+  const [ox, oy] = at(244); // base de cristal
+  const img = new Img(16, 16);
+  img.ellipse(8, 13, 7, 2.4, '#000000', 0.35);
+  img.rect(5, 2, 6, 11, BP.crysP[1]);
+  img.rect(5, 2, 2, 11, BP.crysP[2]);
+  img.rect(9, 2, 2, 11, BP.crysP[3]);
+  img.outline(0, 0, 16, 16);
+  tiles.blit(img, 0, 0, 16, 16, ox, oy);
+}
 // marcador de colisão (não renderizado)
 tiles.rect(...at(112), T, T, '#ff00ff', 0.5);
 

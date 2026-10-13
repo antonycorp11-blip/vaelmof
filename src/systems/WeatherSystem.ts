@@ -15,6 +15,8 @@ export class WeatherSystem {
   state: WeatherState = 'clear';
   rainLevel = 0;
   fogLevel = 0;
+  /** 0..1: quanto o bioma atual permite chuva (neve e deserto: 0). */
+  rainMask = 1;
   private nextChange: number;
   private rain: Phaser.GameObjects.Particles.ParticleEmitter;
   private splash: Phaser.GameObjects.Particles.ParticleEmitter;
@@ -72,8 +74,9 @@ export class WeatherSystem {
   /** Tom multiplicativo do clima (branco = sem efeito). */
   get tint(): number {
     let c = 0xffffff;
-    c = lerpColor(c, 0x98a4bf, this.rainLevel);
-    c = lerpColor(c, 0xdfe2ea, this.fogLevel * (1 - this.rainLevel));
+    const rain = this.rainLevel * this.rainMask;
+    c = lerpColor(c, 0x98a4bf, rain);
+    c = lerpColor(c, 0xdfe2ea, this.fogLevel * (1 - rain));
     return c;
   }
 
@@ -90,12 +93,13 @@ export class WeatherSystem {
     this.fogLevel = approach(this.fogLevel, this.state === 'fog' ? 1 : this.state === 'rain' ? 0.25 : 0);
 
     // chuva: emissor acompanha a área visível; densidade proporcional à intensidade
-    const raining = this.rainLevel > 0.03;
+    const rainK = this.rainLevel * this.rainMask;
+    const raining = rainK > 0.03;
     this.rain.setPosition(view.x, view.y);
     this.rain.emitting = raining;
-    this.splash.emitting = this.rainLevel > 0.3;
+    this.splash.emitting = rainK > 0.3;
     if (raining) {
-      const freq = Phaser.Math.Linear(90, 14, this.rainLevel);
+      const freq = Phaser.Math.Linear(90, 14, rainK);
       this.rain.frequency = freq;
       this.splash.setPosition(view.x, view.y);
       // atualiza a zona de emissão só quando o tamanho da visão muda (zoom/resize)

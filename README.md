@@ -59,8 +59,37 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 
 ## O que foi implementado
 
-### Mundo (`src/systems/MapGenerator.ts`)
-- Mapa único de **120×120 tiles** gerado por código com ruído de valor/fbm
+### Mundo e biomas (`src/systems/WorldGenerator.ts`)
+- Mundo de **320×320 tiles** (≈ 5.100 px de lado) com **cinco biomas** em volta
+  do vale original, que fica no centro-norte como o coração de Greenland.
+  As fronteiras são deformadas por ruído e a luz, o clima e as partículas
+  mudam suavemente ao cruzá-las:
+  - **Greenland** (oeste e em volta do vale): florestas densas de carvalhos
+    antigos, carvalhos, pinheiros e salgueiros, um **grande rio** descendo das
+    montanhas de neve com **lagoas** pelo caminho, samambaias, flores grandes,
+    cervos, lobos, limos e bandoleiros.
+  - **Snowland** (norte): neve **constante**, luz fria e mais escura,
+    **pinheiros altíssimos** nevados (copa 3×3), lagos e rios **congelados**
+    (gelo andável), montanhas nevadas com paredão, pedras com neve, arbustos
+    congelados, cristais de gelo; lobos-da-neve, cervos claros e Errantes.
+  - **Blockland** (leste): chão de pedra, cascalho e capim seco, **blocos de
+    pedra** em aglomerados, muitas montanhas, quase sem vegetação, um único
+    riacho, veios de minério; limos de pedra e bandoleiros.
+  - **Blackland** (sudeste): terra arrasada de cinzas e obsidiana, muito
+    escura, rachaduras em brasa, **cristais** roxos e ciano que **brilham**,
+    árvores de cristal e árvores mortas, fungos luminosos, espinheiros, ossos,
+    poças do vazio; cinzas caindo e brasas subindo; muitos Errantes.
+  - **Dustland** (sul): dunas, arenito, mesas com paredões em camadas,
+    cactos, arbustos secos, crânios, vento de areia e **oásis** com palmeiras
+    — o Rio Serro atravessa o deserto e morre num oásis; bandoleiros, limos de
+    areia e lobos do deserto.
+- Montanhas: cristas de ruído viram maciços intransponíveis; a fileira de
+  baixo de cada maciço é o paredão (arte própria por bioma).
+- Arte de todos os biomas gerada por código em `scripts/generate-assets.mjs`
+  (linhas 8–15 do tileset), no mesmo estilo do resto do mapa.
+
+### Vale de Vaelmor (`src/systems/MapGenerator.ts`)
+- O vale original, **120×120 tiles** gerado por código com ruído de valor/fbm
   (determinístico pela seed), em **6 camadas de tilemap**: chão, água,
   penhascos, decoração, copas (acima das entidades) e colisão (invisível).
 - **Planalto ao norte** e **vale ao sul**, separados por uma escarpa contínua
@@ -83,7 +112,17 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   por uma ponte e sobe a rampa oeste; uma trilha leva ao mirante da queda.
 - Flores (4 cores), arbustos (com e sem frutas), pedras, capim alto,
   cogumelos, tocos e placas como decoração.
-- Ao entrar numa vila ou perto da queda, o nome da área aparece na tela.
+- Ao entrar numa vila, perto da queda ou num bioma novo, o nome aparece na tela.
+
+### Debug (botão **DEBUG** no canto superior esquerdo)
+- Teleporte para o coração de cada bioma (Vale, Greenland, Snowland,
+  Blockland, Blackland, Dustland).
+- **MAPA**: o mundo inteiro (1 px por tile) com a posição do herói; **tocar
+  no mapa leva o herói para aquele ponto** (ou para o chão livre mais
+  próximo).
+- **Voo** (atravessa montanhas, água e árvores, 3× mais rápido),
+  **Invencível**, **Dia** e **Noite**.
+- Mostra o bioma atual, o tile e o FPS.
 
 ### Vida
 - **Ovelhas** (13, em rebanhos perto de Brumavale) e **cervos** (11, nas
@@ -105,14 +144,16 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   o rastro da lâmina), magia e queda, nas 4 direções. O código cuida do resto:
   tempo de cada quadro sincronizado com o impacto, avanço no golpe, giro de
   360° no finalizador, poeira nos passos, disparada com rastro na esquiva,
-  recuo ao tomar dano. Exibido a 0,56× (~28 px do mundo, a altura dos
-  bandidos).
+  recuo ao tomar dano. Exibido a 0,44× (~22 px do mundo, 1,4 tile).
+- Movimento com **aceleração e frenagem suaves**, joystick analógico (direção
+  livre) e cadência dos passos casada com a velocidade real (os pés não
+  deslizam).
 - Movimento em **8 direções** (o joystick é analógico na intensidade, mas a
   direção é quantizada em 45°). Velocidade em `PLAYER.speed` (`src/config.ts`).
 - **HP 10** com barra segmentada no HUD; pisca e fica invulnerável por 0,9 s
   após tomar dano. Ao morrer, volta a Brumavale com HP cheio.
-- **Golpe: combo de 3 movimentos.** Corte → segundo corte, mais rápido →
-  **giro de 360°** (dano 2, 2 e 3; o giro acerta tudo em volta e empurra
+- **Golpe: combo de 3 movimentos.** Corte **descendente** (do alto para
+  baixo) → corte ascendente de volta, mais rápido → **giro de 360°** (dano 2, 2 e 3; o giro acerta tudo em volta e empurra
   mais). Cada golpe tem a duração de cada quadro em `PLAYER.combo`, e o dano
   sai no quadro em que a lâmina passa. Apertar de
   novo no fim da recuperação (ou dentro de 380 ms) encadeia o próximo; depois
@@ -268,10 +309,10 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 
 ## Projeto das próximas etapas
 
-[`docs/design/expansao-mundo.md`](docs/design/expansao-mundo.md): biomas
-(Greenland, Snowland, Blockland, Blackland e Dustland), mundo em chunks,
+[`docs/design/expansao-mundo.md`](docs/design/expansao-mundo.md): os biomas
+já estão no jogo (mundo 320×320; chunks ficam para quando o mundo crescer);
 mapa com névoa de exploração, coleta por tiers e inventário no estilo Albion
-Online. Ainda não implementado.
+Online ainda não foram implementados.
 
 ## Herói: arte e animação
 
@@ -403,7 +444,8 @@ src/
   pwa.ts                  service worker, trava de orientação, gestos
   scenes/                 BootScene (carga/animações), WorldScene (mundo), UIScene (HUD + controles)
   entities/               Player (+ heroSheet), Slime, Wolf, Bandit, Wraith, Sheep, Deer, Bird (+ Creature, Enemy, Animal, Flame)
-  systems/                DayNightSystem, WeatherSystem, MapGenerator (+ Tiles, Noise)
+  systems/                WorldGenerator (biomas), MapGenerator (vale), BiomeFx, DayNightSystem, WeatherSystem (+ Tiles, Noise)
+  ui/                     DebugPanel (teleporte, mapa, voo)
   input/                  VirtualControls, InputState
 public/
   manifest.json, sw.js, icons/

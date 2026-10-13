@@ -50,6 +50,8 @@ export class VirtualControls {
   private buttons: Button[] = [];
   /** Altura (px do jogo) reservada ao HUD no topo — os botões ficam abaixo. */
   hudBottom = 0;
+  /** Áreas de outra UI (ex.: painel de debug) que não devem acionar o joystick. */
+  blocker?: (x: number, y: number) => boolean;
 
   constructor(scene: Phaser.Scene, show: boolean) {
     this.scene = scene;
@@ -135,7 +137,7 @@ export class VirtualControls {
   }
 
   private onDown(p: Phaser.Input.Pointer) {
-    if (!this.visible) return;
+    if (!this.visible || this.blocker?.(p.x, p.y)) return;
     const b = this.hitButton(p.x, p.y);
     if (b) {
       if (b.pointerId === null) {

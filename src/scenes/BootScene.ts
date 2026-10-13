@@ -50,7 +50,7 @@ export class BootScene extends Phaser.Scene {
     // Teren: andar = quadros 1–8 da linha de caminhada LPC (o 0 é de pé)
     for (let d = 0; d < 4; d++) {
       const walk = [1, 2, 3, 4, 5, 6, 7, 8].map((c) => heroFrame(HERO.rows.walk, d, c));
-      a.create({ key: `hero-walk-${d}`, frames: frames('hero', walk), frameRate: 13, repeat: -1 });
+      a.create({ key: `hero-walk-${d}`, frames: frames('hero', walk), frameRate: 24, repeat: -1 });
     }
     a.create({ key: 'hero-fall', frames: range('hero', HERO.rows.fall * HERO.cols, HERO.rows.fall * HERO.cols + 5), frameRate: 10, repeat: 0 });
     // Errante: por direção, 12 quadros flutuando + 12 em movimento

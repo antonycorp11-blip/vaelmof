@@ -107,7 +107,7 @@ export class Wraith extends Enemy {
         this.anim(false);
         this.setTint(Math.floor(time / 70) % 2 ? 0xc8d8ff : 0xffffff);
         if (time >= this.stateUntil) {
-          this.clearTint();
+          this.restoreTint();
           this.lungeAngle = a;
           this.touched = false;
           this.go('lunge', 260);
@@ -129,7 +129,7 @@ export class Wraith extends Enemy {
       }
       case 'fade': {
         // recua e fica quase invisível antes de voltar a caçar
-        this.clearTint();
+        this.restoreTint();
         this.body.setVelocity(-Math.cos(a) * 24, -Math.sin(a) * 24);
         this.anim(true);
         this.setAlpha(0.4);

@@ -27,6 +27,13 @@ Consequências de jogo que o projeto aproveita:
 
 ## 1. Mundo e biomas
 
+> **Implementado** (`src/systems/WorldGenerator.ts`): mundo de 320×320 tiles
+> com os cinco biomas, relevo, água, árvores, decoração, clima e criaturas por
+> bioma, e um painel de debug para conferir (teleporte, mapa, voo). A
+> estrutura em chunks de 1024×1024 descrita abaixo fica para quando o mundo
+> crescer; mecânicas de Frio, Ressonância e Sede/Calor e os inimigos novos de
+> cada bioma ainda não (por ora os biomas usam variantes dos inimigos atuais).
+
 ### 1.1 Estrutura do mundo
 
 | Item | Proposta |

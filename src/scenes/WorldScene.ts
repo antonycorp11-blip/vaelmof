@@ -14,7 +14,8 @@ import { Wolf } from '../entities/Wolf';
 import { Wraith } from '../entities/Wraith';
 import { inputState } from '../input/InputState';
 import { DayNightSystem, mulColor } from '../systems/DayNightSystem';
-import { generateMap, type MapData } from '../systems/MapGenerator';
+import { BiomeFx } from '../systems/BiomeFx';
+import { Biome, BIOMES, generateWorld, type WorldData } from '../systems/WorldGenerator';
 import { ANIM_FRAMES, T } from '../systems/Tiles';
 import { WeatherSystem } from '../systems/WeatherSystem';
 
@@ -30,11 +31,17 @@ interface AnimTile {
   base: number;
 }
 
-const BIRD_COUNT = 7;
+const BIRD_COUNT = 14;
+/** Tom de cada variante de criatura por bioma. */
+const VARIANT_TINT: Record<string, number> = { snow: 0xe6eeff, stone: 0xa09c94, void: 0x9a70d8, sand: 0xe8c47a };
+/** Rótulo do clima próprio de cada bioma (substitui o clima geral). */
+const BIOME_WEATHER: Partial<Record<Biome, string>> = { [Biome.SNOW]: 'Neve', [Biome.BLACK]: 'Cinzas', [Biome.DUST]: 'Seco' };
 
 /** Mundo: mapa, entidades, ciclo de dia/noite, clima e câmera. */
 export class WorldScene extends Phaser.Scene {
-  map!: MapData;
+  map!: WorldData;
+  /** Bioma predominante em volta do jogador. */
+  biome: Biome = Biome.VALE;
   player!: Player;
   enemies: Enemy[] = [];
   animals: Animal[] = [];
@@ -58,6 +65,12 @@ export class WorldScene extends Phaser.Scene {
   private waterTimer = 0;
   private fallTimer = 0;
   private bars!: Phaser.GameObjects.Graphics;
+  private biomeFx!: BiomeFx;
+  /** Peso (0..1) de cada bioma em volta do jogador, suavizado no tempo. */
+  private biomeW: number[] = BIOMES.map((_, i) => (i === 0 ? 1 : 0));
+  private biomeTint = 0xffffff;
+  private biomeDark = 0;
+  private playerCollider!: Phaser.Physics.Arcade.Collider;
   private projBlock!: Uint8Array;
   private area = '';
   private areaTimer = 0;
@@ -72,7 +85,7 @@ export class WorldScene extends Phaser.Scene {
     this.animals = [];
     this.flames = [];
     this.glowLights = [];
-    const map = (this.map = generateMap(WORLD_SEED));
+    const map = (this.map = generateWorld(WORLD_SEED));
     const W = map.width * TILE;
     const H = map.height * TILE;
     this.buildTilemap(map);
@@ -91,37 +104,46 @@ export class WorldScene extends Phaser.Scene {
       this.torches.push(s);
       this.addLight(t.x, t.y - 11, 0xff9a40, 0.9, 1.4, 0.18);
     }
+    // cristais do Blackland brilham sempre que estiver escuro (lá, quase sempre)
+    for (const g of map.glows) this.addLight(g.x, g.y, g.color, 0.8, 0.75, 0.1);
 
     // jogador
     this.player = new Player(this, map.start.x, map.start.y);
 
-    // criaturas
+    // criaturas (variantes de bioma ganham um tom próprio)
     for (const sp of map.spawns) {
+      let c: Enemy | Animal;
       switch (sp.kind) {
         case 'sheep':
-          this.animals.push(new Sheep(this, sp.x, sp.y));
+          this.animals.push((c = new Sheep(this, sp.x, sp.y)));
           break;
         case 'deer':
-          this.animals.push(new Deer(this, sp.x, sp.y));
+          this.animals.push((c = new Deer(this, sp.x, sp.y)));
           break;
         case 'slime':
-          this.enemies.push(new Slime(this, sp.x, sp.y));
+          this.enemies.push((c = new Slime(this, sp.x, sp.y)));
           break;
         case 'wolf':
-          this.enemies.push(new Wolf(this, sp.x, sp.y));
+          this.enemies.push((c = new Wolf(this, sp.x, sp.y)));
           break;
         case 'bandit':
-          this.enemies.push(new Bandit(this, sp.x, sp.y));
+          this.enemies.push((c = new Bandit(this, sp.x, sp.y)));
           break;
         case 'wraith':
-          this.enemies.push(new Wraith(this, sp.x, sp.y));
+          this.enemies.push((c = new Wraith(this, sp.x, sp.y)));
           break;
+      }
+      const tint = sp.variant ? VARIANT_TINT[sp.variant] : undefined;
+      if (tint !== undefined) {
+        c.baseTint = tint;
+        c.setTint(tint);
       }
     }
     for (let i = 0; i < BIRD_COUNT; i++) new Bird(this, W, H);
 
     const collisionLayer = this.collisionLayer;
-    this.physics.add.collider([this.player, ...this.enemies, ...this.animals], collisionLayer);
+    this.playerCollider = this.physics.add.collider(this.player, collisionLayer);
+    this.physics.add.collider([...this.enemies, ...this.animals], collisionLayer);
 
     // câmera
     const cam = this.cameras.main;
@@ -136,6 +158,8 @@ export class WorldScene extends Phaser.Scene {
     this.createWaterfallMist(map);
     this.dayNight = new DayNightSystem();
     this.weather = new WeatherSystem(this, DEPTH.weather);
+    this.biomeFx = new BiomeFx(this, DEPTH.weather);
+    this.createWorldMap(map);
     this.ambient = this.add.rectangle(0, 0, 10, 10, 0xffffff).setOrigin(0).setDepth(DEPTH.ambient);
     this.ambient.setBlendMode(Phaser.BlendModes.MULTIPLY);
     this.createFx();
@@ -149,7 +173,7 @@ export class WorldScene extends Phaser.Scene {
   // ------------------------------------------------------------------ mapa
   private collisionLayer!: Phaser.Tilemaps.TilemapLayer;
 
-  private buildTilemap(m: MapData) {
+  private buildTilemap(m: WorldData) {
     const tm = this.make.tilemap({ tileWidth: TILE, tileHeight: TILE, width: m.width, height: m.height });
     const ts = tm.addTilesetImage('tiles', 'tiles', TILE, TILE, 1, 2)!;
     const layer = (name: string, data: Int16Array, depth: number) => {
@@ -206,7 +230,7 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  private createWaterfallMist(m: MapData) {
+  private createWaterfallMist(m: WorldData) {
     const wf = m.waterfall;
     const mist = this.add.particles(0, 0, 'pixel', {
       x: { min: wf.x0 - 8, max: wf.x1 + 8 },
@@ -237,7 +261,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private updateLights(time: number) {
-    const level = this.dayNight.lightLevel;
+    const level = Math.max(this.dayNight.lightLevel, this.biomeDark);
     const visible = level > 0.01;
     const view = this.cameras.main.worldView;
     for (let i = 0; i < this.glowLights.length; i++) {
@@ -355,12 +379,14 @@ export class WorldScene extends Phaser.Scene {
     }
 
     const view = cam.worldView;
+    this.updateBiome(dt);
     this.weather.update(time, dt, view);
+    this.biomeFx.update(view, this.biomeW);
     // luz ambiente = dia/noite × clima, aplicada com MULTIPLY. A margem cobre o
     // movimento da câmera, que só atualiza worldView depois deste update.
     const M = 64;
     this.ambient.setPosition(view.x - M, view.y - M).setSize(view.width + M * 2, view.height + M * 2);
-    this.ambient.setFillStyle(mulColor(this.dayNight.ambient, this.weather.tint));
+    this.ambient.setFillStyle(mulColor(mulColor(this.dayNight.ambient, this.weather.tint), this.biomeTint));
     this.updateLights(time);
     this.drawBars(view);
 
@@ -370,7 +396,8 @@ export class WorldScene extends Phaser.Scene {
       this.updateArea();
     }
     this.registry.set('clock', `Dia ${this.dayNight.day} · ${this.dayNight.clock}`);
-    this.registry.set('weather', this.weather.label);
+    this.registry.set('weather', BIOME_WEATHER[this.biome] ?? this.weather.label);
+    this.registry.set('biome', BIOMES[this.biome].name);
     this.registry.set('night', this.dayNight.isNight);
   }
 
@@ -387,6 +414,129 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  /** Bioma no ponto (px do mundo). */
+  biomeAt(x: number, y: number): Biome {
+    const tx = Phaser.Math.Clamp(Math.floor(x / TILE), 0, this.map.width - 1);
+    const ty = Phaser.Math.Clamp(Math.floor(y / TILE), 0, this.map.height - 1);
+    return this.map.biome[ty * this.map.width + tx] as Biome;
+  }
+
+  /** Mistura luz, escuridão e chuva dos biomas em volta do jogador (transição suave). */
+  private updateBiome(dt: number) {
+    const p = this.player;
+    const target = BIOMES.map(() => 0);
+    const R = 7 * TILE;
+    let n = 0;
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -1; dx <= 1; dx++) {
+        target[this.biomeAt(p.x + dx * R, p.y + dy * R)] += 1;
+        n++;
+      }
+    const k = Math.min(1, dt / 900);
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    let dark = 0;
+    let best = 0;
+    for (let i = 0; i < BIOMES.length; i++) {
+      this.biomeW[i] += (target[i] / n - this.biomeW[i]) * k;
+      const w = this.biomeW[i];
+      const t = BIOMES[i].tint;
+      r += ((t >> 16) & 255) * w;
+      g += ((t >> 8) & 255) * w;
+      b += (t & 255) * w;
+      dark += BIOMES[i].dark * w;
+      if (w > this.biomeW[best]) best = i;
+    }
+    this.biomeTint = (Math.min(255, Math.round(r)) << 16) | (Math.min(255, Math.round(g)) << 8) | Math.min(255, Math.round(b));
+    this.biomeDark = dark;
+    this.biome = this.biomeAt(p.x, p.y);
+    const W = this.biomeW;
+    this.weather.rainMask = W[Biome.VALE] + W[Biome.GREEN] + W[Biome.BLOCK] * 0.6;
+  }
+
+  // ------------------------------------------------------------------ debug
+  /** Leva o jogador para (x, y) — ou para o chão livre mais próximo. */
+  teleport(x: number, y: number) {
+    const m = this.map;
+    let tx = Phaser.Math.Clamp(Math.floor(x / TILE), 1, m.width - 2);
+    let ty = Phaser.Math.Clamp(Math.floor(y / TILE), 1, m.height - 2);
+    const freeAt = (cx: number, cy: number) => cx > 0 && cy > 0 && cx < m.width - 1 && cy < m.height - 1 && !m.collision[cy * m.width + cx];
+    if (!this.flying && !freeAt(tx, ty)) {
+      search: for (let r = 1; r < 40; r++)
+        for (let dy = -r; dy <= r; dy++)
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r || !freeAt(tx + dx, ty + dy)) continue;
+            tx += dx;
+            ty += dy;
+            break search;
+          }
+    }
+    const px = tx * TILE + 8;
+    const py = ty * TILE + 8;
+    this.player.body.reset(px, py);
+    this.player.setPosition(px, py);
+    this.cameras.main.centerOn(px, py);
+    // chega com o clima do destino já aplicado
+    const b = this.biomeAt(px, py);
+    this.biomeW = BIOMES.map((_, i) => (i === b ? 1 : 0));
+  }
+
+  flying = false;
+  /** Modo voo: atravessa tudo e anda 3× mais rápido. */
+  setFlying(on: boolean) {
+    this.flying = on;
+    this.playerCollider.active = !on;
+    this.player.speedMul = on ? 3 : 1;
+  }
+
+  /** Mapa do mundo (1 px por tile) com a cor média do que se vê de cima. */
+  private createWorldMap(m: WorldData) {
+    const src = this.textures.get('tiles').getSourceImage() as HTMLImageElement;
+    const c = document.createElement('canvas');
+    c.width = src.width;
+    c.height = src.height;
+    const cx = c.getContext('2d')!;
+    cx.drawImage(src, 0, 0);
+    const px = cx.getImageData(0, 0, c.width, c.height).data;
+    const cols = Math.floor((src.width - 2) / (TILE + 2)) + 1;
+    const avg = new Int32Array(256).fill(-1);
+    for (let id = 0; id < 256; id++) {
+      const ox = (id % cols) * (TILE + 2) + 1;
+      const oy = Math.floor(id / cols) * (TILE + 2) + 1;
+      if (oy + TILE > c.height) continue;
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let y = 0; y < TILE; y++)
+        for (let x = 0; x < TILE; x++) {
+          const i = ((oy + y) * c.width + ox + x) * 4;
+          if (px[i + 3] < 128) continue;
+          r += px[i];
+          g += px[i + 1];
+          b += px[i + 2];
+          n++;
+        }
+      if (n) avg[id] = ((r / n) << 16) | ((g / n) << 8) | (b / n);
+    }
+    const tex = this.textures.createCanvas('worldmap', m.width, m.height)!;
+    const ctx = tex.getContext();
+    const img = ctx.createImageData(m.width, m.height);
+    for (let i = 0; i < m.width * m.height; i++) {
+      let col = 0x1e1a24;
+      for (const layer of [m.ground, m.water, m.cliffs, m.decor, m.canopy]) {
+        const v = layer[i];
+        if (v >= 0 && avg[v] >= 0) col = avg[v];
+      }
+      img.data[i * 4] = col >> 16;
+      img.data[i * 4 + 1] = (col >> 8) & 255;
+      img.data[i * 4 + 2] = col & 255;
+      img.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    tex.refresh();
+  }
+
+  private lastBiome = -1;
+
   private updateArea() {
     const p = this.player;
     let name = '';
@@ -396,6 +546,11 @@ export class WorldScene extends Phaser.Scene {
     if (name !== this.area) {
       this.area = name;
       if (name) this.events.emit('area', name);
+    }
+    // entrou num bioma novo: mostra o nome (depois de 1,2 s lá dentro)
+    if (this.biome !== this.lastBiome && this.biomeW[this.biome] > 0.6) {
+      this.lastBiome = this.biome;
+      if (!name) this.events.emit('area', BIOMES[this.biome].name);
     }
   }
 }

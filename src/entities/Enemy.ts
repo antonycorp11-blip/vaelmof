@@ -67,7 +67,7 @@ export abstract class Enemy extends Creature {
       ease: 'Quad.easeIn',
       onComplete: () => {
         this.setVisible(false);
-        this.clearTint();
+        this.restoreTint();
         this.respawnAt = this.scene.time.now + RESPAWN_MS;
       },
     });
@@ -98,10 +98,15 @@ export abstract class Enemy extends Creature {
       this.tryRespawn(time);
       return;
     }
+    // longe da câmera: física desligada (o mundo tem centenas de criaturas)
     if (!active) {
-      this.body.setVelocity(0, 0);
+      if (this.body.enable) {
+        this.body.setVelocity(0, 0);
+        this.body.enable = false;
+      }
       return;
     }
+    if (!this.body.enable) this.body.enable = true;
     if (!this.stunned) this.think(time, delta);
     else this.body.velocity.scale(0.86);
     this.sortDepth();

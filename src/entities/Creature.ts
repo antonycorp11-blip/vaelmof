@@ -45,10 +45,19 @@ export class Creature extends Phaser.Physics.Arcade.Sprite {
     this.setDepth(DEPTH.entities + this.y);
   }
 
+  /** Tom fixo da variante (ex.: lobo da neve); -1 = sem tom. */
+  baseTint = -1;
+
+  /** Volta ao tom normal da criatura (após piscar). */
+  restoreTint() {
+    if (this.baseTint >= 0) this.setTint(this.baseTint);
+    else this.clearTint();
+  }
+
   flashWhite(ms = 90) {
     this.setTintFill(0xffffff);
     this.scene.time.delayedCall(ms, () => {
-      if (this.active) this.clearTint();
+      if (this.active) this.restoreTint();
     });
   }
 }

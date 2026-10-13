@@ -72,6 +72,8 @@ export class Player extends Creature {
   private readonly attackSprite: Phaser.GameObjects.Sprite;
   readonly spawnX: number;
   readonly spawnY: number;
+  /** Multiplicador de velocidade (modo voo do debug). */
+  speedMul = 1;
 
   constructor(scene: WorldScene, x: number, y: number) {
     super(scene, x, y, 'hero', 20, 10, heroFrame(HERO.rows.walk, 0, 0));
@@ -79,7 +81,7 @@ export class Player extends Creature {
     this.setScale(HERO.scale).setOrigin(0.5, HERO.footY / F);
     this.body.setSize(20, 10);
     this.body.setOffset((F - 20) / 2, HERO.footY - 8);
-    this.shadow = scene.add.image(x, y, 'shadow').setScale(0.95, 0.8).setAlpha(0.7);
+    this.shadow = scene.add.image(x, y, 'shadow').setScale(0.75, 0.65).setAlpha(0.7);
     this.attackSprite = scene.add
       .sprite(x, y, 'hero-slash', 0)
       .setScale(HERO.scale)
@@ -118,8 +120,11 @@ export class Player extends Creature {
     return this.state2 === 'dead';
   }
 
+  /** Debug: não toma dano. */
+  god = false;
+
   get invulnerable(): boolean {
-    return this.state2 === 'roll' || this.state2 === 'dead' || this.scene.time.now < this.invulnUntil;
+    return this.god || this.state2 === 'roll' || this.state2 === 'dead' || this.scene.time.now < this.invulnUntil;
   }
 
   private readMove(): Phaser.Math.Vector2 {
@@ -137,9 +142,8 @@ export class Player extends Creature {
       mag = Math.min(1, v.length());
     }
     if (mag < 0.05) return v.set(0, 0);
-    // quantiza em 8 direções (45°)
-    const a = Math.round(Math.atan2(v.y, v.x) / (Math.PI / 4)) * (Math.PI / 4);
-    return v.set(Math.cos(a) * mag, Math.sin(a) * mag);
+    // joystick analógico (direção livre); teclado já vem em 8 direções
+    return v.normalize().scale(mag);
   }
 
   private queue(action: 'attack' | 'dodge' | 'flame') {
@@ -164,11 +168,23 @@ export class Player extends Creature {
     this.setFrame(heroFrame(HERO.rows.walk, this.dir, 0));
   }
 
-  private walk(speed: number) {
+  private walk() {
     const key = `hero-walk-${this.dir}`;
     if (this.anims.currentAnim?.key !== key || !this.anims.isPlaying) this.play(key, true);
-    // a cadência acompanha a velocidade (joystick parcial = passos mais lentos)
-    this.anims.timeScale = Math.max(0.45, speed);
+    // a cadência acompanha a velocidade real (os pés não deslizam)
+    this.anims.timeScale = Math.max(0.35, this.body.velocity.length() / PLAYER.speed);
+  }
+
+  /** Aceleração/desaceleração suave até a velocidade alvo. */
+  private steer(tx: number, ty: number, dt: number) {
+    const v = this.body.velocity;
+    const accel = tx * tx + ty * ty > 0 ? PLAYER.accel : PLAYER.decel;
+    const dx = tx - v.x;
+    const dy = ty - v.y;
+    const d = Math.hypot(dx, dy);
+    const step = accel * dt;
+    if (d <= step) this.body.setVelocity(tx, ty);
+    else this.body.setVelocity(v.x + (dx / d) * step, v.y + (dy / d) * step);
   }
 
   /** Quadro da animação `row` conforme o tempo decorrido na ação. */
@@ -198,7 +214,11 @@ export class Player extends Creature {
     }
   }
 
+  private lastUpdate = 0;
+
   update(time: number) {
+    const dt = Math.min(0.05, (time - (this.lastUpdate || time)) / 1000);
+    this.lastUpdate = time;
     const move = this.readMove();
     const wantAttack = this.pressed('attack', time);
     const wantDodge = this.pressed('dodge', time);
@@ -240,6 +260,7 @@ export class Player extends Creature {
       this.facing.copy(move).normalize();
       if (st === 'normal') this.updateDir(move.x, move.y);
     }
+    const speed = PLAYER.speed * this.speedMul;
 
     // ações — a esquiva cancela golpes; o golpe pode ser encadeado no fim da recuperação
     if (wantDodge && time - this.lastDodge >= PLAYER.dodge.cooldown) {
@@ -259,25 +280,25 @@ export class Player extends Creature {
         this.hitDone = true;
         this.resolveHit(S);
       }
-      this.body.setVelocity(this.facing.x * lunge + move.x * PLAYER.speed * 0.15, this.facing.y * lunge + move.y * PLAYER.speed * 0.15);
+      this.body.setVelocity(this.facing.x * lunge + move.x * speed * 0.15, this.facing.y * lunge + move.y * speed * 0.15);
       this.attackPose(S, t);
       this.sortDepth();
       if (time >= this.stateUntil) this.toIdle();
       return;
     }
     if (this.state2 === 'cast') {
-      this.body.setVelocity(move.x * PLAYER.speed * 0.2, move.y * PLAYER.speed * 0.2);
+      this.steer(move.x * speed * 0.2, move.y * speed * 0.2, dt);
       this.pose(HERO.rows.cast, PLAYER.flame.frames, time - this.stateStart);
       if (this.castRelease && time >= this.castRelease) {
         this.castRelease = 0;
         const a = Math.atan2(this.facing.y, this.facing.x);
-        new Flame(this.scene, this.fx + Math.cos(a) * 10, this.fy - 14 + Math.sin(a) * 5, a);
+        new Flame(this.scene, this.fx + Math.cos(a) * 10, this.fy - 11 + Math.sin(a) * 4, a);
       }
       if (time >= this.stateUntil) this.toIdle();
     } else {
-      this.body.setVelocity(move.x * PLAYER.speed, move.y * PLAYER.speed);
-      if (move.lengthSq() > 0) this.walk(move.length());
-      else this.stand();
+      this.steer(move.x * speed, move.y * speed, dt);
+      if (move.lengthSq() > 0) this.walk();
+      else if (this.body.velocity.lengthSq() < 64) this.stand();
     }
     this.sortDepth();
   }
@@ -286,7 +307,7 @@ export class Player extends Creature {
   private attackPose(S: Swing, t: number) {
     const i = frameAt(S.frames, t);
     let dir = this.dir;
-    let col = Math.min(i, 5);
+    let col = S.kind === 'spin' ? i : S.cols[Math.min(i, S.cols.length - 1)];
     if (S.kind === 'spin') {
       if (i >= 3 && i <= 6) {
         dir = CW[(CW.indexOf(this.dir) + i - 2) % 4];
@@ -340,7 +361,7 @@ export class Player extends Creature {
         const a = angle + (k * Math.PI) / 2;
         s.time.delayedCall(k * 45, () => {
           const fx = s.add
-            .sprite(this.fx + Math.cos(a) * 13, this.fy - 9 + Math.sin(a) * 8, 'slash', 0)
+            .sprite(this.fx + Math.cos(a) * 13, this.fy - 7 + Math.sin(a) * 7, 'slash', 0)
             .setRotation(a + Math.PI / 2)
             .setDepth(this.depth + 1)
             .setAlpha(0.85);
@@ -408,7 +429,7 @@ export class Player extends Creature {
     this.stateStart = time;
     this.castRelease = time + startOf(PLAYER.flame.frames, PLAYER.flame.release);
     this.stateUntil = time + sum(PLAYER.flame.frames);
-    this.scene.fx.burst(this.x, this.y - 18, 0xffb040, 6);
+    this.scene.fx.burst(this.x, this.y - 14, 0xffb040, 6);
   }
 
   // ---------------------------------------------------------------- Dano
@@ -417,7 +438,7 @@ export class Player extends Creature {
     const s = this.scene;
     this.hp = Math.max(0, this.hp - amount);
     this.invulnUntil = s.time.now + PLAYER.hurtInvuln;
-    s.fx.damageText(this.x, this.y - 30, amount, '#ff6060');
+    s.fx.damageText(this.x, this.y - 24, amount, '#ff6060');
     s.cameras.main.shake(120, 0.006);
     this.setTintFill(0xff4040);
     s.time.delayedCall(100, () => this.clearTint());

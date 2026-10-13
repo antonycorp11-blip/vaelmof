@@ -1,0 +1,163 @@
+import Phaser from 'phaser';
+import { TILE } from '../config';
+import type { WorldScene } from '../scenes/WorldScene';
+import { BIOMES } from '../systems/WorldGenerator';
+
+type Btn = Phaser.GameObjects.Text;
+
+/**
+ * Painel de debug para conferir o mundo pelo celular: teleporte para cada
+ * bioma, modo voo (atravessa tudo, 3× mais rápido), invencível, dia/noite e um
+ * mapa do mundo inteiro — tocar no mapa leva o herói para aquele ponto.
+ */
+export class DebugPanel {
+  private toggle: Btn;
+  private panel: Phaser.GameObjects.Container;
+  private bg: Phaser.GameObjects.Rectangle;
+  private info: Phaser.GameObjects.Text;
+  private buttons: Btn[] = [];
+  private mapLayer: Phaser.GameObjects.Container;
+  private mapImg: Phaser.GameObjects.Image;
+  private mapDot: Phaser.GameObjects.Arc;
+  private mapBg: Phaser.GameObjects.Rectangle;
+  private mapHint: Phaser.GameObjects.Text;
+  private open = false;
+  private showingMap = false;
+  private u = 1;
+  private flyBtn!: Btn;
+  private godBtn!: Btn;
+
+  constructor(
+    private scene: Phaser.Scene,
+    private world: WorldScene,
+  ) {
+    const style = { fontFamily: 'monospace', fontSize: '11px', color: '#ffffff', fontStyle: 'bold', backgroundColor: '#2a2234', padding: { x: 6, y: 4 } };
+    this.toggle = scene.add.text(0, 0, 'DEBUG', { ...style, backgroundColor: '#7a1f2a' }).setDepth(2000).setInteractive({ useHandCursor: true });
+    this.toggle.on('pointerdown', () => this.setOpen(!this.open));
+
+    this.panel = scene.add.container(0, 0).setDepth(2000).setVisible(false);
+    this.bg = scene.add.rectangle(0, 0, 10, 10, 0x0b0a12, 0.82).setOrigin(0).setStrokeStyle(1, 0xffffff, 0.3);
+    this.info = scene.add.text(0, 0, '', { ...style, backgroundColor: undefined, fontSize: '10px' });
+    this.panel.add([this.bg, this.info]);
+    const add = (label: string, fn: () => void, color = '#2a2234') => {
+      const b = scene.add.text(0, 0, label, { ...style, backgroundColor: color }).setInteractive({ useHandCursor: true });
+      b.on('pointerdown', (_p: unknown, _x: number, _y: number, e: Phaser.Types.Input.EventData) => {
+        e.stopPropagation();
+        fn();
+      });
+      this.panel.add(b);
+      this.buttons.push(b);
+      return b;
+    };
+    BIOMES.forEach((b, i) => {
+      const hex = '#' + b.map.toString(16).padStart(6, '0');
+      const btn = add(b.name, () => {
+        const p = world.map.poi[i];
+        world.teleport(p.x, p.y);
+      });
+      btn.setStyle({ backgroundColor: i === 4 ? '#3a3046' : '#2a2234', color: i === 2 ? '#e6edf5' : hex === '#2c2731' ? '#b46cec' : hex });
+    });
+    add('MAPA', () => this.setMap(true), '#22507a');
+    this.flyBtn = add('Voo: não', () => {
+      world.setFlying(!world.flying);
+      this.refresh();
+    });
+    this.godBtn = add('Invencível: não', () => {
+      world.player.god = !world.player.god;
+      this.refresh();
+    });
+    add('Dia', () => (world.dayNight.time = 0.45));
+    add('Noite', () => (world.dayNight.time = 0.92));
+
+    // mapa do mundo
+    this.mapLayer = scene.add.container(0, 0).setDepth(2100).setVisible(false);
+    this.mapBg = scene.add.rectangle(0, 0, 10, 10, 0x0b0a12, 0.9).setOrigin(0).setInteractive();
+    this.mapImg = scene.add.image(0, 0, 'worldmap').setOrigin(0).setInteractive();
+    this.mapDot = scene.add.circle(0, 0, 4, 0xff3b3b).setStrokeStyle(2, 0xffffff);
+    this.mapHint = scene.add.text(0, 0, 'toque no mapa para ir até lá · toque fora para fechar', { ...style, backgroundColor: undefined, fontSize: '10px' }).setOrigin(0.5, 0);
+    this.mapLayer.add([this.mapBg, this.mapImg, this.mapDot, this.mapHint]);
+    this.mapImg.on('pointerdown', (p: Phaser.Input.Pointer, lx: number, ly: number, e: Phaser.Types.Input.EventData) => {
+      e.stopPropagation();
+      void p;
+      const m = world.map;
+      world.teleport((lx / this.mapImg.width) * m.width * TILE, (ly / this.mapImg.height) * m.height * TILE);
+      this.setMap(false);
+    });
+    this.mapBg.on('pointerdown', () => this.setMap(false));
+    this.refresh();
+  }
+
+  /** Toques nestas áreas não acionam o joystick. */
+  contains(x: number, y: number): boolean {
+    if (this.showingMap) return true;
+    if (this.toggle.getBounds().contains(x, y)) return true;
+    return this.open && this.bg.getBounds().contains(x, y);
+  }
+
+  private setOpen(on: boolean) {
+    this.open = on;
+    this.panel.setVisible(on);
+    this.refresh();
+  }
+
+  private setMap(on: boolean) {
+    // o mapa é gerado pela WorldScene; garante a textura já pronta
+    if (on && this.mapImg.texture.key !== 'worldmap') this.mapImg.setTexture('worldmap');
+    this.showingMap = on;
+    this.mapLayer.setVisible(on);
+    this.layoutMap();
+  }
+
+  private refresh() {
+    this.flyBtn.setText(`Voo: ${this.world.flying ? 'SIM' : 'não'}`).setStyle({ backgroundColor: this.world.flying ? '#2e7a3a' : '#2a2234' });
+    this.godBtn.setText(`Invencível: ${this.world.player?.god ? 'SIM' : 'não'}`).setStyle({ backgroundColor: this.world.player?.god ? '#2e7a3a' : '#2a2234' });
+  }
+
+  layout(u: number, top: number) {
+    this.u = u;
+    const fs = Math.round(11 * u);
+    const pad = { x: Math.round(7 * u), y: Math.round(5 * u) };
+    this.toggle.setFontSize(fs).setPadding(pad.x, pad.y, pad.x, pad.y).setPosition(12 * u, top);
+    const x0 = 12 * u;
+    const y0 = top + this.toggle.height + 6 * u;
+    this.panel.setPosition(x0, y0);
+    this.info.setFontSize(Math.round(10 * u)).setPosition(8 * u, 6 * u);
+    // botões em 2 colunas
+    const colW = 150 * u;
+    let y = 8 * u + this.info.height + 4 * u;
+    this.buttons.forEach((b, i) => {
+      b.setFontSize(fs).setPadding(pad.x, pad.y, pad.x, pad.y);
+      b.setPosition(8 * u + (i % 2) * colW, y);
+      if (i % 2 === 1) y += b.height + 5 * u;
+    });
+    if (this.buttons.length % 2) y += this.buttons[0].height + 5 * u;
+    this.bg.setSize(colW * 2 + 8 * u, y + 4 * u);
+    this.layoutMap();
+  }
+
+  private layoutMap() {
+    if (!this.showingMap) return;
+    const { width, height } = this.scene.scale;
+    const u = this.u;
+    this.mapBg.setSize(width, height);
+    const s = Math.min((width * 0.9) / this.mapImg.width, (height * 0.82) / this.mapImg.height);
+    this.mapImg.setScale(s).setPosition((width - this.mapImg.width * s) / 2, (height - this.mapImg.height * s) / 2 + 10 * u);
+    this.mapHint.setFontSize(Math.round(10 * u)).setPosition(width / 2, this.mapImg.y - 18 * u);
+    this.mapDot.setRadius(4 * u);
+  }
+
+  update() {
+    const w = this.world;
+    const p = w.player;
+    if (!p) return;
+    if (this.open) {
+      const tx = Math.floor(p.x / TILE);
+      const ty = Math.floor(p.y / TILE);
+      this.info.setText(`${BIOMES[w.biome].name} · tile ${tx},${ty} · ${Math.round(this.scene.game.loop.actualFps)} fps`);
+    }
+    if (this.showingMap) {
+      const s = this.mapImg.scaleX;
+      this.mapDot.setPosition(this.mapImg.x + (p.x / TILE) * s, this.mapImg.y + (p.y / TILE) * s);
+    }
+  }
+}

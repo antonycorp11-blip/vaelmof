@@ -7,8 +7,8 @@ export const HERO = {
   cols: 13,
   /** Os pés ficam nesta linha do quadro. */
   footY: 61,
-  /** 64 px da arte → ~28 px do mundo (altura dos bandidos). */
-  scale: 0.56,
+  /** 64 px da arte → ~22 px do mundo (1,4 tile). */
+  scale: 0.44,
   rows: { cast: 0, walk: 8, fall: 20 },
 } as const;
 /** hero-slash.png: golpe com espada em quadros 128×128, 6 colunas, mesma ordem de direções. */

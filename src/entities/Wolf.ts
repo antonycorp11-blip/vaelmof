@@ -35,7 +35,7 @@ export class Wolf extends Enemy {
     this.mode = s;
     this.stateUntil = this.scene.time.now + ms;
     this.contactDamage = s === 'lunge' ? 2 : 0;
-    if (s !== 'windup') this.clearTint();
+    if (s !== 'windup') this.restoreTint();
     if (s === 'windup') {
       this.anims.stop();
       this.setFrame(2);
@@ -72,7 +72,7 @@ export class Wolf extends Enemy {
         // pisca em vermelho como aviso antes do bote
         this.body.setVelocity(0, 0);
         if (Math.floor(time / 70) % 2) this.setTint(0xff9090);
-        else this.clearTint();
+        else this.restoreTint();
         this.lungeAngle = this.angleToPlayer();
         this.setFlipX(Math.cos(this.lungeAngle) > 0);
         if (time >= this.stateUntil) this.setState2('lunge', 330);
