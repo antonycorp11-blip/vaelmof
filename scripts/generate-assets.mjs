@@ -809,7 +809,6 @@ function sheetHumanoid(file, c, withRoll) {
 //   0–3 parado (respiração) · 4–9 andar · 10–14 golpe 1 · 15–19 golpe 2
 //   20–24 golpe 3 (estocada) · 25–30 rolagem · 31 dano · 32 conjurar chama
 const TF = 48;
-const TEREN_COLS = 33;
 const TEREN_PAL = {
   skin: '#f0c8a0', skinS: '#d6a27a', blush: '#eaa58f',
   hair: ['#4a2814', '#6b3b1f', '#93592f'],
@@ -1188,16 +1187,7 @@ function terenPoses(view) {
   return frames;
 }
 
-{
-  const sheet = new Img(TEREN_COLS * TF, 4 * TF);
-  for (const d of [0, 1, 3]) {
-    const poses = terenPoses(d);
-    if (poses.length !== TEREN_COLS) throw new Error('teren: número de frames inválido');
-    poses.forEach((p, c) => drawTerenFrame(sheet, c * TF, d * TF, d, p));
-  }
-  for (let c = 0; c < TEREN_COLS; c++) sheet.mirror(c * TF, TF, TF, TF, c * TF, 2 * TF);
-  save('assets/sprites/teren.png', sheet);
-}
+// (o Teren agora é gerado por scripts/hero/build.mjs; este rig 2D segue em uso pelo Bandoleiro)
 
 // Bandoleiro no mesmo rig: 0–3 parado · 4–9 andar · 10–14 golpe de adaga · 15 dano
 const BANDIT_COLS = 16;

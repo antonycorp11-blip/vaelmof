@@ -27,7 +27,7 @@ de rede que o `npm run dev` mostra (ex.: `http://192.168.0.10:5173`), com
 celular e computador na mesma rede Wi-Fi. O service worker só é registrado no
 build de produção (`npm run preview` ou deploy).
 
-`npm run assets` regera todos os PNGs placeholder (já estão versionados; só é
+`npm run assets` regera todos os PNGs (mapa, inimigos e herói); `npm run hero` regera só o herói (já estão versionados; só é
 preciso rodar se você alterar `scripts/generate-assets.mjs`).
 
 ### Controles
@@ -93,15 +93,26 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - **Pássaros** (7) sobrevoam o mapa em trajetos levemente ondulados, com
   sombra no chão e sem colisão; ao sair do mapa reaparecem numa borda.
 
-### Teren (`src/entities/Player.ts`)
+### Teren (`src/entities/Player.ts`, `src/entities/HeroRig.ts`)
+- **Sprite "3D → pixel art"** gerado por `scripts/hero/` (ver
+  [Herói: pipeline e modularidade](#herói-pipeline-e-modularidade)): proporções
+  humanas reais (~56 px de arte de altura), **8 direções de sprite**, luz e
+  volume coerentes, contorno seletivo. A arte tem o dobro da densidade do
+  mapa e é exibida em escala 0,5 (≈ 1,75 tile de altura).
+- Animações: respiração parado (8 quadros), corrida (8), combo de 3 golpes
+  (7 + 7 + 8), cambalhota (8), dano (3) e conjuração (5) — 54 quadros por
+  direção, 432 por camada.
 - Movimento em **8 direções** (o joystick é analógico na intensidade, mas a
-  direção é quantizada em 45°). Velocidade em `PLAYER.speed` (`src/config.ts`).
+  direção é quantizada em 45°), e o sprite acompanha as 8. Velocidade em
+  `PLAYER.speed` (`src/config.ts`).
 - **HP 10** com barra segmentada no HUD; pisca e fica invulnerável por 0,9 s
   após tomar dano. Ao morrer, volta a Brumavale com HP cheio.
-- **Golpe: combo de 3 movimentos.** Golpe diagonal → golpe de volta →
-  estocada com avanço (dano 2, 2 e 3; a estocada alcança mais longe e
-  empurra mais). Cada golpe tem 5 quadros — preparo, transição, impacto,
-  continuação e recuperação — e o dano sai no quadro de impacto. Apertar de
+- **Golpe: combo de 3 movimentos.** Golpe diagonal descendente → revés
+  horizontal → estocada com avanço (dano 2, 2 e 3; a estocada alcança mais
+  longe e empurra mais). Cada golpe tem preparo (giro do tronco e lâmina
+  sobre o ombro), aceleração, impacto, continuação e recuperação; o dano sai
+  no quadro de impacto definido na animação. O rastro branco é a superfície
+  realmente varrida pela lâmina entre os quadros. Apertar de
   novo no fim da recuperação (ou dentro de 380 ms) encadeia o próximo; depois
   do golpe final o combo recomeça. Segurar o botão repete. A esquiva cancela
   qualquer golpe. "Hit stop", faíscas e tremida de câmera ao acertar (mais
@@ -209,27 +220,31 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 4. **Árvores como tiles**: tronco na camada de decoração com colisão de
    1 tile; copa 3×2 numa camada acima das entidades. Barato e sem
    ordenação por objeto.
-5. **Personagens humanos por rig de poses** (`scripts/generate-assets.mjs`,
-   seção "TEREN"): cada quadro é uma pose (inclinação, passada, ângulo e
-   distância da mão). Golpes são varreduras de ângulo relativas à direção do
-   personagem, então as 4 direções saem da mesma coreografia; a espada fica
-   atrás do corpo quando aponta "para longe" (para cima na tela). O rastro é
-   desenhado entre o ângulo do quadro anterior e o atual.
-6. **Tempo de jogo único**: jogador e inimigos usam o relógio da cena
+5. **Herói por pipeline "3D → pixel art"** (`scripts/hero/`): um modelo de
+   primitivas 3D com esqueleto e cinemática inversa é renderizado em pixel
+   art (ray marching, luz quantizada em rampas de cor, supersampling 2×2,
+   contorno seletivo). É a técnica de jogos como Dead Cells; dá proporções
+   reais, 8 direções coerentes e animação por esqueleto. O Bandoleiro segue
+   no rig 2D simples de `scripts/generate-assets.mjs`.
+6. **Arte do herói com o dobro da densidade** do mapa (exibida a 0,5×):
+   um humano realista precisa de ~56 px de altura para ter rosto, mãos e
+   roupa legíveis; isso mistura densidades de pixel (o herói é mais
+   detalhado que o cenário), escolha consciente em favor do personagem.
+7. **Tempo de jogo único**: jogador e inimigos usam o relógio da cena
    (`this.time.now`); o impacto do golpe é medido no `update`, não com
    `delayedCall`, para não atrasar em quedas de FPS.
-7. **Casas e entidades** usam ordenação por y (profundidade = y), então
+8. **Casas e entidades** usam ordenação por y (profundidade = y), então
    Teren passa "atrás" do telhado das casas.
-8. **Ataque em arco calculado por geometria** (distância + ângulo), sem
+9. **Ataque em arco calculado por geometria** (distância + ângulo), sem
    corpos físicos extras.
-9. **Projéteis atravessam água** mas não paredes, árvores ou casas.
-10. **Zoom pela área** (√(área da tela / área de 20×12 tiles)) em vez de
+10. **Projéteis atravessam água** mas não paredes, árvores ou casas.
+11. **Zoom pela área** (√(área da tela / área de 20×12 tiles)) em vez de
    fixar largura ou altura, para funcionar bem em telas 16:9 e 19,5:9.
-11. **Luz sem shaders**: overlay MULTIPLY + sprites de brilho ADD, só os
+12. **Luz sem shaders**: overlay MULTIPLY + sprites de brilho ADD, só os
    que estão na tela ficam visíveis.
-12. **Simulação por raio**: só inimigos e animais a até 360 px do centro da
+13. **Simulação por raio**: só inimigos e animais a até 360 px do centro da
     câmera processam IA; os demais ficam parados.
-13. Morte do jogador sem tela de game over (não há menus): volta para
+14. Morte do jogador sem tela de game over (não há menus): volta para
     Brumavale após um fade.
 
 ## Desempenho (limites)
@@ -244,12 +259,72 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 
 ---
 
+## Herói: pipeline e modularidade
+
+`npm run hero` (≈10 s, usa todos os núcleos) gera `public/assets/hero/`:
+
+| Arquivo | Conteúdo |
+|---|---|
+| `hero.json` | metadados: tamanho do quadro (112×112), pés (56, 88), escala 0,5, 8 direções, camadas, loadout, atlas por camada e as animações (quadros, duração de cada quadro, quadro de impacto `hit`, quadro de soltar a Chama `release`) |
+| `body-base` | corpo: pele, cabelo, rosto, camisa e calção de linho |
+| `legs-viajante` | calça e botas de cano alto |
+| `torso-viajante` | túnica com decote bordado, saia com pregas e barra dourada, mangas, braçadeiras, cinto, fivela e bolsa |
+| `cape-viajante` | capa carmim com barra dourada e fechos nos ombros |
+| `weapon-espada-serro` | espada: lâmina com sulco central e fio vivo, guarda curva dourada com rubis, empunhadura com tiras de couro e pomo com rubi |
+| `fx-espada-serro` | rastro dos golpes e o fogo da Chama na mão |
+
+Cada camada é um atlas recortado (PNG + JSON do Phaser) **com os mesmos nomes
+de quadro** (`<animação>_<direção>_<quadro>`, ex.: `atk1_3_2`).
+
+**Como funciona** (`scripts/hero/`):
+
+1. `rig.mjs` — esqueleto. A pose descreve onde ficam quadril, pés, mãos e a
+   direção da lâmina, mais rotações do tronco e da cabeça; braços e pernas
+   são resolvidos por IK de dois ossos. A capa tem âncora e ângulo próprios
+   (sobe na corrida e nos golpes).
+2. `anims.mjs` — coreografia: quadros-chave por animação, interpolados com
+   Catmull-Rom (mãos e lâmina fazem arcos).
+3. `equipment.mjs` — as peças, por **slot** (`body`, `legs`, `torso`,
+   `cape`, `weapon`). Cada peça é uma função `(juntas) → primitivas 3D`
+   (cones, elipsoides, caixas e formas próprias como lâmina e capa), com
+   material e detalhes (olhos, pregas, sulco da lâmina…).
+4. `render.mjs` — ray marching ortográfico com câmera a 30°, luz vinda do
+   alto à esquerda, oclusão ambiente, cores quantizadas nas rampas de
+   `palette.mjs`, supersampling 2×2 com voto de material e contorno
+   seletivo. **Cada camada só aparece onde está à frente das camadas de
+   baixo** (teste de profundidade), então as camadas empilham corretamente.
+5. `build.mjs` — renderiza tudo (8 direções × 54 quadros × 6 camadas),
+   recorta e empacota os atlas.
+
+**No jogo** (`src/entities/HeroRig.ts`): o sprite físico do Player é a camada
+`body`; as outras camadas são sprites que copiam quadro, posição, ângulo,
+alpha e tint dele antes de cada render. Trocar uma peça é trocar a textura
+da camada: `player.rig.equip('weapon', 'machado')`.
+
+**Para adicionar uma armadura ou arma depois:**
+
+1. Em `scripts/hero/equipment.mjs`, escreva a função da peça no slot certo
+   (ex.: `ITEMS.torso.cotaDeMalha = (J) => [...]`, `ITEMS.weapon.machado = ...`)
+   usando as juntas de `J` (`J.chest`, `J.chestB`, `J.grip`, `J.weaponB`…).
+2. Rode `npm run hero` com o loadout que inclui a peça (hoje o build usa
+   `DEFAULT_LOADOUT`; um próximo passo natural é gerar *todas* as peças de
+   cada slot e listá-las em `hero.json`).
+3. Carregue o atlas no `BootScene` e chame `rig.equip(slot, item)`.
+
+Limites conhecidos do modelo: peças de um slot não "recortam" peças de outro
+slot (uma armadura volumosa não esconde a capa de forma diferente da túnica);
+armas com geometria muito diferente podem pedir um rastro próprio
+(`bladeSegment`).
+
+---
+
 ## O que é placeholder
 
 | Item | Situação |
 |---|---|
 | Todo o tileset (grama, terra, areia, rocha, água, cachoeira, penhascos, estrada, ponte, escadaria, flores, arbustos, cercas, árvores) | placeholder procedural — trocar por Kenney Tiny Town / Roguelike RPG Pack ou arte própria |
-| Teren e Bandoleiro | procedurais por **rig de poses** (48×48, ~24 px de altura): braço do ombro à mão, arma presa à mão, rastro do golpe calculado do ângulo da lâmina |
+| Teren | gerado por `scripts/hero/` (modelo 3D → pixel art, 8 direções, camadas por slot de equipamento). É arte procedural "final de protótipo": substituível por arte desenhada à mão mantendo os nomes de quadro dos atlas |
+| Bandoleiro | rig 2D de poses (48×48, ~24 px de altura) em `scripts/generate-assets.mjs` |
 | Limo, Lobo, Ovelha, Cervo, Pássaro | placeholder procedural 16×16 (vista lateral espelhada para quadrúpedes) |
 | Casas (2 estilos por vila), poço, tochas | placeholder procedural |
 | Efeitos: arco do golpe, chama, explosão, gota, respingo, neblina, brilho | placeholder procedural |
@@ -352,6 +427,7 @@ src/
 public/
   manifest.json, sw.js, icons/
   assets/                 tilesets/, sprites/, tiles/ (PNG placeholder + README de layout)
-scripts/generate-assets.mjs   gerador da pixel art placeholder
+scripts/generate-assets.mjs   gerador da pixel art placeholder (mapa, inimigos, efeitos)
+scripts/hero/                 pipeline do herói (modelo 3D → pixel art em camadas)
 CREDITS.md                fontes e licenças
 ```

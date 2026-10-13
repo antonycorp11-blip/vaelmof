@@ -33,7 +33,6 @@ Os índices estão em `src/systems/Tiles.ts`.
 ## sprites/
 | Arquivo | Frame | Layout |
 |---|---|---|
-| teren.png | 48×48 | 33 col × 4 lin. Linhas: baixo, esquerda, direita, cima. Colunas: 0–3 parado (respiração), 4–9 andar, 10–14 golpe 1, 15–19 golpe 2, 20–24 golpe 3 (estocada), 25–30 rolagem, 31 dano, 32 conjurar chama. Pés em (24, 40) |
 | bandit.png | 48×48 | 16 col × 4 lin. 0–3 parado, 4–9 andar, 10–14 golpe de adaga, 15 dano. Pés em (24, 40) |
 | slime.png | 16×16 | 5 frames (pulo 0–3, 4 extra) |
 | wolf.png | 16×16 | 0–1 andar, 2 agachado (preparo), 3 investida, 4 extra — olhando para a esquerda |
@@ -48,10 +47,12 @@ Os índices estão em `src/systems/Tiles.ts`.
 | ui-icons.png | 16×16 | golpe, esquiva, chama, coração |
 | glow.png, fog.png, pixel.png, raindrop.png, shadow.png | imagem única | luz radial, neblina tileável, partícula, gota, sombra |
 
-Os quadros de cada golpe são: preparo, transição, impacto, continuação e
-recuperação. As durações por frame estão em `BootScene` e o instante do
-impacto em `PLAYER.combo` (`src/config.ts`); se trocar a arte, mantenha o
-impacto no 3º frame de cada golpe.
+## hero/
+O herói (Teren) é gerado por `npm run hero` (`scripts/hero/`) em atlas por
+camada de equipamento. Veja a seção "Herói: pipeline e modularidade" do
+README. Para trocar por arte desenhada à mão, mantenha os nomes de quadro
+(`<animação>_<direção 0–7>_<quadro>`, direções S, SO, O, NO, N, NE, L, SE),
+o quadro de origem 112×112 com os pés em (56, 88) e as durações em `hero.json`.
 
 ## tiles/
 `house-*.png`: 48×48, 2 frames (janelas apagadas / acesas). `well.png`: 32×32.

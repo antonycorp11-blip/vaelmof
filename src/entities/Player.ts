@@ -4,12 +4,11 @@ import { consume, inputState } from '../input/InputState';
 import type { WorldScene } from '../scenes/WorldScene';
 import { Creature } from './Creature';
 import { Flame } from './Flame';
+import { animTiming, HERO_META_KEY, HeroRig, heroTexture, type HeroMeta } from './HeroRig';
 
 type PlayerState = 'normal' | 'attack' | 'cast' | 'roll' | 'hurt' | 'dead';
 
-/** Colunas do spritesheet teren.png (48×48, 33 por direção). */
-const F = { idle: 0, walk: 4, atk1: 10, atk2: 15, atk3: 20, roll: 25, hurt: 31, cast: 32, perRow: 33 } as const;
-type Swing = (typeof PLAYER.combo)[number];
+type Swing = (typeof PLAYER.combo)[number] & { dur: number; hit: number };
 
 interface Keys {
   up: Phaser.Input.Keyboard.Key[];
@@ -28,15 +27,20 @@ export class Player extends Creature {
   state2: PlayerState = 'normal';
   /** Direção para onde Teren olha (unitário, 8 direções). */
   facing = new Phaser.Math.Vector2(0, 1);
-  /** Linha do spritesheet: 0 baixo, 1 esquerda, 2 direita, 3 cima. */
+  /** Direção do sprite: 0 S, 1 SO, 2 O, 3 NO, 4 N, 5 NE, 6 L, 7 SE. */
   private dir = 0;
+  readonly rig: HeroRig;
+  private readonly meta: HeroMeta;
+  private readonly swings: Swing[];
+  private castRelease = 0;
+  private castAngle = 0;
   private stateUntil = 0;
   private invulnUntil = 0;
   private combo = 0;
   private comboUntil = 0;
   private hitDone = true;
   private swingStart = 0;
-  private currentSwing: Swing = PLAYER.combo[0];
+  private currentSwing!: Swing;
   private lastDodge = -99999;
   private lastFlame = -99999;
   private lastGhost = 0;
@@ -48,10 +52,21 @@ export class Player extends Creature {
   readonly spawnY: number;
 
   constructor(scene: WorldScene, x: number, y: number) {
-    super(scene, x, y, 'teren', 8, 5);
-    // frame 48×48 com os pés em y≈40
-    this.setOrigin(0.5, 40 / 48);
-    this.body.setOffset(20, 37);
+    const meta = scene.cache.json.get(HERO_META_KEY) as HeroMeta;
+    super(scene, x, y, heroTexture('body', meta.loadout.body), 8, 5, 'idle_0_0');
+    this.meta = meta;
+    // arte com o dobro da densidade do mapa: escala 0,5, pés em meta.feet
+    const [fx, fy] = meta.feet;
+    this.setScale(meta.scale);
+    this.setOrigin(fx / meta.frame.w, fy / meta.frame.h);
+    this.body.setSize(16, 10);
+    this.body.setOffset(fx - 8, fy - 6);
+    this.rig = new HeroRig(scene, this, meta);
+    this.swings = PLAYER.combo.map((c) => {
+      const t = animTiming(meta, c.anim, meta.anims[c.anim].hit);
+      return { ...c, dur: t.total, hit: t.at };
+    });
+    this.currentSwing = this.swings[0];
     this.spawnX = x;
     this.spawnY = y;
     const kb = scene.input.keyboard;
@@ -69,7 +84,24 @@ export class Player extends Creature {
       };
       for (const action of ['attack', 'dodge', 'flame'] as const) this.keys[action].on('down', () => this.queue(action));
     }
-    this.setFrame(0);
+    this.play('hero-idle-0');
+  }
+
+  setTintFill(color?: number): this {
+    super.setTintFill(color);
+    this.rig?.tintFill(color ?? 0xffffff);
+    return this;
+  }
+
+  clearTint(): this {
+    super.clearTint();
+    this.rig?.clearTint();
+    return this;
+  }
+
+  private anim(name: string) {
+    this.anims.timeScale = 1;
+    this.play(`hero-${name}-${this.dir}`, true);
   }
 
   get dead(): boolean {
@@ -112,8 +144,9 @@ export class Player extends Creature {
   }
 
   private updateDir(x: number, y: number) {
-    if (Math.abs(x) > 0.3) this.dir = x < 0 ? 1 : 2;
-    else this.dir = y < 0 ? 3 : 0;
+    // ângulo de tela → 8 direções (0 = S, sentido horário)
+    const k = Math.round(Math.atan2(y, x) / (Math.PI / 4));
+    this.dir = (((k + 6) % 8) + 8) % 8;
   }
 
   update(time: number) {
@@ -162,9 +195,11 @@ export class Player extends Creature {
       this.startRoll(time, move);
       return;
     }
-    if (wantFlame && st === 'normal' && time - this.lastFlame >= PLAYER.flame.cooldown) this.castFlame(time);
+    // a Chama pode sair na recuperação de um golpe (depois do impacto)
+    const flameOk = st === 'normal' || (st === 'attack' && this.hitDone);
+    if (wantFlame && flameOk && time - this.lastFlame >= PLAYER.flame.cooldown) this.castFlame(time);
     // encadeia no fim da recuperação; depois do golpe final o combo termina
-    const canChain = st === 'attack' && this.combo < PLAYER.combo.length - 1 && time >= this.stateUntil - 90;
+    const canChain = st === 'attack' && this.combo < this.swings.length - 1 && time >= this.stateUntil - 110;
     if (wantAttack && (this.state2 === 'normal' || canChain)) this.swing(time);
 
     if (this.state2 === 'attack') {
@@ -180,38 +215,47 @@ export class Player extends Creature {
       this.body.setVelocity(this.facing.x * lunge + move.x * PLAYER.speed * 0.15, this.facing.y * lunge + move.y * PLAYER.speed * 0.15);
       if (time >= this.stateUntil) this.toIdle();
     } else if (this.state2 === 'cast') {
-      this.body.setVelocity(move.x * PLAYER.speed * 0.3, move.y * PLAYER.speed * 0.3);
+      this.body.setVelocity(move.x * PLAYER.speed * 0.2, move.y * PLAYER.speed * 0.2);
+      // a bola de fogo sai da mão no quadro de "soltar" da animação
+      if (this.castRelease && time >= this.castRelease) {
+        this.castRelease = 0;
+        const a = this.castAngle;
+        new Flame(this.scene, this.fx + Math.cos(a) * 10, this.fy - 12 + Math.sin(a) * 8, a);
+      }
       if (time >= this.stateUntil) this.toIdle();
     } else {
       this.body.setVelocity(move.x * PLAYER.speed, move.y * PLAYER.speed);
-      const key = move.lengthSq() > 0 ? `teren-walk-${this.dir}` : `teren-idle-${this.dir}`;
-      if (this.anims.currentAnim?.key !== key || !this.anims.isPlaying) this.play(key, true);
-      this.anims.timeScale = move.lengthSq() > 0 ? 0.6 + move.length() * 0.6 : 1;
+      const key = move.lengthSq() > 0 ? `hero-run-${this.dir}` : `hero-idle-${this.dir}`;
+      // troca de direção mantém a fase da corrida
+      const cur = this.anims.currentAnim?.key;
+      if (cur !== key || !this.anims.isPlaying) {
+        const keep = cur?.startsWith('hero-run-') && key.startsWith('hero-run-') ? this.anims.currentFrame?.index : undefined;
+        this.play({ key, startFrame: keep !== undefined ? keep - 1 : 0 }, true);
+      }
+      this.anims.timeScale = move.lengthSq() > 0 ? 0.55 + move.length() * 0.45 : 1;
     }
     this.sortDepth();
   }
 
   private toIdle() {
     this.state2 = 'normal';
-    this.anims.timeScale = 1;
-    this.play(`teren-idle-${this.dir}`, true);
+    this.anim('idle');
   }
 
   // ---------------------------------------------------------------- Golpe (combo de 3)
   private swing(time: number) {
     const chaining = this.state2 === 'attack' || time < this.comboUntil;
-    const step = chaining && this.combo < PLAYER.combo.length - 1 ? this.combo + 1 : 0;
-    const S = PLAYER.combo[step];
+    const step = chaining && this.combo < this.swings.length - 1 ? this.combo + 1 : 0;
+    const S = this.swings[step];
     this.combo = step;
     this.currentSwing = S;
     this.swingStart = time;
     this.buffered.attack = 0;
     this.state2 = 'attack';
     this.stateUntil = time + S.dur;
-    this.comboUntil = step < PLAYER.combo.length - 1 ? time + S.dur + PLAYER.comboWindow : 0;
+    this.comboUntil = step < this.swings.length - 1 ? time + S.dur + PLAYER.comboWindow : 0;
     this.updateDir(this.facing.x, this.facing.y);
-    this.anims.timeScale = 1;
-    this.play(`teren-${S.anim}-${this.dir}`, true);
+    this.anim(S.anim);
     this.hitDone = false;
   }
 
@@ -234,7 +278,7 @@ export class Player extends Creature {
       }
     }
     if (hit) {
-      const finisher = S === PLAYER.combo[PLAYER.combo.length - 1];
+      const finisher = S === this.swings[this.swings.length - 1];
       s.cameras.main.shake(finisher ? 120 : 70, finisher ? 0.005 : 0.0025);
       s.hitStop(finisher ? 80 : 45);
     }
@@ -248,8 +292,7 @@ export class Player extends Creature {
     this.stateUntil = time + PLAYER.dodge.duration;
     this.rollDir.copy(move.lengthSq() > 0 ? move : this.facing).normalize();
     this.updateDir(this.rollDir.x, this.rollDir.y);
-    this.anims.timeScale = 1;
-    this.play(`teren-roll-${this.dir}`, true);
+    this.anim('roll');
     this.setAlpha(1);
   }
 
@@ -259,26 +302,20 @@ export class Player extends Creature {
 
   private ghost(time: number) {
     this.lastGhost = time;
-    const g = this.scene.add
-      .image(this.x, this.y, 'teren', this.frame.name)
-      .setOrigin(this.originX, this.originY)
-      .setAlpha(0.45)
-      .setTint(0x9fd8ff)
-      .setDepth(this.depth - 1);
-    this.scene.tweens.add({ targets: g, alpha: 0, duration: 220, onComplete: () => g.destroy() });
+    this.rig.ghost(0x9fd8ff, 0.4, 220);
   }
 
   // ---------------------------------------------------------------- Chama
   private castFlame(time: number) {
     this.lastFlame = time;
     this.buffered.flame = 0;
-    const a = Math.atan2(this.facing.y, this.facing.x);
-    new Flame(this.scene, this.fx + Math.cos(a) * 8, this.fy - 6 + Math.sin(a) * 8, a);
+    this.castAngle = Math.atan2(this.facing.y, this.facing.x);
     this.updateDir(this.facing.x, this.facing.y);
-    this.anims.stop();
-    this.setFrame(this.dir * F.perRow + F.cast);
+    const t = animTiming(this.meta, 'cast', this.meta.anims.cast.release);
+    this.anim('cast');
     this.state2 = 'cast';
-    this.stateUntil = time + 220;
+    this.castRelease = time + t.at;
+    this.stateUntil = time + t.total;
   }
 
   // ---------------------------------------------------------------- Dano
@@ -287,7 +324,7 @@ export class Player extends Creature {
     const s = this.scene;
     this.hp = Math.max(0, this.hp - amount);
     this.invulnUntil = s.time.now + PLAYER.hurtInvuln;
-    s.fx.damageText(this.x, this.y - 24, amount, '#ff6060');
+    s.fx.damageText(this.x, this.y - 32, amount, '#ff6060');
     s.cameras.main.shake(120, 0.006);
     this.setTintFill(0xff4040);
     s.time.delayedCall(100, () => this.clearTint());
@@ -299,8 +336,8 @@ export class Player extends Creature {
     }
     this.state2 = 'hurt';
     this.stateUntil = s.time.now + 180;
-    this.anims.stop();
-    this.setFrame(this.dir * F.perRow + F.hurt);
+    this.castRelease = 0;
+    this.anim('hurt');
   }
 
   private die() {

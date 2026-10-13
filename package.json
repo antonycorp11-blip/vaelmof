@@ -3,13 +3,14 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Vaelmor — protótipo 2D top-down em pixel art (PWA, Phaser 3)",
+  "description": "Vaelmor \u2014 prot\u00f3tipo 2D top-down em pixel art (PWA, Phaser 3)",
   "scripts": {
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
-    "assets": "node scripts/generate-assets.mjs",
-    "typecheck": "tsc --noEmit"
+    "assets": "node scripts/generate-assets.mjs && node scripts/hero/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "hero": "node scripts/hero/build.mjs"
   },
   "dependencies": {
     "phaser": "3.90.0"

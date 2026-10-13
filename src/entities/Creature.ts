@@ -21,8 +21,8 @@ export class Creature extends Phaser.Physics.Arcade.Sprite {
   declare scene: WorldScene;
   declare body: Phaser.Physics.Arcade.Body;
 
-  constructor(scene: WorldScene, x: number, y: number, texture: string, bodyW = 10, bodyH = 6) {
-    super(scene, x, y, texture, 0);
+  constructor(scene: WorldScene, x: number, y: number, texture: string, bodyW = 10, bodyH = 6, frame: string | number = 0) {
+    super(scene, x, y, texture, frame);
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setOrigin(0.5, 0.75);

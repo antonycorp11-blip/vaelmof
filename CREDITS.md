@@ -17,6 +17,7 @@ repositório), numa grade 16×16 e com uma paleta única definida em `PAL`.
 | `public/assets/sprites/*` | gerado por `scripts/generate-assets.mjs` | mesma do repositório |
 | `public/assets/tiles/*` | gerado por `scripts/generate-assets.mjs` | mesma do repositório |
 | `public/icons/*` | gerado por `scripts/generate-assets.mjs` | mesma do repositório |
+| `public/assets/hero/*` | gerado por `scripts/hero/` (modelo 3D procedural → pixel art) | mesma do repositório |
 
 ### Substituição sugerida (licença livre)
 
