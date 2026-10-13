@@ -3,7 +3,8 @@
 // mais a camada de efeitos (rastro do golpe e fogo da Chama).
 import { poseAt } from './anims.mjs';
 import { bladeSegment, DEFAULT_LOADOUT, ITEMS, SLOTS } from './equipment.mjs';
-import { CFG, downsample, minDepth, renderLayer, renderSmear, toRGBA } from './render.mjs';
+import { HEAD_ANCHOR, HEAD_PAL, headView, rotateGrid } from './heads.mjs';
+import { CFG, downsample, minDepth, project, renderLayer, renderSmear, toRGBA } from './render.mjs';
 import { solve } from './rig.mjs';
 import { ellipsoid, v3 } from './sdf.mjs';
 
@@ -17,10 +18,55 @@ export function renderAll(J, yaw, loadout) {
     const ss = renderLayer(ITEMS[slot][item](J), yaw, underSS);
     const fin = downsample(ss);
     layers[slot] = toRGBA(fin, underFin);
+    if (slot === 'body') pasteHead(J, yaw, layers[slot], fin, ss);
     underSS = minDepth(underSS, ss.depth);
     underFin = minDepth(underFin, fin.depth);
   }
   return { layers, underSS };
+}
+
+/**
+ * Encaixa a cabeça desenhada à mão na posição projetada da cabeça do
+ * esqueleto, gravando também a profundidade (para cachecol, capa e arma
+ * passarem na frente ou atrás corretamente).
+ */
+function pasteHead(J, yaw, rgba, fin, ss) {
+  const { W, H, SS } = CFG;
+  const c = project(J.head, yaw);
+  const roll = J.pose.roll ?? 0;
+  const upsideDown = roll > 70 && roll < 290;
+  let grid = upsideDown ? headView(180) : headView(yaw);
+  let anchor = HEAD_ANCHOR;
+  // na cambalhota a cabeça gira no plano da tela nas vistas laterais
+  const side = Math.sin((yaw * Math.PI) / 180);
+  if (roll) {
+    const r = rotateGrid(grid, roll * (side < 0 ? -1 : 1) * Math.min(1, Math.abs(side) * 1.4));
+    grid = r.grid;
+    anchor = r.anchor;
+  }
+  const depth = c.t - 0.12;
+  const x0 = Math.round(c.x) - anchor[0];
+  const y0 = Math.round(c.y) - anchor[1];
+  const SW = W * SS;
+  for (let y = 0; y < grid.length; y++)
+    for (let x = 0; x < grid[0].length; x++) {
+      const ch = grid[y][x];
+      const col = HEAD_PAL[ch];
+      if (!col) continue;
+      const X = x0 + x, Y = y0 + y;
+      if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
+      const i = Y * W + X;
+      rgba[i * 4] = col[0];
+      rgba[i * 4 + 1] = col[1];
+      rgba[i * 4 + 2] = col[2];
+      rgba[i * 4 + 3] = 255;
+      fin.depth[i] = Math.min(fin.depth[i], depth);
+      if (fin.mat[i] < 0) fin.mat[i] = 0;
+      for (let j = 0; j < SS; j++) for (let k = 0; k < SS; k++) {
+        const q = (Y * SS + j) * SW + X * SS + k;
+        ss.depth[q] = Math.min(ss.depth[q], depth);
+      }
+    }
 }
 
 export function renderFx(anim, i, J, yaw, underSS) {

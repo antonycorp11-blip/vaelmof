@@ -3,8 +3,9 @@
 // camada de sprite separada, renderizada com o mesmo esqueleto — então trocar
 // uma armadura ou arma é trocar a textura daquela camada no jogo.
 //
-// Visual: conceito "aventureiro do Serro" (JRPG, ~3 cabeças de altura):
-// cabelo castanho espetado, olhos grandes, cachecol vermelho, capa azul com
+// Visual: conceito "aventureiro do Serro" (JRPG, ~3 cabeças de altura). A
+// cabeça (rosto e cabelo) é desenhada à mão em heads/*.txt; aqui ficam o
+// corpo e a roupa: cachecol vermelho, capa azul com
 // barra e emblema dourados e forro vermelho, camisa creme bordada, cintos de
 // couro com fivelas douradas, luvas, calça verde e botas altas com dobra.
 import { custom, ellipsoid, roundBox, roundCone, v3 } from './sdf.mjs';
@@ -14,7 +15,6 @@ export const SLOTS = ['body', 'legs', 'torso', 'cape', 'weapon'];
 
 const FLESH = 0.014; // suavização entre partes do corpo
 const lerp = v3.lerp;
-const HEAD_R = [0.16, 0.165, 0.15];
 
 function sdEllipsoid(x, y, z, rx, ry, rz) {
   const a = x / rx, b = y / ry, c = z / rz;
@@ -23,111 +23,14 @@ function sdEllipsoid(x, y, z, rx, ry, rz) {
   return (k0 * (k0 - 1)) / k1;
 }
 
-/** Converte um ponto do mundo para o espaço local de (origem, base). */
-function toLocal(o, B, p) {
-  const x = p[0] - o[0], y = p[1] - o[1], z = p[2] - o[2];
-  return [x * B[0][0] + y * B[0][1] + z * B[0][2], x * B[1][0] + y * B[1][1] + z * B[1][2], x * B[2][0] + y * B[2][1] + z * B[2][2]];
-}
-
-// ------------------------------------------------------------------ rosto (textura pixelada projetada na frente da cabeça)
-// Colunas = esquerda→direita da tela com o herói de frente; linhas de cima para baixo.
-const FACE = [
-  '................',
-  '................',
-  '................',
-  '................',
-  '................',
-  '..bbb......bbb..',
-  '................',
-  '..LLLL....LLLL..',
-  '...sII....sII...',
-  '...III....III...',
-  '...iii....iii...',
-  '...iii....iii...',
-  '..k..........k..',
-  '........n.......',
-  '.......mm.......',
-  '................',
-];
-const FACE_MAT = {
-  L: { mat: 'lash', flat: 0 },
-  I: { mat: 'iris', flat: 1 },
-  i: { mat: 'iris', flat: 3 },
-  s: { mat: 'shine', flat: 4 },
-  b: { mat: 'hair', flat: 1 },
-  m: { mat: 'lips', flat: 1 },
-  k: { mat: 'blush', flat: 2 },
-  n: { off: -1 },
-};
-function faceDetailFor(J) {
-  return (_l, p) => {
-    const [x, y, z] = toLocal(J.head, J.headB, p);
-    if (z < 0.05) return null;
-    const col = Math.floor(((x + HEAD_R[0]) / (2 * HEAD_R[0])) * 16);
-    const row = Math.floor(((HEAD_R[1] - y) / (2 * HEAD_R[1])) * 16);
-    if (col < 0 || col > 15 || row < 0 || row > 15) return null;
-    return FACE_MAT[FACE[row][col]] ?? null;
-  };
-}
-
-function hairDetail(l) {
-  const s = Math.sin(l[0] * 90 + l[1] * 30);
-  return s > 0.85 ? { off: 1 } : null;
-}
-
 // ------------------------------------------------------------------ corpo
 function base(J) {
   const p = [];
   const S = { slot: 'body', k: FLESH };
   const H = (x, y, z) => v3.inBasis(J.head, J.headB, x, y, z);
-  const face = faceDetailFor(J);
-  // cabeça grande + bochechas/queixo
-  p.push(ellipsoid(J.head, HEAD_R, J.headB, 'skin', { ...S, detail: face }));
-  p.push(ellipsoid(H(0, -0.065, 0.02), [0.13, 0.095, 0.12], J.headB, 'skin', { ...S, detail: face }));
-  for (const s of [1, -1]) p.push(ellipsoid(H(s * 0.158, -0.015, -0.01), [0.022, 0.034, 0.022], J.headB, 'skin', S));
-  // cabelo: calota + mechas espetadas
-  const capC = [0, 0.028, -0.018];
-  p.push(
-    custom(
-      J.head,
-      J.headB,
-      (x, y, z) => {
-        const e = sdEllipsoid(x - capC[0], y - capC[1], z - capC[2], 0.168, 0.17, 0.165);
-        const cut = (z - 0.02 - (y - 0.105) * 1.1) / 1.5;
-        return Math.max(e, cut);
-      },
-      0.2,
-      capC,
-      'hair',
-      { slot: 'body', k: 0.012, detail: hairDetail },
-    ),
-  );
-  const spikes = [
-    // topo: tufos grossos para cima e para trás
-    [[0, 0.1, -0.01], [0.01, 0.255, -0.04], 0.07],
-    [[0.06, 0.1, 0.01], [0.135, 0.22, 0.0], 0.06],
-    [[-0.06, 0.1, 0.01], [-0.125, 0.23, 0.02], 0.06],
-    [[0.0, 0.08, -0.07], [0.02, 0.2, -0.17], 0.065],
-    // laterais
-    [[0.1, 0.05, -0.02], [0.205, 0.09, -0.04], 0.055],
-    [[-0.1, 0.05, -0.02], [-0.205, 0.1, -0.03], 0.055],
-    [[0.11, -0.02, -0.05], [0.18, -0.07, -0.08], 0.045],
-    [[-0.11, -0.02, -0.05], [-0.18, -0.06, -0.09], 0.045],
-    // nuca
-    [[0, 0.02, -0.1], [0.0, 0.03, -0.22], 0.065],
-    [[0.07, 0.03, -0.09], [0.13, 0.05, -0.19], 0.055],
-    [[-0.07, 0.03, -0.09], [-0.13, 0.04, -0.19], 0.055],
-    [[0, -0.06, -0.1], [0.01, -0.12, -0.18], 0.05],
-    // franja jogada de lado, terminando acima das sobrancelhas
-    [[-0.09, 0.12, 0.06], [-0.13, 0.06, 0.12], 0.045],
-    [[-0.035, 0.135, 0.075], [-0.075, 0.065, 0.15], 0.045],
-    [[0.02, 0.135, 0.08], [-0.01, 0.07, 0.158], 0.042],
-    [[0.07, 0.125, 0.07], [0.07, 0.08, 0.15], 0.04],
-    [[0.11, 0.11, 0.05], [0.14, 0.06, 0.115], 0.038],
-  ];
-  for (const [a, b, r] of spikes) p.push(roundCone(H(...a), H(...v3.lerp(a, b, 0.82)), r, 0.018, 'hair', { slot: 'body', k: 0.016, detail: hairDetail }));
+  // a cabeça (rosto e cabelo) é desenhada à mão: scripts/hero/heads/*.txt
   // pescoço, tronco (camisa de linho por baixo), braços, mãos, pernas, pés
-  p.push(roundCone(v3.inBasis(J.neck, J.chestB, 0, -0.03, 0), H(0, -0.11, -0.01), 0.036, 0.034, 'skin', S));
+  p.push(roundCone(v3.inBasis(J.neck, J.chestB, 0, -0.03, 0), H(0, -0.09, -0.01), 0.036, 0.034, 'skin', S));
   p.push(ellipsoid(v3.inBasis(J.chest, J.chestB, 0, -0.005, 0), [0.115, 0.085, 0.078], J.chestB, 'linen', S));
   p.push(ellipsoid(lerp(J.hips, J.chest, 0.45), [0.098, 0.085, 0.07], J.chestB, 'linen', S));
   p.push(ellipsoid(J.hips, [0.105, 0.07, 0.075], J.pelvisB, 'linen', S));

@@ -402,3 +402,15 @@ export function renderSmear(segs, yawDeg, under) {
     }
   return rgba;
 }
+
+/** Projeta um ponto do espaço do personagem: px finais (x, y) e profundidade t. */
+export function project(p, yawDeg) {
+  const psi = yawDeg * DEG;
+  const f = rotY(F_W, -psi), r = rotY(R_W, -psi), u = rotY(U_W, -psi);
+  const { FX, FY, S } = CFG;
+  return {
+    x: FX + (p[0] * r[0] + p[1] * r[1] + p[2] * r[2]) * S,
+    y: FY - (p[0] * u[0] + p[1] * u[1] + p[2] * u[2]) * S,
+    t: p[0] * f[0] + p[1] * f[1] + p[2] * f[2] + 4,
+  };
+}

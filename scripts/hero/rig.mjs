@@ -136,4 +136,12 @@ function applyRoll(J, deg, pivot) {
     if (Array.isArray(v) && typeof v[0] === 'number') J[k] = rp(v);
     else if (Array.isArray(v) && Array.isArray(v[0])) J[k] = v.map(rv);
   }
+  // mantém tudo acima do chão (a cabeça grande desce abaixo dos pés no meio do giro)
+  const lows = [J.head[1] - 0.19, J.ankleL[1] - 0.05, J.ankleR[1] - 0.05, J.kneeL[1] - 0.06, J.kneeR[1] - 0.06, J.hips[1] - 0.1, J.handL[1] - 0.05, J.handR[1] - 0.05];
+  const lift = Math.max(0, 0.01 - Math.min(...lows));
+  if (lift > 0)
+    for (const k of Object.keys(J)) {
+      const v = J[k];
+      if (k !== 'pose' && Array.isArray(v) && typeof v[0] === 'number') J[k] = [v[0], v[1] + lift, v[2]];
+    }
 }

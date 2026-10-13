@@ -17,7 +17,7 @@ export const VIEW_TILES_W = 20;
 export const VIEW_TILES_H = 12;
 
 export const PLAYER = {
-  speed: 78, // px/s
+  speed: 64, // px/s (casada com a passada da corrida em scripts/hero/anims.mjs)
   maxHp: 10,
   /**
    * Combo de 3 golpes. A duração de cada golpe e o instante do impacto vêm

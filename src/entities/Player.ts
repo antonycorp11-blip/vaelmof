@@ -232,7 +232,8 @@ export class Player extends Creature {
         const keep = cur?.startsWith('hero-run-') && key.startsWith('hero-run-') ? this.anims.currentFrame?.index : undefined;
         this.play({ key, startFrame: keep !== undefined ? keep - 1 : 0 }, true);
       }
-      this.anims.timeScale = move.lengthSq() > 0 ? 0.55 + move.length() * 0.45 : 1;
+      // ritmo da passada proporcional à velocidade (joystick parcial = passos mais lentos)
+      this.anims.timeScale = move.lengthSq() > 0 ? Math.max(0.35, move.length()) : 1;
     }
     this.sortDepth();
   }

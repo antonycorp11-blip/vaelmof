@@ -93,7 +93,15 @@ function idle() {
   return { name: 'idle', loop: true, keys, durations: Array(N).fill(150) };
 }
 
-/** Corrida: 8 quadros, passada curta e saltitante, braços opostos às pernas. */
+/**
+ * Passada da corrida, casada com a velocidade do jogo para o pé não
+ * "patinar": velocidade no chão ≈ 4·RUN_STRIDE / ciclo. Com 25 px do mundo por
+ * unidade, 0,26 e ciclo de 8 × 52 ms dão ≈ 62 px/s (PLAYER.speed = 64).
+ */
+const RUN_STRIDE = 0.26;
+const RUN_FRAME_MS = 52;
+
+/** Corrida: 8 quadros, passada saltitante, braços opostos às pernas. */
 function run() {
   const N = 8;
   const keys = [];
@@ -102,7 +110,7 @@ function run() {
     const s = Math.sin(ph);
     const foot = (p) => {
       const lift = Math.max(0, Math.cos(p + 0.6));
-      return { pos: [0, 0.05 + 0.11 * lift, 0.17 * Math.sin(p)], pitch: 22 * lift };
+      return { pos: [0, 0.05 + 0.12 * lift, RUN_STRIDE * Math.sin(p)], pitch: 22 * lift };
     };
     const fr = foot(ph);
     const fl = foot(ph + Math.PI);
@@ -128,7 +136,7 @@ function run() {
       cape: { lift: 34 + 6 * Math.sin(2 * ph), sway: 5 * s },
     });
   }
-  return { name: 'run', loop: true, keys, durations: Array(N).fill(85) };
+  return { name: 'run', loop: true, keys, durations: Array(N).fill(RUN_FRAME_MS) };
 }
 
 /** Golpe 1: diagonal descendente (direita alta → esquerda baixa). */

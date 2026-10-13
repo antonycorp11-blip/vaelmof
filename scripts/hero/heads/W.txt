@@ -1,0 +1,25 @@
+# perfil olhando para a esquerda — 24×24
+..........oo............
+......o..oJHo...o.......
+.....oHo.oJJHo.oHo..o...
+.....oHHoHJJHHoHHHooHo..
+....oHHHHJJjHHHjHHHHHHo.
+...oHjjHJJjjHHHjjHHHHHHo
+..oHjjjjjjjHHHjjjHHHHhho
+.oHjjjjjjjHHHHjjHHHHHhho
+oHHjjjjjHHHHHHHHHHHHhhho
+ohHHHHHHHHHHHHHHHHHHhhho
+ohHHHHHHHHHHHHHHHHHHHhho
+osHHsHHHHHHHHHHHHHHHhhoo
+ossHssHHsHHHHHHHHHHHhho.
+.ossssssHHHhHHHHHHHHHhho
+.osssssssHhsshHHHHHHhhho
+.oseeesssHsSSshHHHHHHhho
+.oswIIssssSSsshHHHHHhho.
+osspIIsssssSshHHHHHhhho.
+osssIIsssssshhHHHHhhho..
+.ossiisssssshhHhHHhhho..
+.oskssssssSShhHhhHhho...
+..omsssssSSo.ohhhhoo....
+...oSsssSSo...oooo......
+....ooooo...............
