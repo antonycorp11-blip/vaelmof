@@ -799,20 +799,433 @@ function sheetHumanoid(file, c, withRoll) {
   }
   save(file, img);
 }
-sheetHumanoid(
-  'assets/sprites/teren.png',
-  {
-    skin: PAL.skin[0], skinDark: PAL.skin[1], hair: PAL.hair[0], hairLight: PAL.hair[1], eye: PAL.outline,
-    body: PAL.teal[0], bodyDark: PAL.teal[1], belt: PAL.belt[0], buckle: PAL.belt[1], pants: PAL.pants[0],
-    boots: PAL.boots[0], cape: PAL.cape[0], blade: PAL.steel[0], hilt: PAL.belt[1],
-  },
-  true,
-);
-sheetHumanoid('assets/sprites/bandit.png', {
-  skin: '#d9a37c', skinDark: '#b8835e', hair: PAL.bandit[4], hairLight: PAL.bandit[3], eye: PAL.outline,
-  body: PAL.bandit[0], bodyDark: PAL.bandit[1], belt: PAL.bandit[5], pants: PAL.bandit[3], boots: PAL.bandit[4],
-  mask: PAL.bandit[2], hood: PAL.bandit[3], blade: PAL.steel[1], hilt: PAL.wood[1],
-});
+// ================================================================ TEREN (rig de poses, 48×48)
+// Cada frame é uma pose calculada: o braço sai do ombro até a mão e a espada
+// é presa à mão num ângulo. Golpes são varreduras de ângulo em relação à
+// direção do personagem; o rastro (smear) é desenhado entre o ângulo do frame
+// anterior e o atual, então sempre acompanha a lâmina.
+//
+// Layout (por linha = direção 0 baixo, 1 esquerda, 2 direita, 3 cima):
+//   0–3 parado (respiração) · 4–9 andar · 10–14 golpe 1 · 15–19 golpe 2
+//   20–24 golpe 3 (estocada) · 25–30 rolagem · 31 dano · 32 conjurar chama
+const TF = 48;
+const TEREN_COLS = 33;
+const TEREN_PAL = {
+  skin: '#f0c8a0', skinS: '#d6a27a', blush: '#eaa58f',
+  hair: ['#4a2814', '#6b3b1f', '#93592f'],
+  tunic: ['#4fb3a2', '#2f8a7e', '#21665d'],
+  cape: ['#cf5f4b', '#a8402f', '#7a2820'],
+  pants: ['#4a4a6a', '#34344c'],
+  boots: ['#5a3c2a', '#38261a'],
+  belt: '#6e4426', buckle: '#f0c850',
+  steel: ['#ffffff', '#e2e9f1', '#a3afbd', '#66707d'],
+  guard: '#e0b444', grip: '#5a3420', eye: '#1e1a24',
+  fire: ['#fff3b0', '#ffd34a', '#ff9a2a'],
+};
+let TC = TEREN_PAL;
+const BANDIT_PAL = {
+  ...TEREN_PAL,
+  skin: '#d9a37c', skinS: '#b8835e', blush: '#c98a6a',
+  hair: ['#241c1c', '#3b3333', '#5a4a44'],
+  tunic: ['#8a3f3a', '#6e2f2f', '#4f2222'],
+  cape: ['#5a4a40', '#3f342e', '#2a2420'],
+  pants: ['#3b3333', '#2a2424'], boots: ['#2a2020', '#1a1414'],
+  belt: '#8b7b6b', buckle: '#b0a090',
+  steel: ['#ffffff', '#c8d0da', '#8a96a4', '#56606c'], guard: '#8b7b6b', grip: '#3a2418',
+  mask: '#c0392b', maskS: '#8e2a20', hood: true,
+};
+const DIRV = [[0, 1], [-1, 0], [1, 0], [0, -1]];
+const DIRA = [90, 180, 0, -90];
+// ombro da mão da espada (destro) e da mão livre, por direção (1 = esquerda; 2 é espelhado)
+const SHOULDER = { 0: [19, 29], 1: [22, 29], 3: [28, 29] };
+const OFF_SHOULDER = { 0: [28, 29], 1: [25, 29], 3: [19, 29] };
+const IDLE_ANGLE = { 0: 115, 1: 140, 3: 70 };
+const rad = (a) => (a * Math.PI) / 180;
+
+function thickLine(img, x0, y0, x1, y1, c) {
+  img.line(x0, y0, x1, y1, c);
+  img.line(x0 + 1, y0, x1 + 1, y1, c);
+}
+
+/** Espada: punho atrás da mão, guarda, lâmina com fio claro e ponta branca. */
+function drawSword(img, hx, hy, ang, len) {
+  const dx = Math.cos(rad(ang));
+  const dy = Math.sin(rad(ang));
+  const px = -dy;
+  const py = dx;
+  for (let i = -3; i <= -1; i++) img.set(hx + dx * i, hy + dy * i, i === -3 ? TC.guard : TC.grip);
+  for (let i = 2; i <= len; i++) {
+    const x = hx + dx * i;
+    const y = hy + dy * i;
+    img.set(x + px * 0.6, y + py * 0.6, TC.steel[3]);
+    img.set(x, y, i === len ? TC.steel[0] : TC.steel[1]);
+  }
+  for (let k = -2; k <= 2; k++) img.set(hx + dx * 1 + px * k, hy + dy * 1 + py * k, TC.guard);
+}
+
+/** Rastro em arco entre dois ângulos absolutos, em torno do ombro. */
+function drawSmear(img, cx, cy, a0, a1, r0, r1, strength) {
+  const steps = Math.max(8, Math.abs(a1 - a0) * 1.2);
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    const a = rad(a0 + (a1 - a0) * t);
+    const fade = (0.25 + 0.75 * t) * strength;
+    for (let r = r0; r <= r1; r += 0.5) {
+      const k = (r - r0) / Math.max(1, r1 - r0);
+      const col = k > 0.75 ? '#ffffff' : k > 0.4 ? '#d8f0ff' : '#9fd0ff';
+      img.set(cx + Math.cos(a) * r, cy + Math.sin(a) * r, col, fade * (0.35 + 0.65 * k));
+    }
+  }
+}
+
+/** Rastro reto (estocada). */
+function drawThrustSmear(img, hx, hy, ang, len, strength) {
+  const dx = Math.cos(rad(ang));
+  const dy = Math.sin(rad(ang));
+  const px = -dy;
+  const py = dx;
+  for (const off of [-2, 0, 2]) {
+    for (let i = -6; i <= len + 3; i++) {
+      const k = (i + 6) / (len + 9);
+      img.set(hx + dx * i + px * off, hy + dy * i + py * off, off === 0 ? '#ffffff' : '#bfe4ff', strength * k * (off === 0 ? 0.9 : 0.45));
+    }
+  }
+}
+
+function legsFront(t, ox, k, liftL, liftR, spread) {
+  const L = 20 - spread + ox;
+  const R = 25 + spread + ox;
+  t.rect(L, 35 - liftL, 3, 4, TC.pants[0]);
+  t.rect(R, 35 - liftR, 3, 4, TC.pants[1]);
+  t.rect(L, 39 - liftL, 3, 2, TC.boots[0]);
+  t.rect(R, 39 - liftR, 3, 2, TC.boots[1]);
+  void k;
+}
+
+function drawBodyFront(t, P, ux, uy) {
+  const lx = Math.round(ux / 2);
+  // capa (atrás)
+  t.rect(18 + ux, 28 + uy, 12, 8, TC.cape[2]);
+  t.rect(18 + ux + P.capeSway, 36 + uy, 12, 1, TC.cape[2]);
+  legsFront(t, lx, 0, P.liftL, P.liftR, P.spread);
+  // túnica
+  t.rect(20 + ux, 27 + uy, 8, 7, TC.tunic[1]);
+  t.rect(20 + ux, 27 + uy, 1, 7, TC.tunic[0]);
+  t.rect(27 + ux, 27 + uy, 1, 7, TC.tunic[2]);
+  t.rect(19 + ux, 33 + uy, 10, 2, TC.tunic[1]);
+  t.rect(19 + ux, 34 + uy, 10, 1, TC.tunic[2]);
+  t.set(23 + ux, 27 + uy, TC.skinS);
+  t.set(24 + ux, 27 + uy, TC.skinS);
+  t.set(23 + ux, 28 + uy, TC.skinS);
+  t.rect(20 + ux, 32 + uy, 8, 1, TC.belt);
+  t.rect(23 + ux, 32 + uy, 2, 1, TC.buckle);
+  t.set(21 + ux, 27 + uy, TC.buckle); // fecho da capa
+  t.set(26 + ux, 27 + uy, TC.buckle);
+  // braço livre (lado direito da tela)
+  if (!P.off) {
+    t.rect(28 + ux, 28 + uy + P.armSwing, 2, 4, TC.tunic[2]);
+    t.rect(28 + ux, 32 + uy + P.armSwing, 2, 1, TC.skin);
+  }
+  // cabeça
+  drawHeadFront(t, ux, uy, P.hurt);
+}
+
+function drawHeadFront(t, ux, uy, hurt) {
+  const X = 20 + ux;
+  const Y = 18 + uy;
+  t.rect(X, Y + 1, 8, 7, TC.skin);
+  t.rect(X, Y + 7, 8, 1, TC.skinS);
+  t.clear(X, Y + 7);
+  t.clear(X + 7, Y + 7);
+  // cabelo
+  t.rect(X - 1, Y - 2, 10, 4, TC.hair[1]);
+  t.rect(X + 1, Y - 2, 5, 1, TC.hair[2]);
+  t.rect(X - 1, Y + 1, 1, 5, TC.hair[1]);
+  t.rect(X + 8, Y + 1, 1, 5, TC.hair[1]);
+  t.set(X - 1, Y + 6, TC.hair[0]);
+  t.set(X + 8, Y + 6, TC.hair[0]);
+  for (const [x, y, c] of [[0, 2, 1], [1, 2, 1], [3, 2, 1], [4, 2, 1], [6, 2, 1], [7, 2, 1], [0, 3, 0], [3, 3, 0], [7, 3, 0], [4, 3, 0]])
+    t.set(X + x, Y + y, TC.hair[c]);
+  t.set(X + 2, Y - 1, TC.hair[2]);
+  // rosto
+  if (hurt) {
+    t.rect(X + 1, Y + 4, 2, 1, TC.eye);
+    t.rect(X + 5, Y + 4, 2, 1, TC.eye);
+  } else {
+    t.rect(X + 2, Y + 4, 1, 2, TC.eye);
+    t.rect(X + 5, Y + 4, 1, 2, TC.eye);
+  }
+  t.set(X + 1, Y + 6, TC.blush);
+  t.set(X + 6, Y + 6, TC.blush);
+  if (TC.mask) {
+    t.rect(X, Y + 6, 8, 2, TC.mask);
+    t.rect(X, Y + 7, 8, 1, TC.maskS);
+  }
+  if (TC.hood) {
+    t.rect(X - 1, Y - 3, 10, 4, TC.cape[1]);
+    t.rect(X - 2, Y, 2, 7, TC.cape[1]);
+    t.rect(X + 8, Y, 2, 7, TC.cape[1]);
+    t.rect(X + 1, Y - 3, 6, 1, TC.cape[0]);
+    t.rect(X, Y + 1, 8, 1, TC.cape[2]);
+  }
+}
+
+function drawBodyBack(t, P, ux, uy) {
+  const lx = Math.round(ux / 2);
+  legsFront(t, lx, 0, P.liftR, P.liftL, P.spread);
+  // braços nas laterais
+  if (!P.off) t.rect(18 + ux, 28 + uy + P.armSwing, 2, 4, TC.tunic[2]);
+  t.rect(20 + ux, 27 + uy, 8, 7, TC.tunic[1]);
+  // capa cobrindo as costas
+  t.rect(19 + ux, 27 + uy, 10, 9, TC.cape[1]);
+  t.rect(19 + ux + P.capeSway, 36 + uy, 10, 1, TC.cape[1]);
+  t.rect(22 + ux, 29 + uy, 1, 7, TC.cape[2]);
+  t.rect(25 + ux, 29 + uy, 1, 7, TC.cape[2]);
+  t.rect(19 + ux, 27 + uy, 10, 1, TC.cape[0]);
+  // cabeça (nuca)
+  const X = 20 + ux;
+  const Y = 18 + uy;
+  t.rect(X - 1, Y - 2, 10, 9, TC.hair[1]);
+  t.rect(X + 1, Y - 2, 6, 1, TC.hair[2]);
+  t.rect(X + 2, Y - 1, 2, 3, TC.hair[2]);
+  t.rect(X - 1, Y + 5, 10, 2, TC.hair[0]);
+  t.rect(X + 2, Y + 7, 4, 1, TC.skinS);
+  if (TC.hood) {
+    t.rect(X - 2, Y - 3, 12, 10, TC.cape[1]);
+    t.rect(X, Y - 3, 6, 1, TC.cape[0]);
+    t.rect(X - 1, Y + 5, 10, 2, TC.cape[2]);
+  }
+}
+
+function drawBodySide(t, P, ux, uy) {
+  // perfil olhando para a esquerda
+  const lx = Math.round(ux / 2);
+  // capa atrás (à direita), esvoaçando
+  t.rect(26 + ux, 27 + uy, 3, 9, TC.cape[1]);
+  t.rect(28 + ux, 31 + uy, 1 + P.capeFly, 5, TC.cape[2]);
+  // braço de trás
+  if (!P.off) t.rect(24 + ux - P.armSwing, 28 + uy, 2, 4, TC.tunic[2]);
+  // pernas
+  const a = P.legA;
+  const b = -P.legA + P.spread;
+  t.rect(23 + lx + b, 35 - P.liftR, 2, 4, TC.pants[1]);
+  t.rect(22 + lx + b, 39 - P.liftR, 3, 2, TC.boots[1]);
+  t.rect(22 + lx + a - P.spread, 35 - P.liftL, 2, 4, TC.pants[0]);
+  t.rect(21 + lx + a - P.spread, 39 - P.liftL, 3, 2, TC.boots[0]);
+  // túnica
+  t.rect(21 + ux, 27 + uy, 6, 7, TC.tunic[1]);
+  t.rect(21 + ux, 27 + uy, 1, 7, TC.tunic[0]);
+  t.rect(26 + ux, 27 + uy, 1, 7, TC.tunic[2]);
+  t.rect(20 + ux, 33 + uy, 8, 2, TC.tunic[1]);
+  t.rect(20 + ux, 34 + uy, 8, 1, TC.tunic[2]);
+  t.rect(21 + ux, 32 + uy, 6, 1, TC.belt);
+  t.set(21 + ux, 32 + uy, TC.buckle);
+  // cabeça de perfil
+  const X = 19 + ux;
+  const Y = 18 + uy;
+  t.rect(X, Y + 1, 7, 7, TC.skin);
+  t.rect(X, Y + 7, 6, 1, TC.skinS);
+  t.set(X - 1, Y + 4, TC.skin); // nariz
+  t.rect(X, Y - 2, 9, 4, TC.hair[1]);
+  t.rect(X + 2, Y - 2, 4, 1, TC.hair[2]);
+  t.rect(X + 4, Y + 1, 5, 6, TC.hair[1]);
+  t.rect(X + 7, Y + 5, 2, 2, TC.hair[0]);
+  t.set(X, Y + 2, TC.hair[0]);
+  t.set(X + 1, Y + 2, TC.hair[1]);
+  t.set(X + 5, Y + 4, TC.skinS); // orelha
+  t.set(X + 5, Y + 5, TC.skinS);
+  if (P.hurt) t.rect(X, Y + 4, 2, 1, TC.eye);
+  else t.rect(X + 1, Y + 4, 1, 2, TC.eye);
+  t.set(X + 1, Y + 6, TC.blush);
+  if (TC.mask) {
+    t.rect(X - 1, Y + 5, 6, 2, TC.mask);
+    t.rect(X - 1, Y + 6, 6, 1, TC.maskS);
+  }
+  if (TC.hood) {
+    t.rect(X, Y - 3, 9, 4, TC.cape[1]);
+    t.rect(X + 4, Y, 6, 8, TC.cape[1]);
+    t.rect(X + 2, Y - 3, 4, 1, TC.cape[0]);
+    t.rect(X + 4, Y + 1, 1, 6, TC.cape[2]);
+  }
+}
+
+function drawTerenFrame(img, ox, oy, d, P) {
+  const tmp = new Img(TF, TF);
+  const fx = new Img(TF, TF);
+  const [vx, vy] = DIRV[d];
+  const ux = Math.round(vx * P.lean);
+  const uy = Math.round(vy * P.lean + P.bob);
+  // sombra
+  img.ellipse(ox + 24, oy + 41, P.roll !== undefined ? 7 : 6, 2, '#000000', 0.32);
+
+  if (P.roll !== undefined) {
+    const k = P.roll;
+    const cy = 35 - [0, 2, 3, 3, 2, 0][k];
+    const sq = k === 0 || k === 5 ? 1.15 : 1;
+    tmp.ellipse(24, cy, 6.5 * sq, 6.5 / sq, TC.tunic[1]);
+    tmp.ellipse(24.5, cy + 1, 4.5, 4, TC.tunic[2]);
+    const th = rad(k * 60 + 20);
+    for (let a = -0.9; a <= 0.9; a += 0.15)
+      tmp.ellipse(24 + Math.cos(th + a) * 4.6, cy + Math.sin(th + a) * 4.6, 1.3, 1.3, TC.cape[1]);
+    tmp.ellipse(24 + Math.cos(th + Math.PI) * 3.4, cy + Math.sin(th + Math.PI) * 3.4, 2.4, 2.4, TC.hair[1]);
+    tmp.ellipse(24 + Math.cos(th + 1.8) * 4, cy + Math.sin(th + 1.8) * 4, 1.4, 1.4, TC.boots[0]);
+    tmp.outline(0, 0, TF, TF);
+    composite(img, tmp, ox, oy);
+    return;
+  }
+
+  const view = d === 2 ? 1 : d;
+  const [sx0, sy0] = SHOULDER[view];
+  const sx = sx0 + ux;
+  const sy = sy0 + uy;
+  const ang = DIRA[view] + P.rel;
+  const hx = Math.round(sx + Math.cos(rad(ang)) * P.r);
+  const hy = Math.round(sy + Math.sin(rad(ang)) * P.r);
+  const len = P.len ?? 11;
+  const tipY = hy + Math.sin(rad(ang)) * len;
+  const behind = tipY < sy - 2;
+
+  // rastro do golpe
+  if (P.smearFrom !== undefined) {
+    const a0 = DIRA[view] + P.smearFrom;
+    drawSmear(fx, sx, sy, a0, ang, P.r + 3, P.r + len + 1, P.smear ?? 1);
+  }
+  if (P.thrust) drawThrustSmear(fx, hx, hy, ang, len, P.thrust);
+
+  if (behind) drawSword(tmp, hx, hy, ang, len);
+  if (view === 0) drawBodyFront(tmp, P, ux, uy);
+  else if (view === 3) drawBodyBack(tmp, P, ux, uy);
+  else drawBodySide(tmp, P, ux, uy);
+  // braço da espada: ombro → mão
+  thickLine(tmp, sx, sy, Math.round((sx + hx) / 2), Math.round((sy + hy) / 2), TC.tunic[2]);
+  thickLine(tmp, Math.round((sx + hx) / 2), Math.round((sy + hy) / 2), hx, hy, TC.skin);
+  tmp.rect(hx, hy, 2, 2, TC.skin);
+  if (!behind) drawSword(tmp, hx, hy, ang, len);
+  // mão livre estendida (conjurar)
+  if (P.off) {
+    const [ox0, oy0] = OFF_SHOULDER[view];
+    const fxx = ox0 + ux + vx * 7;
+    const fyy = oy0 + uy + (view === 1 ? 0 : vy * 6);
+    const ax = view === 1 ? 25 - 7 + ux : fxx;
+    thickLine(tmp, ox0 + ux, oy0 + uy, ax, fyy, TC.tunic[2]);
+    tmp.rect(ax, fyy, 2, 2, TC.skin);
+  }
+  tmp.outline(0, 0, TF, TF);
+  if (behind) {
+    composite(img, fx, ox, oy);
+    composite(img, tmp, ox, oy);
+  } else {
+    composite(img, tmp, ox, oy);
+    composite(img, fx, ox, oy);
+  }
+  if (P.off) {
+    const [ox0, oy0] = OFF_SHOULDER[view];
+    const cx = ox + (view === 1 ? 17 : ox0 + vx * 8) + ux;
+    const cy = oy + oy0 + uy + (view === 1 ? 0 : vy * 8);
+    img.ellipse(cx + 1, cy + 1, 2.6, 2.6, TC.fire[2], 0.9);
+    img.ellipse(cx + 1, cy + 1, 1.6, 1.6, TC.fire[1]);
+    img.set(cx + 1, cy, TC.fire[0]);
+  }
+}
+
+// composite precisa existir antes; definido abaixo como function (hoisting)
+function terenPoses(view) {
+  const idle = IDLE_ANGLE[view] - DIRA[view];
+  const base = { bob: 0, lean: 0, rel: idle, r: 4, liftL: 0, liftR: 0, spread: 0, armSwing: 0, capeSway: 0, capeFly: 0, legA: 0 };
+  const P = (o) => ({ ...base, ...o });
+  const frames = [];
+  // parado (respiração)
+  for (const b of [0, 0, 1, 1]) frames.push(P({ bob: b, rel: idle + b * 3 }));
+  // andar (6)
+  for (let k = 0; k < 6; k++) {
+    const s = Math.sin((k / 6) * Math.PI * 2);
+    frames.push(
+      P({
+        bob: k === 1 || k === 4 ? -1 : 0,
+        liftL: s > 0.4 ? 1 : 0,
+        liftR: s < -0.4 ? 1 : 0,
+        legA: Math.round(s * 2.5),
+        armSwing: Math.round(-s),
+        capeSway: Math.round(s),
+        capeFly: k % 3 === 0 ? 1 : 2,
+        rel: idle + s * 8,
+      }),
+    );
+  }
+  // golpe 1: diagonal (preparo → impacto → continuação → recuperação)
+  const slash = (rels, rs, leans) =>
+    rels.map((rel, i) =>
+      P({
+        rel,
+        r: rs[i],
+        lean: leans[i],
+        spread: i >= 1 && i <= 3 ? 1 : 0,
+        smearFrom: i >= 1 && i <= 3 ? rels[i - 1] : undefined,
+        smear: [0, 0.7, 1, 0.55, 0][i],
+        capeFly: i >= 2 ? 2 : 0,
+        capeSway: i >= 2 ? 1 : 0,
+        armSwing: i >= 2 ? 1 : 0,
+      }),
+    );
+  frames.push(...slash([-125, -70, -5, 55, 70], [4, 6, 8, 7, 5], [-1, 0, 1.5, 1.5, 0.5]));
+  // golpe 2: de volta (backhand)
+  frames.push(...slash([115, 70, 5, -55, -70], [5, 6, 8, 7, 5], [-0.5, 0, 1.5, 1.5, 0.5]));
+  // golpe 3: estocada com avanço
+  const th = [
+    { r: 1, lean: -1.5, bob: 1 },
+    { r: 3, lean: -1, bob: 1 },
+    { r: 10, lean: 2.5, thrust: 1 },
+    { r: 10, lean: 2.5, thrust: 0.5 },
+    { r: 6, lean: 1 },
+  ];
+  for (const t of th) frames.push(P({ rel: 0, len: 12, spread: 1, capeFly: 2, ...t }));
+  // rolagem (6)
+  for (let k = 0; k < 6; k++) frames.push({ roll: k });
+  // dano
+  frames.push(P({ lean: -1.5, rel: idle + 25, r: 3, hurt: true, armSwing: -1 }));
+  // conjurar
+  frames.push(P({ lean: 0.5, off: true, rel: idle - 10 }));
+  return frames;
+}
+
+{
+  const sheet = new Img(TEREN_COLS * TF, 4 * TF);
+  for (const d of [0, 1, 3]) {
+    const poses = terenPoses(d);
+    if (poses.length !== TEREN_COLS) throw new Error('teren: número de frames inválido');
+    poses.forEach((p, c) => drawTerenFrame(sheet, c * TF, d * TF, d, p));
+  }
+  for (let c = 0; c < TEREN_COLS; c++) sheet.mirror(c * TF, TF, TF, TF, c * TF, 2 * TF);
+  save('assets/sprites/teren.png', sheet);
+}
+
+// Bandoleiro no mesmo rig: 0–3 parado · 4–9 andar · 10–14 golpe de adaga · 15 dano
+const BANDIT_COLS = 16;
+function banditPoses(view) {
+  const all = terenPoses(view);
+  const idle = IDLE_ANGLE[view] - DIRA[view];
+  const base = all[0];
+  const P = (o) => ({ ...base, ...o });
+  const dagger = 7;
+  const stab = [
+    P({ rel: -150, r: 3, lean: -1, bob: 1, len: dagger }),
+    P({ rel: -95, r: 5, lean: 0, len: dagger, smearFrom: -150, smear: 0.6 }),
+    P({ rel: -20, r: 9, lean: 2, len: dagger, spread: 1, smearFrom: -95, smear: 1 }),
+    P({ rel: 30, r: 8, lean: 2, len: dagger, spread: 1, smearFrom: -20, smear: 0.5 }),
+    P({ rel: idle, r: 5, lean: 0.5, len: dagger }),
+  ];
+  const withDagger = (f) => ({ ...f, len: dagger });
+  return [...all.slice(0, 10).map(withDagger), ...stab, withDagger(all[31])];
+}
+{
+  TC = BANDIT_PAL;
+  const sheet = new Img(BANDIT_COLS * TF, 4 * TF);
+  for (const d of [0, 1, 3]) banditPoses(d).forEach((p, c) => drawTerenFrame(sheet, c * TF, d * TF, d, p));
+  for (let c = 0; c < BANDIT_COLS; c++) sheet.mirror(c * TF, TF, TF, TF, c * TF, 2 * TF);
+  save('assets/sprites/bandit.png', sheet);
+  TC = TEREN_PAL;
+}
+
 
 // limo: 4 frames (pulo) + 1 frame de dano
 {

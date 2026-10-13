@@ -19,8 +19,8 @@ export class BootScene extends Phaser.Scene {
 
     this.load.image('tiles', 'assets/tilesets/vaelmor-tiles.png');
     const sheet = (key: string, file: string, w = 16, h = 16) => this.load.spritesheet(key, S + file, { frameWidth: w, frameHeight: h });
-    sheet('teren', 'teren.png');
-    sheet('bandit', 'bandit.png');
+    sheet('teren', 'teren.png', 48, 48);
+    sheet('bandit', 'bandit.png', 48, 48);
     sheet('slime', 'slime.png');
     sheet('wolf', 'wolf.png');
     sheet('sheep', 'sheep.png');
@@ -42,12 +42,27 @@ export class BootScene extends Phaser.Scene {
     const a = this.anims;
     const range = (key: string, start: number, end: number) => a.generateFrameNumbers(key, { start, end });
     const frames = (key: string, list: number[]) => a.generateFrameNumbers(key, { frames: list });
-    // Teren: 5 colunas (idle, passoA, passoB, ataque, rolagem) × 4 direções
+    // Teren: 33 colunas por direção (ver scripts/generate-assets.mjs)
+    const row = 33;
+    const timed = (d: number, start: number, durations: number[]) =>
+      durations.map((duration, i) => ({ key: 'teren', frame: d * row + start + i, duration }));
     for (let d = 0; d < 4; d++) {
-      a.create({ key: `teren-walk-${d}`, frames: frames('teren', [d * 5 + 1, d * 5, d * 5 + 2, d * 5]), frameRate: 9, repeat: -1 });
-      a.create({ key: `bandit-walk-${d}`, frames: frames('bandit', [d * 4 + 1, d * 4, d * 4 + 2, d * 4]), frameRate: 7, repeat: -1 });
+      a.create({ key: `teren-idle-${d}`, frames: range('teren', d * row, d * row + 3), frameRate: 3, repeat: -1 });
+      a.create({ key: `teren-walk-${d}`, frames: range('teren', d * row + 4, d * row + 9), frameRate: 12, repeat: -1 });
+      // golpes: preparo, transição, impacto, continuação, recuperação (somam combo[].dur)
+      a.create({ key: `teren-atk1-${d}`, frames: timed(d, 10, [70, 45, 60, 70, 85]), repeat: 0 });
+      a.create({ key: `teren-atk2-${d}`, frames: timed(d, 15, [70, 45, 60, 70, 85]), repeat: 0 });
+      a.create({ key: `teren-atk3-${d}`, frames: timed(d, 20, [100, 70, 80, 90, 100]), repeat: 0 });
+      a.create({ key: `teren-roll-${d}`, frames: range('teren', d * row + 25, d * row + 30), frameRate: 24, repeat: -1 });
+      const br = 16;
+      a.create({ key: `bandit-idle-${d}`, frames: range('bandit', d * br, d * br + 3), frameRate: 3, repeat: -1 });
+      a.create({ key: `bandit-walk-${d}`, frames: range('bandit', d * br + 4, d * br + 9), frameRate: 10, repeat: -1 });
+      a.create({
+        key: `bandit-atk-${d}`,
+        frames: [11, 12, 13, 14].map((c, i) => ({ key: 'bandit', frame: d * br + c, duration: [40, 70, 80, 110][i] })),
+        repeat: 0,
+      });
     }
-    a.create({ key: 'teren-roll', frames: frames('teren', [4, 9, 14, 19]), frameRate: 18, repeat: -1 });
     a.create({ key: 'slime-hop', frames: frames('slime', [0, 1, 2, 3, 2, 1]), frameRate: 9, repeat: -1 });
     a.create({ key: 'wolf-walk', frames: range('wolf', 0, 1), frameRate: 6, repeat: -1 });
     a.create({ key: 'sheep-walk', frames: range('sheep', 0, 1), frameRate: 4, repeat: -1 });

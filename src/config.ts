@@ -19,7 +19,18 @@ export const VIEW_TILES_H = 12;
 export const PLAYER = {
   speed: 78, // px/s
   maxHp: 10,
-  attack: { damage: 2, range: 24, arcDeg: 130, cooldown: 380, knockback: 160 },
+  /**
+   * Combo de 3 golpes. `dur` = duração da animação (ms), `hit` = instante do
+   * impacto, `lunge` = avanço (px/s) no impacto. Os tempos batem com as
+   * durações dos frames em BootScene.
+   */
+  combo: [
+    { anim: 'atk1', dur: 330, hit: 115, damage: 2, range: 24, arcDeg: 150, knockback: 150, lunge: 45 },
+    { anim: 'atk2', dur: 330, hit: 115, damage: 2, range: 24, arcDeg: 150, knockback: 150, lunge: 45 },
+    { anim: 'atk3', dur: 440, hit: 170, damage: 3, range: 31, arcDeg: 70, knockback: 260, lunge: 150 },
+  ],
+  /** Janela (ms) após um golpe para encadear o próximo do combo. */
+  comboWindow: 380,
   dodge: { speed: 210, duration: 260, cooldown: 650 },
   flame: { damage: 3, speed: 170, range: 150, radius: 30, cooldown: 4000 },
   hurtInvuln: 900,

@@ -5,7 +5,11 @@ import type { WorldScene } from '../scenes/WorldScene';
 import { Creature } from './Creature';
 import { Flame } from './Flame';
 
-type PlayerState = 'normal' | 'attack' | 'roll' | 'hurt' | 'dead';
+type PlayerState = 'normal' | 'attack' | 'cast' | 'roll' | 'hurt' | 'dead';
+
+/** Colunas do spritesheet teren.png (48×48, 33 por direção). */
+const F = { idle: 0, walk: 4, atk1: 10, atk2: 15, atk3: 20, roll: 25, hurt: 31, cast: 32, perRow: 33 } as const;
+type Swing = (typeof PLAYER.combo)[number];
 
 interface Keys {
   up: Phaser.Input.Keyboard.Key[];
@@ -28,7 +32,11 @@ export class Player extends Creature {
   private dir = 0;
   private stateUntil = 0;
   private invulnUntil = 0;
-  private lastAttack = -99999;
+  private combo = 0;
+  private comboUntil = 0;
+  private hitDone = true;
+  private swingStart = 0;
+  private currentSwing: Swing = PLAYER.combo[0];
   private lastDodge = -99999;
   private lastFlame = -99999;
   private lastGhost = 0;
@@ -41,6 +49,9 @@ export class Player extends Creature {
 
   constructor(scene: WorldScene, x: number, y: number) {
     super(scene, x, y, 'teren', 8, 5);
+    // frame 48×48 com os pés em y≈40
+    this.setOrigin(0.5, 40 / 48);
+    this.body.setOffset(20, 37);
     this.spawnX = x;
     this.spawnY = y;
     const kb = scene.input.keyboard;
@@ -112,7 +123,8 @@ export class Player extends Creature {
     const wantFlame = this.pressed('flame', time);
     const st = this.state2;
 
-    inputState.cooldowns.attack = Phaser.Math.Clamp(1 - (time - this.lastAttack) / PLAYER.attack.cooldown, 0, 1);
+    inputState.cooldowns.attack =
+      st === 'attack' ? Phaser.Math.Clamp((this.stateUntil - time) / this.currentSwing.dur, 0, 1) : 0;
     inputState.cooldowns.dodge = Phaser.Math.Clamp(1 - (time - this.lastDodge) / PLAYER.dodge.cooldown, 0, 1);
     inputState.cooldowns.flame = Phaser.Math.Clamp(1 - (time - this.lastFlame) / PLAYER.flame.cooldown, 0, 1);
     inputState.hp = this.hp;
@@ -142,69 +154,89 @@ export class Player extends Creature {
 
     if (move.lengthSq() > 0) {
       this.facing.copy(move).normalize();
-      if (st !== 'attack') this.updateDir(move.x, move.y);
+      if (st === 'normal') this.updateDir(move.x, move.y);
     }
 
-    // ações
+    // ações — a esquiva cancela golpes; o golpe pode ser encadeado no fim da recuperação
     if (wantDodge && time - this.lastDodge >= PLAYER.dodge.cooldown) {
       this.startRoll(time, move);
       return;
     }
     if (wantFlame && st === 'normal' && time - this.lastFlame >= PLAYER.flame.cooldown) this.castFlame(time);
-    if (wantAttack && st === 'normal' && time - this.lastAttack >= PLAYER.attack.cooldown) this.swing(time);
-
-    const speedMul = this.state2 === 'attack' ? 0.35 : 1;
-    this.body.setVelocity(move.x * PLAYER.speed * speedMul, move.y * PLAYER.speed * speedMul);
+    // encadeia no fim da recuperação; depois do golpe final o combo termina
+    const canChain = st === 'attack' && this.combo < PLAYER.combo.length - 1 && time >= this.stateUntil - 90;
+    if (wantAttack && (this.state2 === 'normal' || canChain)) this.swing(time);
 
     if (this.state2 === 'attack') {
-      this.anims.stop();
-      this.setFrame(this.dir * 5 + 3);
-      if (time >= this.stateUntil) this.state2 = 'normal';
-    } else if (move.lengthSq() > 0) {
-      const key = `teren-walk-${this.dir}`;
-      if (this.anims.currentAnim?.key !== key || !this.anims.isPlaying) this.play(key, true);
-      this.anims.timeScale = 0.6 + move.length() * 0.6;
+      // passo à frente no instante do impacto; quase parado no resto do golpe
+      const S = this.currentSwing;
+      const t = time - this.swingStart;
+      const lunge = t > S.hit - 60 && t < S.hit + 40 ? S.lunge : 0;
+      // impacto medido no mesmo relógio do estado (delayedCall atrasa com FPS baixo)
+      if (!this.hitDone && t >= S.hit) {
+        this.hitDone = true;
+        this.resolveHit(S);
+      }
+      this.body.setVelocity(this.facing.x * lunge + move.x * PLAYER.speed * 0.15, this.facing.y * lunge + move.y * PLAYER.speed * 0.15);
+      if (time >= this.stateUntil) this.toIdle();
+    } else if (this.state2 === 'cast') {
+      this.body.setVelocity(move.x * PLAYER.speed * 0.3, move.y * PLAYER.speed * 0.3);
+      if (time >= this.stateUntil) this.toIdle();
     } else {
-      this.anims.stop();
-      this.setFrame(this.dir * 5);
+      this.body.setVelocity(move.x * PLAYER.speed, move.y * PLAYER.speed);
+      const key = move.lengthSq() > 0 ? `teren-walk-${this.dir}` : `teren-idle-${this.dir}`;
+      if (this.anims.currentAnim?.key !== key || !this.anims.isPlaying) this.play(key, true);
+      this.anims.timeScale = move.lengthSq() > 0 ? 0.6 + move.length() * 0.6 : 1;
     }
     this.sortDepth();
   }
 
-  // ---------------------------------------------------------------- Golpe
+  private toIdle() {
+    this.state2 = 'normal';
+    this.anims.timeScale = 1;
+    this.play(`teren-idle-${this.dir}`, true);
+  }
+
+  // ---------------------------------------------------------------- Golpe (combo de 3)
   private swing(time: number) {
-    this.lastAttack = time;
+    const chaining = this.state2 === 'attack' || time < this.comboUntil;
+    const step = chaining && this.combo < PLAYER.combo.length - 1 ? this.combo + 1 : 0;
+    const S = PLAYER.combo[step];
+    this.combo = step;
+    this.currentSwing = S;
+    this.swingStart = time;
     this.buffered.attack = 0;
     this.state2 = 'attack';
-    this.stateUntil = time + 170;
-    const angle = Math.atan2(this.facing.y, this.facing.x);
+    this.stateUntil = time + S.dur;
+    this.comboUntil = step < PLAYER.combo.length - 1 ? time + S.dur + PLAYER.comboWindow : 0;
     this.updateDir(this.facing.x, this.facing.y);
-    const cx = this.fx;
-    const cy = this.fy - 4;
-    const s = this.scene;
-    const slash = s.add
-      .sprite(cx + Math.cos(angle) * 11, cy + Math.sin(angle) * 11, 'slash', 0)
-      .setRotation(angle)
-      .setDepth(this.depth + 5);
-    slash.play('slash');
-    slash.once('animationcomplete', () => slash.destroy());
+    this.anims.timeScale = 1;
+    this.play(`teren-${S.anim}-${this.dir}`, true);
+    this.hitDone = false;
+  }
 
-    const A = PLAYER.attack;
-    const half = Phaser.Math.DegToRad(A.arcDeg / 2);
+  private resolveHit(S: Swing) {
+    const s = this.scene;
+    const angle = Math.atan2(this.facing.y, this.facing.x);
+    const cx = this.fx;
+    const cy = this.fy;
+    const half = Phaser.Math.DegToRad(S.arcDeg / 2);
     let hit = false;
     for (const e of s.enemies) {
       if (e.dead) continue;
-      const d = Phaser.Math.Distance.Between(cx, cy + 4, e.fx, e.fy);
-      if (d > A.range + 6) continue;
-      const diff = Math.abs(Phaser.Math.Angle.Wrap(Phaser.Math.Angle.Between(cx, cy + 4, e.fx, e.fy) - angle));
+      const d = Phaser.Math.Distance.Between(cx, cy, e.fx, e.fy);
+      if (d > S.range + 6) continue;
+      const diff = Math.abs(Phaser.Math.Angle.Wrap(Phaser.Math.Angle.Between(cx, cy, e.fx, e.fy) - angle));
       if (diff <= half || d < 10) {
-        e.takeDamage(A.damage, this.fx, this.fy, A.knockback);
+        e.takeDamage(S.damage, this.fx, this.fy, S.knockback);
+        s.fx.burst((e.fx + cx) / 2 + (e.fx - cx) * 0.3, e.fy - 6, 0xffffff, 5);
         hit = true;
       }
     }
     if (hit) {
-      s.cameras.main.shake(70, 0.0025);
-      s.hitStop(45);
+      const finisher = S === PLAYER.combo[PLAYER.combo.length - 1];
+      s.cameras.main.shake(finisher ? 120 : 70, finisher ? 0.005 : 0.0025);
+      s.hitStop(finisher ? 80 : 45);
     }
   }
 
@@ -216,14 +248,13 @@ export class Player extends Creature {
     this.stateUntil = time + PLAYER.dodge.duration;
     this.rollDir.copy(move.lengthSq() > 0 ? move : this.facing).normalize();
     this.updateDir(this.rollDir.x, this.rollDir.y);
-    this.play('teren-roll');
+    this.anims.timeScale = 1;
+    this.play(`teren-roll-${this.dir}`, true);
     this.setAlpha(1);
   }
 
   private endRoll() {
-    this.state2 = 'normal';
-    this.anims.stop();
-    this.setFrame(this.dir * 5);
+    this.toIdle();
   }
 
   private ghost(time: number) {
@@ -242,9 +273,12 @@ export class Player extends Creature {
     this.lastFlame = time;
     this.buffered.flame = 0;
     const a = Math.atan2(this.facing.y, this.facing.x);
-    new Flame(this.scene, this.fx + Math.cos(a) * 8, this.fy - 4 + Math.sin(a) * 8, a);
-    this.state2 = 'attack';
-    this.stateUntil = time + 150;
+    new Flame(this.scene, this.fx + Math.cos(a) * 8, this.fy - 6 + Math.sin(a) * 8, a);
+    this.updateDir(this.facing.x, this.facing.y);
+    this.anims.stop();
+    this.setFrame(this.dir * F.perRow + F.cast);
+    this.state2 = 'cast';
+    this.stateUntil = time + 220;
   }
 
   // ---------------------------------------------------------------- Dano
@@ -253,7 +287,7 @@ export class Player extends Creature {
     const s = this.scene;
     this.hp = Math.max(0, this.hp - amount);
     this.invulnUntil = s.time.now + PLAYER.hurtInvuln;
-    s.fx.damageText(this.x, this.y - 16, amount, '#ff6060');
+    s.fx.damageText(this.x, this.y - 24, amount, '#ff6060');
     s.cameras.main.shake(120, 0.006);
     this.setTintFill(0xff4040);
     s.time.delayedCall(100, () => this.clearTint());
@@ -265,6 +299,8 @@ export class Player extends Creature {
     }
     this.state2 = 'hurt';
     this.stateUntil = s.time.now + 180;
+    this.anims.stop();
+    this.setFrame(this.dir * F.perRow + F.hurt);
   }
 
   private die() {
@@ -283,8 +319,7 @@ export class Player extends Creature {
         this.setAngle(0).setAlpha(1);
         this.hp = this.maxHp;
         this.dir = 0;
-        this.setFrame(0);
-        this.state2 = 'normal';
+        this.toIdle();
         this.invulnUntil = s.time.now + 2000;
         s.cameras.main.fadeIn(500, 10, 8, 20);
       });

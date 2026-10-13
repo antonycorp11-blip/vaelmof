@@ -9,19 +9,29 @@ export class Bandit extends Enemy {
   readonly fxColor = 0xc0392b;
   private mode: BanditState = 'patrol';
   private stateUntil = 0;
+  private strikeAngle = 0;
+  private struck = false;
   private dir = 0;
+  /** Colunas por direção em bandit.png: 0–3 parado, 4–9 andar, 10–14 golpe, 15 dano. */
+  static readonly ROW = 16;
   private alert?: Phaser.GameObjects.Text;
   static readonly DETECT = 118;
   static readonly REACH = 22;
 
   constructor(scene: WorldScene, x: number, y: number) {
     super(scene, x, y, 'bandit', 8, 10, 6);
+    // frame 48×48 (mesmo rig do Teren), pés em y≈40
+    this.setOrigin(0.5, 40 / 48);
+    this.body.setOffset(19, 37);
+    this.barOffset = 28;
     this.play('bandit-walk-0');
   }
 
   protected onHurt() {
     if (this.mode === 'patrol') this.go('chase', 0);
-    if (this.mode === 'windup') this.go('cooldown', 450);
+    if (this.mode === 'windup' || this.mode === 'strike') this.go('cooldown', 450);
+    this.anims.stop();
+    this.setFrame(this.dir * Bandit.ROW + 15);
   }
 
   protected onRespawn() {
@@ -43,21 +53,21 @@ export class Bandit extends Enemy {
     if (moving) {
       if (this.anims.currentAnim?.key !== key || !this.anims.isPlaying) this.play(key, true);
     } else {
-      this.anims.stop();
-      this.setFrame(this.dir * 4);
+      const idle = `bandit-idle-${this.dir}`;
+      if (this.anims.currentAnim?.key !== idle || !this.anims.isPlaying) this.play(idle, true);
     }
   }
 
   private showAlert() {
     if (this.alert) return;
     this.alert = this.scene.add
-      .text(this.x, this.y - 22, '!', { fontFamily: 'monospace', fontSize: '12px', color: '#ffdd55', fontStyle: 'bold' })
+      .text(this.x, this.y - 32, '!', { fontFamily: 'monospace', fontSize: '12px', color: '#ffdd55', fontStyle: 'bold' })
       .setOrigin(0.5)
       .setResolution(4)
       .setDepth(this.depth + 1);
     this.scene.tweens.add({
       targets: this.alert,
-      y: this.y - 28,
+      y: this.y - 38,
       alpha: 0,
       duration: 700,
       onComplete: () => {
@@ -93,23 +103,32 @@ export class Bandit extends Enemy {
         break;
       }
       case 'windup': {
+        // preparo: adaga erguida, pisca em vermelho
         this.body.setVelocity(0, 0);
         this.face(Math.cos(a), Math.sin(a));
         this.anims.stop();
-        this.setFrame(this.dir * 4);
+        this.setFrame(this.dir * Bandit.ROW + 10);
         if (Math.floor(time / 60) % 2) this.setTint(0xffa0a0);
         else this.clearTint();
         if (time >= this.stateUntil) {
           this.clearTint();
-          this.strike(a);
-          this.go('strike', 180);
+          this.strikeAngle = a;
+          this.struck = false;
+          this.play(`bandit-atk-${this.dir}`, true);
+          this.go('strike', 300);
         }
         break;
       }
       case 'strike': {
-        this.body.setVelocity(0, 0);
-        this.setFrame(this.dir * 4 + 3);
-        if (time >= this.stateUntil) this.go('cooldown', 650);
+        // investida curta e impacto no frame de contato
+        const t = 300 - (this.stateUntil - time);
+        const v = t < 120 ? 70 : 0;
+        this.body.setVelocity(Math.cos(this.strikeAngle) * v, Math.sin(this.strikeAngle) * v);
+        if (!this.struck && t >= 70) {
+          this.struck = true;
+          this.strike(this.strikeAngle);
+        }
+        if (time >= this.stateUntil) this.go('cooldown', 600);
         break;
       }
       case 'cooldown': {
@@ -122,18 +141,9 @@ export class Bandit extends Enemy {
   }
 
   private strike(angle: number) {
-    const s = this.scene;
-    const fxs = s.add
-      .sprite(this.fx + Math.cos(angle) * 10, this.fy - 4 + Math.sin(angle) * 10, 'slash', 0)
-      .setRotation(angle)
-      .setScale(0.8)
-      .setTint(0xff7060)
-      .setDepth(this.depth + 2);
-    fxs.play('slash');
-    fxs.once('animationcomplete', () => fxs.destroy());
-    const p = s.player;
+    const p = this.scene.player;
     const d = Phaser.Math.Distance.Between(this.fx, this.fy, p.fx, p.fy);
     const diff = Math.abs(Phaser.Math.Angle.Wrap(Phaser.Math.Angle.Between(this.fx, this.fy, p.fx, p.fy) - angle));
-    if (d < Bandit.REACH + 8 && diff < Phaser.Math.DegToRad(75)) p.hurt(2, this.fx, this.fy);
+    if (d < Bandit.REACH + 10 && diff < Phaser.Math.DegToRad(80)) p.hurt(2, this.fx, this.fy);
   }
 }

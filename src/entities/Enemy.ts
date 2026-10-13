@@ -14,6 +14,8 @@ export abstract class Enemy extends Creature {
   dead = false;
   /** Dano causado ao encostar no jogador (0 = não causa). */
   contactDamage = 0;
+  /** Altura (px acima de y) da barra de vida e do número de dano. */
+  barOffset = 16;
   readonly homeX: number;
   readonly homeY: number;
   protected stunUntil = 0;
@@ -37,7 +39,7 @@ export abstract class Enemy extends Creature {
     this.hp -= amount;
     this.onHurt();
     this.flashWhite();
-    this.scene.fx.damageText(this.x, this.y - 14, amount);
+    this.scene.fx.damageText(this.x, this.y - this.barOffset + 2, amount);
     const a = Phaser.Math.Angle.Between(fromX, fromY, this.fx, this.fy);
     this.body.setVelocity(Math.cos(a) * knockback, Math.sin(a) * knockback);
     this.stunUntil = this.scene.time.now + 220;

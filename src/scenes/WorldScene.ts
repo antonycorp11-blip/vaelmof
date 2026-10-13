@@ -322,7 +322,10 @@ export class WorldScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------------ loop
-  update(time: number, delta: number) {
+  update(_time: number, delta: number) {
+    // tudo usa o relógio da cena (o mesmo de delayedCall/tweens); o tempo do
+    // loop do jogo diverge dele quando há quedas de FPS
+    const time = this.time.now;
     const dt = Math.min(delta, 50);
     this.dayNight.update(dt);
     this.animateTiles(dt);
@@ -374,7 +377,7 @@ export class WorldScene extends Phaser.Scene {
       if (e.dead || e.hp >= e.maxHp || !view.contains(e.x, e.y)) continue;
       const w = 12;
       const x = Math.round(e.x - w / 2);
-      const y = Math.round(e.y - 16);
+      const y = Math.round(e.y - e.barOffset);
       g.fillStyle(0x1e1a24, 0.85).fillRect(x - 1, y - 1, w + 2, 4);
       g.fillStyle(0xe04848, 1).fillRect(x, y, Math.max(1, (w * e.hp) / e.maxHp), 2);
     }

@@ -98,8 +98,14 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   direção é quantizada em 45°). Velocidade em `PLAYER.speed` (`src/config.ts`).
 - **HP 10** com barra segmentada no HUD; pisca e fica invulnerável por 0,9 s
   após tomar dano. Ao morrer, volta a Brumavale com HP cheio.
-- **Golpe**: arco de 130° com alcance de 24 px, dano 2, knockback, cooldown
-  380 ms, pequeno "hit stop" e tremida de câmera ao acertar.
+- **Golpe: combo de 3 movimentos.** Golpe diagonal → golpe de volta →
+  estocada com avanço (dano 2, 2 e 3; a estocada alcança mais longe e
+  empurra mais). Cada golpe tem 5 quadros — preparo, transição, impacto,
+  continuação e recuperação — e o dano sai no quadro de impacto. Apertar de
+  novo no fim da recuperação (ou dentro de 380 ms) encadeia o próximo; depois
+  do golpe final o combo recomeça. Segurar o botão repete. A esquiva cancela
+  qualquer golpe. "Hit stop", faíscas e tremida de câmera ao acertar (mais
+  fortes no golpe final). Ajustes em `PLAYER.combo` (`src/config.ts`).
 - **Esquiva**: rolagem de 260 ms com **invulnerabilidade** durante o
   movimento, rastro de imagens e cooldown de 650 ms.
 - **Chama**: projétil que explode ao tocar um inimigo, um obstáculo ou no fim
@@ -116,7 +122,8 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   em vermelho** como aviso e dá uma **investida** rápida (dano 2 no contato
   durante o bote), depois se recupera.
 - **Bandoleiro** (HP 8): patrulha estradas e arredores; ao detectar (118 px)
-  mostra "!", persegue e **ataca de perto** com adaga após um aviso (dano 2).
+  mostra "!", persegue e **ataca de perto** com adaga: ergue a lâmina e pisca
+  (aviso), dá um passo e corta (dano 2 no quadro de impacto).
 - Todos têm HP (barra aparece quando feridos), recebem dano do golpe e da
   chama, **piscam em branco** ao serem atingidos, sofrem knockback e têm
   **animação de morte** (achatamento + partículas). Renascem no ponto de
@@ -202,18 +209,27 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 4. **Árvores como tiles**: tronco na camada de decoração com colisão de
    1 tile; copa 3×2 numa camada acima das entidades. Barato e sem
    ordenação por objeto.
-5. **Casas e entidades** usam ordenação por y (profundidade = y), então
+5. **Personagens humanos por rig de poses** (`scripts/generate-assets.mjs`,
+   seção "TEREN"): cada quadro é uma pose (inclinação, passada, ângulo e
+   distância da mão). Golpes são varreduras de ângulo relativas à direção do
+   personagem, então as 4 direções saem da mesma coreografia; a espada fica
+   atrás do corpo quando aponta "para longe" (para cima na tela). O rastro é
+   desenhado entre o ângulo do quadro anterior e o atual.
+6. **Tempo de jogo único**: jogador e inimigos usam o relógio da cena
+   (`this.time.now`); o impacto do golpe é medido no `update`, não com
+   `delayedCall`, para não atrasar em quedas de FPS.
+7. **Casas e entidades** usam ordenação por y (profundidade = y), então
    Teren passa "atrás" do telhado das casas.
-6. **Ataque em arco calculado por geometria** (distância + ângulo), sem
+8. **Ataque em arco calculado por geometria** (distância + ângulo), sem
    corpos físicos extras.
-7. **Projéteis atravessam água** mas não paredes, árvores ou casas.
-8. **Zoom pela área** (√(área da tela / área de 20×12 tiles)) em vez de
+9. **Projéteis atravessam água** mas não paredes, árvores ou casas.
+10. **Zoom pela área** (√(área da tela / área de 20×12 tiles)) em vez de
    fixar largura ou altura, para funcionar bem em telas 16:9 e 19,5:9.
-9. **Luz sem shaders**: overlay MULTIPLY + sprites de brilho ADD, só os
+11. **Luz sem shaders**: overlay MULTIPLY + sprites de brilho ADD, só os
    que estão na tela ficam visíveis.
-10. **Simulação por raio**: só inimigos e animais a até 360 px do centro da
+12. **Simulação por raio**: só inimigos e animais a até 360 px do centro da
     câmera processam IA; os demais ficam parados.
-11. Morte do jogador sem tela de game over (não há menus): volta para
+13. Morte do jogador sem tela de game over (não há menus): volta para
     Brumavale após um fade.
 
 ## Desempenho (limites)
@@ -233,7 +249,8 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 | Item | Situação |
 |---|---|
 | Todo o tileset (grama, terra, areia, rocha, água, cachoeira, penhascos, estrada, ponte, escadaria, flores, arbustos, cercas, árvores) | placeholder procedural — trocar por Kenney Tiny Town / Roguelike RPG Pack ou arte própria |
-| Sprites de Teren, Bandoleiro, Limo, Lobo, Ovelha, Cervo, Pássaro | placeholder procedural (4 direções para humanoides; vista lateral espelhada para quadrúpedes) |
+| Teren e Bandoleiro | procedurais por **rig de poses** (48×48, ~24 px de altura): braço do ombro à mão, arma presa à mão, rastro do golpe calculado do ângulo da lâmina |
+| Limo, Lobo, Ovelha, Cervo, Pássaro | placeholder procedural 16×16 (vista lateral espelhada para quadrúpedes) |
 | Casas (2 estilos por vila), poço, tochas | placeholder procedural |
 | Efeitos: arco do golpe, chama, explosão, gota, respingo, neblina, brilho | placeholder procedural |
 | Ícones de botões e do PWA | placeholder procedural |
