@@ -129,6 +129,10 @@ export const T = {
   FIELD: 489,
   PLAZA: 490,
   BANNER: 491,
+  /** Sede do clã: paliçada (topo, frente) e pátio. A muralha de pedra usa WALL (estilo block). */
+  PALISADE: 492,
+  PALISADE_FACE: 493,
+  YARD: 494,
 } as const;
 
 export const ANIM_FRAMES = 4;

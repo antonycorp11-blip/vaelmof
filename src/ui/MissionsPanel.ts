@@ -106,7 +106,7 @@ export class MissionsPanel {
     if (!m) return;
     c.title.setText(active && m.kind === 'hunt' ? `${m.title} · ${m.have}/${m.need}` : m.title).setColor(KIND_COLOR[m.kind]);
     c.desc.setText(m.desc);
-    c.reward.setText(`+${m.reward} Glória · +${m.recruits} recrutas${active ? ` · ${lordOf(m.city)}` : ''}`);
+    c.reward.setText(`+${m.reward} Glória · +${this.world.missions.gold(m)} ouro · +${m.recruits} recrutas${active ? ` · ${lordOf(m.city)}` : ''}`);
   }
 
   refresh(force = false) {
@@ -115,8 +115,11 @@ export class MissionsPanel {
     const city = M.cityHere();
     this.win.sub.setText(`${M.done} cumpridas · ${M.active.length}/3 em andamento`);
     const offers = city ? M.offersOf(city) : [];
-    this.lordTitle.setText(city ? `${lordOf(city.name)} de ${city.name} oferece:` : 'Nenhum Lorde por perto');
-    this.none.setVisible(!city).setText('Entre numa cidade para falar com o Lorde.\nCada cidade tem o seu, com missões próprias.');
+    const hq = this.world.hq;
+    this.lordTitle.setText(city ? `Chamados de ${lordOf(city.name)} de ${city.name}:` : hq.founded ? 'Longe da sede' : 'Longe de Brumavale');
+    this.none
+      .setVisible(!city)
+      .setText(hq.founded ? 'Os chamados dos Lordes chegam ao Salão da sede.\nVolte à sede para aceitar missões.' : 'Sem sede, o clã recebe os chamados no salão\nde Brumavale. Erga uma sede quando virar Clã.');
     this.offers.forEach((c, i) => this.fill(c, offers[i], false));
     this.actives.forEach((c, i) => this.fill(c, M.active[i], true));
     for (const c of this.offers) c.btn.setEnabled(M.active.length < 3);

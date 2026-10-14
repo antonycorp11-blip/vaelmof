@@ -144,6 +144,16 @@ export class Progress extends Phaser.Events.EventEmitter {
   }
 
   /** Distribui `n` pontos no atributo (até o limite). Devolve quanto entrou. */
+  /**
+   * Castigo pela queda da sede: perde parte da Glória e dos atributos já
+   * distribuídos (os pontos somem). A patente conquistada fica.
+   */
+  penalize(gloryK: number, attrK: number) {
+    this.glory = Math.max(0, Math.round(this.glory * (1 - gloryK)));
+    for (const a of ATTRS) this.attrs[a.id] = BASE + Math.floor((this.attrs[a.id] - BASE) * (1 - attrK));
+    this.changed();
+  }
+
   spend(a: Attr, n: number): number {
     const k = Math.max(0, Math.min(n, this.free, ATTR_MAX - this.attrs[a]));
     if (!k) return 0;

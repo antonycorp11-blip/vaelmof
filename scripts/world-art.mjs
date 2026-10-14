@@ -292,6 +292,36 @@ export function drawCityTiles({ tiles, at, rng, PAL, Img }) {
     t.rect(9, 2, 6, 1, '#cf6a50');
     t.rect(11, 5, 2, 2, '#f2c94c');
   });
+  // sede do clã: paliçada (topo com pontas e frente de toras) e pátio de terra batida
+  {
+    const [ox, oy] = at(CITY_BASE + 28);
+    tiles.rect(ox, oy, T, T, W[1]);
+    for (let x = 0; x < T; x += 4) {
+      tiles.rect(ox + x, oy + 4, 3, 12, x % 8 ? W[0] : W[2]);
+      tiles.rect(ox + x + 1, oy + 1, 1, 3, W[2]);
+      tiles.rect(ox + x, oy + 2, 3, 2, W[0]);
+      tiles.rect(ox + x + 3, oy + 4, 1, 12, W[3]);
+    }
+    tiles.rect(ox, oy + 9, T, 1, '#4a4a52');
+  }
+  {
+    const [ox, oy] = at(CITY_BASE + 29);
+    tiles.rect(ox, oy, T, T, W[3]);
+    for (let x = 0; x < T; x += 4) {
+      tiles.rect(ox + x, oy, 3, 15, x % 8 ? W[0] : W[2]);
+      tiles.rect(ox + x, oy, 1, 15, W[2]);
+    }
+    tiles.rect(ox, oy + 5, T, 1, '#4a4a52');
+    tiles.rect(ox, oy + 11, T, 1, '#4a4a52');
+    tiles.rect(ox, oy + 14, T, 2, '#000000', 0.3);
+  }
+  {
+    const [ox, oy] = at(CITY_BASE + 30);
+    const r = rng(990);
+    tiles.rect(ox, oy, T, T, '#9a7a52');
+    for (let k = 0; k < 22; k++) tiles.set(ox + Math.floor(r() * 16), oy + Math.floor(r() * 16), r() > 0.5 ? '#86663f' : '#b0906a');
+    for (let k = 0; k < 3; k++) tiles.rect(ox + Math.floor(r() * 13), oy + Math.floor(r() * 14), 3, 2, '#7a7670');
+  }
 }
 
 // ------------------------------------------------------------------ construções

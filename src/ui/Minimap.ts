@@ -126,6 +126,15 @@ export class Minimap {
       g.fillStyle(0x0b0d14, 1).fillPoints([{ x: pt[0], y: pt[1] - r - u }, { x: pt[0] + r + u, y: pt[1] }, { x: pt[0], y: pt[1] + r + u }, { x: pt[0] - r - u, y: pt[1] }], true);
       g.fillStyle(0xff5a5a, 1).fillPoints([{ x: pt[0], y: pt[1] - r }, { x: pt[0] + r, y: pt[1] }, { x: pt[0], y: pt[1] + r }, { x: pt[0] - r, y: pt[1] }], true);
     }
+    // sede do clã: brasão
+    if (w.hq.founded) {
+      const c = w.hq.center;
+      const pt = this.toScreen(c.x, c.y) ?? this.edge(c.x, c.y);
+      const r = 4 * u;
+      g.fillStyle(0x0b0d14, 1).fillRect(pt[0] - r - u, pt[1] - r - u, r * 2 + 2 * u, r * 2 + 2 * u);
+      g.fillStyle(w.clans.player.color, 1).fillRect(pt[0] - r, pt[1] - r, r * 2, r * 2);
+      g.fillStyle(0xffd77a, 1).fillRect(pt[0] - u, pt[1] - u, 2 * u, 2 * u);
+    }
     // procurados das missões: alvo vermelho
     for (const m of w.missions.active) {
       if (!m.target) continue;

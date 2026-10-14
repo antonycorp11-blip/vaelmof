@@ -90,6 +90,18 @@ export class DebugPanel {
     add('+500 glória', () => world.progress.addGlory(500), 'gold');
     add('Zerar tudo (recomeça)', () => world.resetAll(), 'red');
     add('Saque raro aqui', () => world.loot.drop(rollGear(1 + Math.floor(Math.random() * 4)), world.player.x + 24, world.player.y), 'gold');
+    add('+200 materiais, +2000 ouro', () => {
+      for (const f of ['wood_green', 'stone_green', 'ore_green', 'fiber_green', 'crystal_green']) world.inventory.add(f, 200);
+      world.hq.addGold(2000);
+    }, 'gold');
+    add('Virar Clã (+700 glória)', () => world.progress.addGlory(700), 'gold');
+    add('Ataque à sede (teste)', () => {
+      const c = world.clans.rivals.sort((a, b) => a.soldiers - b.soldiers)[0];
+      if (c && world.hq.founded) {
+        world.hq.scheduleRaid(c);
+        if (world.hq.st.raid) world.hq.st.raid.at = world.clans.now + 3000;
+      }
+    }, 'red');
     add('Clãs: avançar mundo', () => {
       for (let i = 0; i < 5; i++) world.clans.update(30000);
     }, 'gold');

@@ -210,6 +210,36 @@ const ICONS = [
     t.rect(7, 4, 2, 6, '#c83a3a');
     t.rect(7, 11, 2, 2, '#c83a3a');
   },
+  // 22 ouro: moedas
+  (t) => {
+    t.ellipse(6, 10, 4, 2.5, '#a87a2c');
+    t.ellipse(6, 9, 4, 2.5, '#ffd77a');
+    t.ellipse(10, 7, 4, 2.5, '#a87a2c');
+    t.ellipse(10, 6, 4, 2.5, '#ffe08a');
+    t.rect(9, 5, 2, 2, '#c8a050');
+  },
+  // 23 sede: salão com estandarte
+  (t) => {
+    t.rect(2, 8, 12, 6, '#a8743f');
+    for (let y = 3; y < 8; y++) t.rect(8 - (y - 2) * 1.2, y, (y - 2) * 2.4, 1, '#b5483a');
+    t.rect(7, 10, 2, 4, '#4f2f1a');
+    t.rect(12, 1, 1, 7, '#e6e6e0');
+    t.rect(13, 1, 2, 3, '#ffd77a');
+  },
+  // 24 baú aberto (armazém)
+  (t) => {
+    t.rect(2, 7, 12, 7, '#8a5a32');
+    t.rect(2, 3, 12, 3, '#6e4426');
+    t.rect(3, 6, 10, 2, '#ffd77a');
+    t.rect(7, 9, 2, 2, '#ffd77a');
+  },
+  // 25 martelo (construir)
+  (t) => {
+    t.line(4, 12, 10, 6, '#a8743f');
+    t.line(5, 12, 11, 6, '#8a5a32');
+    t.rect(8, 2, 6, 4, '#a8a8a8');
+    t.rect(8, 2, 6, 1, '#e6e6e0');
+  },
 ];
 
 /** Brasões dos clãs: emblemas 12×12 em branco (o escudo leva a cor do clã). */

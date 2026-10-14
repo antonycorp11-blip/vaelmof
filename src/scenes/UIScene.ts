@@ -8,6 +8,7 @@ import type { Rank } from '../systems/Ranks';
 import { ArmyPanel } from '../ui/ArmyPanel';
 import { ClanCreate } from '../ui/ClanCreate';
 import { ClansPanel } from '../ui/ClansPanel';
+import { HQPanel } from '../ui/HQPanel';
 import { MissionsPanel } from '../ui/MissionsPanel';
 import type { Mission } from '../systems/Missions';
 import type { Clan } from '../systems/Clans';
@@ -21,7 +22,7 @@ import { MapPanel } from '../ui/MapPanel';
 import { Minimap } from '../ui/Minimap';
 import type { WorldScene } from './WorldScene';
 
-type PanelId = 'bag' | 'attrs' | 'army' | 'missions' | 'clans' | 'map' | 'debug';
+type PanelId = 'bag' | 'attrs' | 'army' | 'hq' | 'missions' | 'clans' | 'map' | 'debug';
 
 /**
  * HUD: à esquerda a insígnia da patente, a vida, a Glória e as ordens do
@@ -39,6 +40,9 @@ export class UIScene extends Phaser.Scene {
   private debug!: DebugPanel;
   private missionsPanel!: MissionsPanel;
   private clansPanel!: ClansPanel;
+  private hqPanel!: HQPanel;
+  private goldIcon!: Phaser.GameObjects.Image;
+  private goldText!: Phaser.GameObjects.Text;
   private clanCreate!: ClanCreate;
   private crest!: Crest;
   private missionText!: Phaser.GameObjects.Text;
@@ -92,6 +96,8 @@ export class UIScene extends Phaser.Scene {
     this.gloryIcon = this.add.image(0, 0, 'ui-menu', 6).setDepth(1401);
     this.gloryText = label(this, '', 11, COLOR.gold).setOrigin(0, 0.5).setDepth(1401);
     this.rankText = label(this, '', 10, COLOR.blue).setOrigin(0, 0.5).setDepth(1401);
+    this.goldIcon = this.add.image(0, 0, 'ui-menu', 22).setDepth(1401);
+    this.goldText = label(this, '', 11, COLOR.gold).setOrigin(0, 0.5).setDepth(1401);
     this.armyText = label(this, '', 10, COLOR.text).setOrigin(0, 0.5).setDepth(1401);
     this.missionText = label(this, '', 9, COLOR.text, 1, false).setDepth(1401).setLineSpacing(2);
     const army = world.army;
@@ -110,7 +116,7 @@ export class UIScene extends Phaser.Scene {
           // aquartelar (andar sozinho) / convocar o exército
           if (army.garrison.length) this.showToast(`${army.summon()} soldados convocados: chegam marchando`);
           else if (army.war) this.showToast('Não dá para aquartelar no meio de uma guerra');
-          else if (army.quarter()) this.showToast('Exército aquartelado em Brumavale · você segue sozinho');
+          else if (army.quarter()) this.showToast(`Exército aquartelado ${world.hq.founded ? 'na sede' : 'em Brumavale'} · você segue sozinho`);
           this.updateHud();
         },
       }).setDepth(1400);
@@ -125,6 +131,7 @@ export class UIScene extends Phaser.Scene {
       ['bag', 0, 'dark'],
       ['attrs', 1, 'dark'],
       ['army', 2, 'dark'],
+      ['hq', 23, 'dark'],
       ['missions', 18, 'dark'],
       ['clans', 19, 'dark'],
       ['map', 3, 'dark'],
@@ -155,9 +162,10 @@ export class UIScene extends Phaser.Scene {
     };
     this.missionsPanel = new MissionsPanel(this, world);
     this.clansPanel = new ClansPanel(this, world);
+    this.hqPanel = new HQPanel(this, world);
     this.clanCreate = new ClanCreate(this, world);
     this.armyPanel.onClans = () => this.togglePanel('clans');
-    this.panels = { bag: this.bag, attrs: this.attrs, army: this.armyPanel, missions: this.missionsPanel, clans: this.clansPanel, map: this.mapPanel, debug: this.debug };
+    this.panels = { bag: this.bag, attrs: this.attrs, army: this.armyPanel, hq: this.hqPanel, missions: this.missionsPanel, clans: this.clansPanel, map: this.mapPanel, debug: this.debug };
     this.controls.blocker = (x, y) =>
       this.clanCreate.open ||
       Object.values(this.panels).some((p) => p.open && p.contains(x, y)) ||
@@ -196,6 +204,13 @@ export class UIScene extends Phaser.Scene {
       this.showArea(c.name, `clã fundado em ${c.city} · rumo a virar Casa`);
     });
     world.missions.on('change', () => this.updateHud());
+    world.hq.on('gold', () => this.updateHud());
+    world.hq.on('change', () => this.updateHud());
+    world.hq.on('fall', (name: string) => {
+      this.closePanels();
+      this.showArea('A SEDE CAIU', `${name} se desfez · soldados dispersos · Glória e atributos perdidos`);
+    });
+    world.clans.on('fallen', () => this.time.delayedCall(3500, () => this.clanCreate.setOpen(true)));
     world.missions.on('complete', (m: Mission) => this.showArea('MISSÃO CUMPRIDA', `${m.title} · +${m.reward} Glória · +${m.recruits} recrutas`));
     world.events.on('loot', (d: ItemDef, R: Rarity) => this.showToast(`Saque: ${d.name} (${R.name}) — veja na mochila`, 3000));
 
@@ -207,6 +222,7 @@ export class UIScene extends Phaser.Scene {
     kb?.addKey(K.G).on('down', () => this.togglePanel('army'));
     kb?.addKey(K.M).on('down', () => this.togglePanel('map'));
     kb?.addKey(K.T).on('down', () => this.togglePanel('missions'));
+    kb?.addKey(K.H).on('down', () => this.togglePanel('hq'));
     kb?.addKey(K.R).on('down', () => this.togglePanel('clans'));
     kb?.addKey(K.ONE).on('down', () => army.setMode('follow'));
     kb?.addKey(K.TWO).on('down', () => army.setMode('attack'));
@@ -272,6 +288,8 @@ export class UIScene extends Phaser.Scene {
     const row2 = this.hpY + this.hpH + 13 * u;
     this.gloryIcon.setScale(Math.max(1, Math.round(u))).setPosition(this.hpX + 6 * u, row2);
     fit(this.gloryText, 11, u).setPosition(this.hpX + 16 * u, row2);
+    this.goldIcon.setScale(Math.max(1, Math.round(u))).setPosition(this.hpX + 86 * u, row2);
+    fit(this.goldText, 11, u).setPosition(this.hpX + 96 * u, row2);
     fit(this.rankText, 10, u).setPosition(this.hpX, row2 + 15 * u);
     const oy = m + this.badge.displayHeight + 8 * u;
     fit(this.armyText, 10, u).setPosition(m, oy + 8 * u);
@@ -310,6 +328,7 @@ export class UIScene extends Phaser.Scene {
     this.debug.layout(u);
     this.missionsPanel.layout(u);
     this.clansPanel.layout(u);
+    this.hqPanel.layout(u);
     this.clanCreate.layout(u);
     fit(this.news, 9, u).setPosition(width / 2, 26 * u).setWordWrapWidth(width * 0.5);
     this.controls.hudBottom = this.hudBottom - 20 * u;
@@ -329,6 +348,7 @@ export class UIScene extends Phaser.Scene {
     const ms = w.missions.active;
     this.missionText.setText(ms.map((mm) => `> ${w.missions.summary(mm)}`).join('\n'));
     this.gloryText.setText(`${Math.round(P.glory).toLocaleString('pt-BR')}`);
+    this.goldText.setText(`${w.hq.gold.toLocaleString('pt-BR')}`);
     this.rankText.setText(P.rank.name);
     const field = a.size - a.garrison.length;
     const show = a.size > 0;
@@ -396,6 +416,7 @@ export class UIScene extends Phaser.Scene {
     this.armyPanel.update(now);
     this.missionsPanel.update(now);
     this.clansPanel.update(now);
+    this.hqPanel.update(now);
     this.mapPanel.update(now);
     if (now - this.lastHud > 500) {
       this.lastHud = now;

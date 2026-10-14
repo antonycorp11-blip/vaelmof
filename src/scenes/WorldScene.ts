@@ -31,6 +31,7 @@ import { Bosses } from '../systems/Bosses';
 import { Clans, type Clan } from '../systems/Clans';
 import { Loot } from '../systems/Loot';
 import { Missions } from '../systems/Missions';
+import { HQ } from '../systems/HQ';
 import { rollGear } from '../data/gear';
 import { Champions } from '../systems/Champions';
 import type { Hittable } from '../entities/Hittable';
@@ -71,6 +72,8 @@ export class WorldScene extends Phaser.Scene {
   missions!: Missions;
   bosses!: Bosses;
   loot!: Loot;
+  /** Sede do clã. */
+  hq!: HQ;
   animals: Animal[] = [];
   flames: Flame[] = [];
   dayNight!: DayNightSystem;
@@ -138,6 +141,7 @@ export class WorldScene extends Phaser.Scene {
     this.bosses = new Bosses(this);
     this.clans = new Clans(this);
     this.missions = new Missions(this);
+    this.hq = new HQ(this);
     this.setupClans();
     this.rankIcon = this.add.image(0, 0, 'rank-icons', this.progress.rankIdx).setDepth(DEPTH.fx - 50);
     this.progress.on('change', () => this.rankIcon.setFrame(this.progress.rankIdx));
@@ -288,7 +292,10 @@ export class WorldScene extends Phaser.Scene {
   private setupClans() {
     const C = this.clans;
     if (C.founded) this.army.setClanColor(C.player.color);
-    C.on('founded', (c: Clan) => this.army.setClanColor(c.color));
+    C.on('founded', (c: Clan) => {
+      this.army.setClanColor(c.color);
+      this.hq.refreshBanners();
+    });
     this.army.on('war-end', (w: { clan?: string; won: boolean; killed: number; glory: number }) => {
       if (this.clanLeader) {
         // o líder que sobrou foge com o exército
@@ -599,6 +606,7 @@ export class WorldScene extends Phaser.Scene {
     this.loot.update(time);
     this.clans.update(dt);
     this.missions.update(time);
+    this.hq.update(time, dt);
     const pl = this.player;
     this.rankIcon
       .setPosition(Math.round(pl.x), Math.round(pl.y - 25))

@@ -84,7 +84,7 @@ export class MapPanel {
     fit(this.title, 15, u).setPosition(x0 + pad, y0 + 9 * u);
     this.close.place(x0 + W - pad - 30 * u, y0 + 6 * u, u, 30 * u, 24 * u);
     fit(this.legend, 10, u)
-      .setText(`■ cidade   ◯ spot de up   ◆ campeão   ● procurado   ▲ você${this.teleport ? '   · toque para ir até lá' : ''}`)
+      .setText(`■ cidade   ■ sua sede   ◯ spot de up   ◆ campeão   ● procurado   ▲ você${this.teleport ? '   · toque para ir até lá' : ''}`)
       .setPosition(x0 + pad, y0 + head + side + 6 * u);
     const k = s / (TILE * 2);
     this.world.map.cities.forEach((c, i) => {
@@ -116,6 +116,13 @@ export class MapPanel {
       const [x, y] = at(c.x, c.y);
       const r = 4 * u;
       g.fillStyle(0xff5a5a, 1).fillPoints([{ x, y: y - r }, { x: x + r, y }, { x, y: y + r }, { x: x - r, y }], true);
+    }
+    if (w.hq.founded) {
+      const c = w.hq.center;
+      const [x, y] = at(c.x, c.y);
+      g.fillStyle(0x0b0d14, 1).fillRect(x - 5 * u, y - 5 * u, 10 * u, 10 * u);
+      g.fillStyle(w.clans.player.color, 1).fillRect(x - 4 * u, y - 4 * u, 8 * u, 8 * u);
+      g.fillStyle(0xffd77a, 1).fillRect(x - u, y - u, 2 * u, 2 * u);
     }
     for (const m of w.missions.active) {
       if (!m.target) continue;

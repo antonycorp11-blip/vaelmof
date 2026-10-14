@@ -127,8 +127,8 @@ export class Player extends Creature {
   private readonly wFg: Phaser.GameObjects.Sprite;
   private gatherDone?: () => void;
   private gatherAt = 0;
-  readonly spawnX: number;
-  readonly spawnY: number;
+  spawnX: number;
+  spawnY: number;
   /** Multiplicador de velocidade (modo voo do debug). */
   speedMul = 1;
   /** Peso da mochila (1 = normal; menor = carregado demais). */

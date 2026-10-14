@@ -78,8 +78,6 @@ const STEP_MS = 80;
 export type ArmyMode = 'follow' | 'attack' | 'hold';
 
 /** Cura dos soldados fora de combate (fração da vida por segundo): no campo e dentro de uma cidade. */
-const HEAL_FIELD = 0.04;
-const HEAL_CITY = 0.15;
 /** Sem levar dano por este tempo (ms), o soldado começa a se curar. */
 const HEAL_DELAY = 4000;
 /** Raio (tiles) do campo de fluxo em volta do herói. */
@@ -121,8 +119,13 @@ export class Soldier implements Hittable {
   lastHurt = -99999;
   /** O caminho reto até o herói está bloqueado: segue o campo de fluxo. */
   useFlow = false;
-  /** Está dentro de uma cidade (cura mais rápido). */
-  inCity = false;
+  /** Taxa de cura do lugar onde está (sede ou, sem sede, Brumavale); 0 = não cura. */
+  healRate = 0;
+  /** Postado na sede do clã: fica de guarda lá em vez de seguir o herói. */
+  station = false;
+  /** Posto (px) na sede. */
+  postX = 0;
+  postY = 0;
   readonly sprite: Phaser.GameObjects.Sprite;
   readonly ring: Phaser.GameObjects.Image;
   /** Insígnia da patente sobre a cabeça (azul aliado, vermelho inimigo). */
@@ -139,7 +142,7 @@ export class Soldier implements Hittable {
     this.x = x;
     this.y = y;
     this.kills = kills;
-    this.maxHp = this.hp = Math.round(SOLDIERS[type].hp * this.mul);
+    this.maxHp = this.hp = Math.round(SOLDIERS[type].hp * this.hpMul);
     const s = army.scene;
     // anel no chão: profundidade fixa (abaixo de todos), não entra na reordenação por y
     this.ring = s.add.image(x, y, 'soldier-ring').setTint(TEAM_COLOR[team]).setAlpha(0.7).setDepth(DEPTH.birdShadow - 0.5);
@@ -157,12 +160,19 @@ export class Soldier implements Hittable {
     return this.team * 10 + this.rank;
   }
 
+  /** Aliados não sobem de patente por abates: a insígnia mostra o treino da sede. Inimigos, por abates. */
   get rank() {
-    return rankOf(this.kills);
+    return this.team === 0 ? this.army.upTier : rankOf(this.kills);
   }
 
+  /** Multiplicador de dano. */
   get mul() {
-    return SOLDIER_RANKS[this.rank].mul;
+    return this.team === 0 ? 1 + 0.1 * this.army.upg.atk : SOLDIER_RANKS[this.rank].mul;
+  }
+
+  /** Multiplicador de vida. */
+  get hpMul() {
+    return this.team === 0 ? 1 + 0.12 * this.army.upg.hp : SOLDIER_RANKS[this.rank].mul;
   }
 
   get fx() {
@@ -179,6 +189,8 @@ export class Soldier implements Hittable {
 
   takeDamage(amount: number, fromX: number, fromY: number, knockback = 60) {
     if (this.dead) return;
+    // defesa treinada na sede (só aliados)
+    if (this.team === 0) amount *= Math.max(0.5, 1 - 0.05 * this.army.upg.def);
     this.hp -= amount;
     this.lastHurt = this.army.scene.time.now;
     this.flashUntil = this.army.scene.time.now + 120;
@@ -220,7 +232,7 @@ interface Shot {
   aoe: number;
   team: 0 | 1;
   target: Hittable;
-  from: Soldier;
+  from: Soldier | null;
 }
 
 /** Guerra em andamento contra o exército de uma casa rival. */
@@ -232,6 +244,8 @@ export interface War {
   /** De onde o inimigo veio (o líder aparece ali). */
   x: number;
   y: number;
+  /** Cerco: o inimigo marcha para este ponto (a sede) e ataca as construções. */
+  siege?: { x: number; y: number };
   start: number;
   killed: number;
   lost: number;
@@ -255,6 +269,103 @@ export class Army extends Phaser.Events.EventEmitter {
   scale: number = HERO.scale;
   /** Cor do clã do jogador (-1 = ainda sem clã). */
   clanColor = -1;
+  /** Treino dos soldados na sede (níveis 0–10): ataque, defesa, vida. */
+  upg = { atk: 0, def: 0, hp: 0 };
+  /** Onde se curam: taxa por segundo no ponto (definido pela sede). */
+  healAt: (x: number, y: number) => number = () => 0;
+  /** Construções que o inimigo pode atacar (sede). */
+  structures: () => Hittable[] = () => [];
+  /** Posto do i-ésimo soldado de guarda na sede. */
+  postOf: (i: number) => [number, number] | null = () => null;
+
+  /** Insígnia dos aliados pelo treino total (0–3). */
+  get upTier(): number {
+    const t = this.upg.atk + this.upg.def + this.upg.hp;
+    return t >= 24 ? 3 : t >= 14 ? 2 : t >= 6 ? 1 : 0;
+  }
+
+  /** Muda o treino: a vida máxima dos aliados acompanha (mantendo a proporção). */
+  setUpgrades(u: { atk: number; def: number; hp: number }) {
+    this.upg = { ...u };
+    for (const s of this.soldiers) {
+      if (s.team !== 0 || s.dead) continue;
+      const k = s.hp / s.maxHp;
+      s.maxHp = Math.round(SOLDIERS[s.type].hp * s.hpMul);
+      s.hp = Math.max(1, Math.round(s.maxHp * k));
+      s.icon.setFrame(s.iconFrame);
+    }
+    this.emit('change');
+  }
+
+  /** Soldados no campo com o herói (sem os de guarda na sede). */
+  get field(): Soldier[] {
+    return this.soldiers.filter((s) => s.team === 0 && !s.dead && !s.station);
+  }
+
+  get stationed(): Soldier[] {
+    return this.soldiers.filter((s) => s.team === 0 && !s.dead && s.station);
+  }
+
+  /** Posta `n` soldados do campo na sede (vão andando até lá). */
+  station(n: number): number {
+    const list = this.field.slice(-n);
+    for (const s of list) s.station = true;
+    this.assignPosts();
+    this.save();
+    this.emit('change');
+    return list.length;
+  }
+
+  /** Chama `n` guardas da sede de volta para o herói. */
+  unstation(n: number): number {
+    const list = this.stationed.slice(-n);
+    for (const s of list) s.station = false;
+    this.assignPosts();
+    this.regroup(false);
+    this.save();
+    this.emit('change');
+    return list.length;
+  }
+
+  /** Ataque à sede: os aquartelados saem para os postos de guarda. */
+  garrisonToPosts(): number {
+    let n = 0;
+    for (const g of this.garrison.splice(0)) {
+      const p = this.postOf(this.stationed.length);
+      if (!p) {
+        this.garrison.push(g);
+        continue;
+      }
+      const s = this.addAlly(g.t, p[0], p[1], g.k, false, true);
+      s.postX = p[0];
+      s.postY = p[1];
+      n++;
+    }
+    this.assignPosts();
+    this.save();
+    this.emit('change');
+    return n;
+  }
+
+  assignPosts() {
+    this.stationed.forEach((s, i) => {
+      const p = this.postOf(i);
+      if (p) [s.postX, s.postY] = p;
+      // sem vaga (Alojamento menor ou destruído): volta para o herói
+      else if (this.scene.hq?.founded) s.station = false;
+    });
+  }
+
+  /** Disparo de fora do exército (torres da sede). */
+  fire(sx: number, sy: number, t: Hittable, damage: number, team: 0 | 1) {
+    const img = this.shotPool.pop() ?? this.scene.add.image(0, 0, 'arrow');
+    img.setTexture('arrow', 0).setVisible(true).setScale(0.7).setDepth(DEPTH.fx).clearTint();
+    const tx = t.fx;
+    const ty = t.fy - 6;
+    const d = Math.hypot(tx - sx, ty - sy);
+    img.setPosition(sx, sy).setRotation(Math.atan2(ty - sy, tx - sx));
+    this.shots.push({ img, sx, sy, tx, ty, t0: this.scene.time.now, dur: (d / 300) * 1000, damage, aoe: 0, team, target: t, from: null });
+  }
 
   /** Pinta o exército do jogador com a cor do clã. */
   setClanColor(c: number) {
@@ -286,7 +397,7 @@ export class Army extends Phaser.Events.EventEmitter {
   private warCheck = 0;
   private heroT: Hittable;
   /** Soldados salvos esperando as folhas ficarem prontas. */
-  private pending: { t: SoldierType; k: number }[] = [];
+  private pending: { t: SoldierType; k: number; st?: boolean }[] = [];
   /** Aquartelados em Brumavale (fora do campo; voltam com Convocar, curados). */
   garrison: { t: SoldierType; k: number }[] = [];
   /** Campo de fluxo (distância em passos até o herói) para contornar obstáculos. */
@@ -374,7 +485,18 @@ export class Army extends Phaser.Events.EventEmitter {
       for (const team of [0, 1] as const) for (const t of SOLDIER_TYPES) this.compose(team, t);
       this.ready = true;
       const p = this.scene.player;
-      for (const r of this.pending.splice(0)) this.addAlly(r.t, p.x, p.y + 30, r.k, false);
+      for (const r of this.pending.splice(0)) {
+        const s = this.addAlly(r.t, p.x, p.y + 30, r.k, false, !!r.st);
+        if (s.station) {
+          // guardas nascem no posto
+          this.assignPosts();
+          if (s.station) {
+            s.x = s.postX;
+            s.y = s.postY;
+          }
+        }
+      }
+      this.assignPosts();
       this.regroup();
       done();
     };
@@ -467,8 +589,9 @@ export class Army extends Phaser.Events.EventEmitter {
   }
 
   // ------------------------------------------------------------------ elenco
-  private addAlly(type: SoldierType, x: number, y: number, kills = 0, save = true) {
+  private addAlly(type: SoldierType, x: number, y: number, kills = 0, save = true, station = false) {
     const s = new Soldier(this, 0, type, x + Phaser.Math.Between(-10, 10), y + Phaser.Math.Between(-6, 6), kills);
+    s.station = station;
     this.soldiers.push(s);
     if (save) this.save();
     return s;
@@ -486,7 +609,9 @@ export class Army extends Phaser.Events.EventEmitter {
 
   /** Por que não dá para recrutar agora ('' = dá). */
   recruitBlock(type: SoldierType, n: number): string {
-    if (!this.inCapital) return 'Recrute no quartel de Brumavale';
+    const hq = this.scene.hq;
+    const atHq = hq.founded && hq.heroInside && hq.level('barracks') > 0;
+    if (!this.inCapital && !atHq) return hq.founded ? 'Recrute em Brumavale ou no Alojamento da sede' : 'Recrute no quartel de Brumavale';
     if (this.size + n > this.scene.progress.armyCap) return `Sua patente comanda até ${this.scene.progress.armyCap} soldados`;
     if (this.pool < SOLDIERS[type].cost * n) return 'Faltam recrutas (renovam com o tempo)';
     return '';
@@ -511,9 +636,9 @@ export class Army extends Phaser.Events.EventEmitter {
 
   // ------------------------------------------------------------------ guerra
   /** Uma casa rival manda um exército de `n` soldados contra o herói. */
-  declareWar(n: number, house?: { name: string; color: number; clan?: string }) {
+  declareWar(n: number, house?: { name: string; color: number; clan?: string }, opts: { origin?: { x: number; y: number }; vet?: number; siege?: { x: number; y: number } } = {}) {
     if (this.war) return;
-    const p = this.scene.player;
+    const p = opts.origin ?? this.scene.player;
     // cada casa rival tem a sua cor (tingindo o exército inteiro)
     const houses: [string, number][] = [
       ['Casa do Corvo Rubro', 0xe08a8a],
@@ -554,14 +679,15 @@ export class Army extends Phaser.Events.EventEmitter {
       const x = cx + rx * col * 13 - fx * (row + back) * 13;
       const y = cy + ry * col * 13 - fy * (row + back) * 13;
       // um ou outro veterano: o exército rival é tão experiente quanto o seu, em média
-      const kills = mirror.length ? this.allies[i % this.allies.length].kills : Math.random() < 0.15 ? 2 : 0;
+      const vet = opts.vet ?? 0;
+      const kills = SOLDIER_RANKS[Math.max(0, Math.min(3, vet - (Math.random() < 0.4 ? 1 : 0)))].kills;
       const s = new Soldier(this, 1, type, x, y, kills);
       s.thinkAt = this.scene.time.now + Math.random() * 600;
       s.baseTint = color;
       s.sprite.setTint(color);
       this.soldiers.push(s);
     }
-    this.war = { house: name, clan: house?.clan, color, x: cx, y: cy, start: n, killed: 0, lost: 0 };
+    this.war = { house: name, clan: house?.clan, color, x: cx, y: cy, siege: opts.siege, start: n, killed: 0, lost: 0 };
     // o exército do herói parte para o ataque
     if (this.mode === 'follow') this.setMode('attack');
     this.emit('war', this.war);
@@ -582,12 +708,11 @@ export class Army extends Phaser.Events.EventEmitter {
     if (by && !by.dead) {
       const before = by.rank;
       by.kills++;
-      if (by.rank > before) {
+      if (by.team === 1 && by.rank > before) {
         const k = by.mul / SOLDIER_RANKS[before].mul;
         by.maxHp = Math.round(by.maxHp * k);
         by.hp = Math.min(by.maxHp, Math.round(by.hp * k));
         by.icon.setFrame(by.iconFrame);
-        if (by.team === 0) sc.fx.floatText(by.x, by.y - 30, SOLDIER_RANKS[by.rank].name, '#ffd34a');
       }
     }
     if (s.team === 1) {
@@ -624,7 +749,7 @@ export class Army extends Phaser.Events.EventEmitter {
     if (this.war) return false;
     const sc = this.scene;
     for (const s of this.soldiers) {
-      if (s.team !== 0 || s.dead) continue;
+      if (s.team !== 0 || s.dead || s.station) continue;
       this.garrison.push({ t: s.type, k: s.kills });
       s.dead = true;
       sc.fx.burst(s.x, s.y - 10, 0xbfe0ff, 3);
@@ -663,7 +788,7 @@ export class Army extends Phaser.Events.EventEmitter {
     const p = this.scene.player;
     this.faceX = p.facing.x;
     this.faceY = p.facing.y;
-    this.allies.forEach((s, i) => {
+    this.field.forEach((s, i) => {
       s.slot = i;
       if (!all) return;
       const [x, y] = this.slotPos(i, p.x, p.y);
@@ -807,7 +932,10 @@ export class Army extends Phaser.Events.EventEmitter {
           }
       }
     }
-    if (s.team === 1) consider(this.heroT);
+    if (s.team === 1) {
+      consider(this.heroT);
+      if (this.war?.siege) for (const t of this.structures()) consider(t);
+    }
     // o exército do herói também enfrenta as criaturas do mapa — menos em guerra,
     // quando só um bicho colado nele tira o foco do exército inimigo
     else if (!this.war) for (const e of this.scene.enemies) consider(e);
@@ -867,7 +995,7 @@ export class Army extends Phaser.Events.EventEmitter {
     for (const s of this.soldiers) {
       if (s.dead) continue;
       const D = SOLDIERS[s.type];
-      if (s.team === 0) s.slot = slot++;
+      if (s.team === 0 && !s.station) s.slot = slot++;
       // fora da tela: anda em quadros alternados, com passo dobrado (metade do custo)
       const off = !s.sprite.visible;
       if (off && ((this.frameN + s.parity) & 1)) continue;
@@ -876,14 +1004,18 @@ export class Army extends Phaser.Events.EventEmitter {
       if (time >= s.thinkAt) {
         s.thinkAt = time + 140 + Math.random() * 120;
         if (s.fleeing) s.target = null;
-        else if (s.team === 1) s.target = this.nearest(s, 520);
+        else if (s.station) {
+          // guarda: só sai do posto atrás de quem chega perto da sede
+          const t = this.nearest(s, 170);
+          s.target = t && Math.hypot(t.fx - s.postX, t.fy - s.postY) < 230 ? t : null;
+        } else if (s.team === 1) s.target = this.nearest(s, this.war?.siege ? 160 : 520);
         else if (this.mode === 'attack') s.target = this.nearest(s, 260);
         else s.target = this.nearest(s, this.mode === 'hold' ? 90 : 70);
         // caminho reto até o herói bloqueado? então contorna pelo campo de fluxo
-        s.useFlow = !s.target && Math.hypot(s.x - p.x, s.y - p.y) > 30 && !this.los(s.x, s.y, p.x, p.y);
-        s.inCity = s.team === 0 && this.scene.map.cities.some((c) => s.x > c.x0 * TILE && s.x < c.x1 * TILE && s.y > c.y0 * TILE && s.y < c.y1 * TILE);
+        s.useFlow = !s.target && !s.station && !(s.team === 1 && this.war?.siege) && Math.hypot(s.x - p.x, s.y - p.y) > 30 && !this.los(s.x, s.y, p.x, p.y);
+        s.healRate = s.team === 0 ? this.healAt(s.x, s.y) : 0;
         // longe demais do herói: alcança a formação
-        if (s.team === 0 && Math.hypot(s.x - p.x, s.y - p.y) > 520) {
+        if (s.team === 0 && !s.station && Math.hypot(s.x - p.x, s.y - p.y) > 520) {
           const [x, y] = this.slotPos(s.slot, p.x, p.y);
           s.x = x;
           s.y = y;
@@ -907,10 +1039,16 @@ export class Army extends Phaser.Events.EventEmitter {
           gy = s.target.fy;
         } else wantAttack = true;
         s.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : dy < 0 ? 3 : 0;
+      } else if (s.station) {
+        gx = s.postX;
+        gy = s.postY;
       } else if (s.team === 0) {
         const [x, y] = this.mode === 'hold' ? this.slotPos(s.slot, this.holdX, this.holdY) : this.slotPos(s.slot, p.x, p.y);
         gx = x;
         gy = y;
+      } else if (this.war?.siege) {
+        gx = this.war.siege.x;
+        gy = this.war.siege.y;
       } else {
         gx = p.x;
         gy = p.y;
@@ -997,8 +1135,9 @@ export class Army extends Phaser.Events.EventEmitter {
       const moving = s.vx * s.vx + s.vy * s.vy > 30;
       if (moving && !s.target) s.dir = Math.abs(s.vx) > Math.abs(s.vy) ? (s.vx < 0 ? 1 : 2) : s.vy < 0 ? 3 : 0;
       // cura fora de combate (mais rápida dentro das cidades)
-      if (s.team === 0 && s.hp < s.maxHp && time - s.lastHurt > HEAL_DELAY) {
-        s.hp = Math.min(s.maxHp, s.hp + s.maxHp * (s.inCity ? HEAL_CITY : HEAL_FIELD) * dt);
+      // cura só na sede (ou, antes de ter sede, em Brumavale)
+      if (s.team === 0 && s.healRate > 0 && s.hp < s.maxHp && time - s.lastHurt > HEAL_DELAY) {
+        s.hp = Math.min(s.maxHp, s.hp + s.maxHp * s.healRate * dt);
         if (!off && Math.random() < dt * 1.2) this.scene.fx.burst(s.x, s.y - 14, 0x7dff8a, 2);
       }
       // quadro
@@ -1092,7 +1231,7 @@ export class Army extends Phaser.Events.EventEmitter {
   }
 
   private damageFrom(t: Hittable, dmg: number, sh: Shot) {
-    if (t instanceof Soldier && !sh.from.dead) t.lastBy = sh.from;
+    if (t instanceof Soldier && sh.from && !sh.from.dead) t.lastBy = sh.from;
     t.takeDamage(dmg, sh.sx, sh.sy, 30);
   }
 
@@ -1146,7 +1285,7 @@ export class Army extends Phaser.Events.EventEmitter {
   // ------------------------------------------------------------------ salvar
   save() {
     try {
-      const roster = this.soldiers.filter((s) => s.team === 0 && !s.dead).map((s) => ({ t: s.type, k: s.kills }));
+      const roster = this.soldiers.filter((s) => s.team === 0 && !s.dead).map((s) => ({ t: s.type, k: s.kills, st: s.station || undefined }));
       localStorage.setItem(SAVE_KEY, JSON.stringify({ roster: [...roster, ...this.pending], garrison: this.garrison, pool: this.pool }));
     } catch {
       /* sem armazenamento */
@@ -1159,7 +1298,7 @@ export class Army extends Phaser.Events.EventEmitter {
       if (!raw) return;
       const d = JSON.parse(raw);
       if (typeof d.pool === 'number') this.pool = Phaser.Math.Clamp(d.pool, 0, this.poolMax);
-      if (Array.isArray(d.roster)) for (const r of d.roster) if (SOLDIER_TYPES.includes(r.t)) this.pending.push({ t: r.t, k: Number(r.k) || 0 });
+      if (Array.isArray(d.roster)) for (const r of d.roster) if (SOLDIER_TYPES.includes(r.t)) this.pending.push({ t: r.t, k: Number(r.k) || 0, st: !!r.st });
       if (Array.isArray(d.garrison)) for (const r of d.garrison) if (SOLDIER_TYPES.includes(r.t)) this.garrison.push({ t: r.t, k: Number(r.k) || 0 });
     } catch {
       /* sem save */

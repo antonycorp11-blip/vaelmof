@@ -281,6 +281,17 @@ export class Clans extends Phaser.Events.EventEmitter {
     this.emit('change');
   }
 
+  /** A sede caiu: o clã do jogador acaba (é preciso fundar outro). */
+  disband() {
+    const p = this.player;
+    p.name = 'Meu Clã';
+    this.founded = false;
+    this.challenge = null;
+    this.save();
+    this.emit('change');
+    this.emit('fallen');
+  }
+
   // ------------------------------------------------------------ salvar
   save() {
     try {

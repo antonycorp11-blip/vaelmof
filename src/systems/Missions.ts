@@ -70,12 +70,17 @@ export class Missions extends Phaser.Events.EventEmitter {
     });
   }
 
-  /** Cidade em que o herói está (onde dá para falar com o Lorde). */
+  /**
+   * De quem vêm os chamados agora: com sede, só dentro dela (do Lorde da
+   * cidade mais próxima); antes da sede, no salão de Brumavale.
+   */
   cityHere(): City | undefined {
+    const hq = this.scene.hq;
+    if (hq.founded) return hq.heroInside ? hq.city : undefined;
     const p = this.scene.player;
     const tx = p.x / TILE;
     const ty = p.y / TILE;
-    return this.scene.map.cities.find((c) => tx >= c.x0 - 2 && tx <= c.x1 + 2 && ty >= c.y0 - 2 && ty <= c.y1 + 2);
+    return this.scene.map.cities.find((c) => c.capital && tx >= c.x0 - 2 && tx <= c.x1 + 2 && ty >= c.y0 - 2 && ty <= c.y1 + 2);
   }
 
   /** Ofertas do Lorde da cidade (geradas na primeira visita e repostas ao aceitar). */
@@ -128,6 +133,7 @@ export class Missions extends Phaser.Events.EventEmitter {
     const s = this.scene;
     s.gainGlory(m.reward, s.player.x, s.player.y - 50);
     s.army.pool = Math.min(s.army.poolMax, s.army.pool + m.recruits);
+    s.hq.addGold(this.gold(m));
     s.army.emit('change');
     s.clans.log(`${s.clans.player.name} cumpriu a missão de ${lordOf(m.city)}: ${m.title}.`);
     this.emit('complete', m);
@@ -219,6 +225,11 @@ export class Missions extends Phaser.Events.EventEmitter {
         this.bounty.delete(m.id);
       }
     }
+  }
+
+  /** Ouro da recompensa. */
+  gold(m: Mission) {
+    return Math.round(m.reward * 0.6);
   }
 
   /** Texto curto da missão para o HUD. */

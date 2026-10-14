@@ -102,6 +102,28 @@ export class Inventory extends Phaser.Events.EventEmitter {
     return qty - left;
   }
 
+  /** Quanto há de uma família de material, de qualquer região (madeira, pedra…). */
+  countFamily(f: string): number {
+    return this.slots.reduce((n, s) => n + (s && ITEMS[s.id].family === f ? s.qty : 0), 0);
+  }
+
+  /** Gasta `n` de uma família (de qualquer região). Devolve false se faltar. */
+  removeFamily(f: string, n: number): boolean {
+    if (this.countFamily(f) < n) return false;
+    let left = n;
+    for (let i = this.slots.length - 1; i >= 0 && left > 0; i--) {
+      const s = this.slots[i];
+      if (!s || ITEMS[s.id].family !== f) continue;
+      const k = Math.min(left, s.qty);
+      s.qty -= k;
+      left -= k;
+      if (!s.qty) this.slots[i] = null;
+    }
+    this.emit('change');
+    this.save();
+    return true;
+  }
+
   count(id: string): number {
     return this.slots.reduce((n, s) => n + (s && s.id === id ? s.qty : 0), 0);
   }

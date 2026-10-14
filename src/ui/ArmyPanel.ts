@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { WorldScene } from '../scenes/WorldScene';
-import { SOLDIER_RANKS, SOLDIER_TYPES, SOLDIERS, type SoldierType } from '../systems/Army';
+import { SOLDIER_TYPES, SOLDIERS, type SoldierType } from '../systems/Army';
 import { Button, COLOR, drawBar, fit, frame, label, sizeFrame, Window } from './kit';
 
 type Txt = Phaser.GameObjects.Text;
@@ -162,10 +162,9 @@ export class ArmyPanel {
       const D = SOLDIERS[c.type];
       const mine = a.allies.filter((s) => s.type === c.type);
       const kept = a.garrison.filter((s) => s.t === c.type).length;
-      const vets = mine.filter((s) => s.rank >= 2).length;
       const role = D.ranged ? `${ROLE[c.type]} · alcance ${D.range}` : ROLE[c.type];
       c.stats.setText(`vida ${D.hp} · dano ${D.damage}\n${role}\ncusto: ${D.cost} recruta${D.cost > 1 ? 's' : ''}`);
-      c.count.setText(`${mine.length} no campo${kept ? ` · ${kept} no quartel` : ''}${vets ? ` · ${vets} vet.` : ''}`);
+      c.count.setText(`${mine.length} no campo${kept ? ` · ${kept} no quartel` : ''}`);
       const ok = !a.recruitBlock(c.type, 1);
       c.plus1.setEnabled(ok);
       c.plus5.setEnabled(ok);
@@ -176,9 +175,11 @@ export class ArmyPanel {
     this.warBtn.setLabel(a.war ? `EM GUERRA: ${a.war.house}` : 'DESAFIAR UM CLÃ').setEnabled(!a.war);
     this.info.setText(
       [
-        'CURA · fora de combate por 4 s, os soldados recuperam 4% da vida por segundo no campo e 15% dentro de cidades (brilho verde).',
-        'QUARTEL · aquartelar manda o exército para cá e você anda sozinho; convocar traz todos de volta, curados, marchando atrás de você.',
-        `VETERANOS · ${SOLDIER_RANKS.map((r) => `${r.name} ${r.kills}+`).join(' · ')} abates`,
+        this.world.hq.founded
+          ? 'CURA · os soldados só se curam na sede do clã (8% da vida por segundo; a Enfermaria acelera). Fora dela, não.'
+          : 'CURA · sem sede, os soldados se curam aqui em Brumavale (15% por segundo). Com sede, só lá.',
+        'AQUARTELAR · o exército vai para o quartel (a sede, se houver) e você anda sozinho; convocar traz todos curados.',
+        'TREINO · os soldados não sobem de patente por abates: ficam mais fortes no Arsenal da sede (ataque, defesa, vida).',
       ].join('\n\n'),
     );
   }

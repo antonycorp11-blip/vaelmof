@@ -47,6 +47,7 @@ preciso rodar se você alterar `scripts/generate-assets.mjs`).
 | Mapa do mundo | ícone do **mapa** ou tocar no **minimapa** | M |
 | Missões do Lorde | ícone do **pergaminho** | T |
 | Ranking de Clãs | ícone da **coroa** | R |
+| Sede do clã | ícone da **casa** | H |
 | Ordens do exército | botões **seguir / atacar / segurar** sob a vida | 1 / 2 / 3 |
 | Aquartelar / convocar (andar sozinho) | botão da **tenda** (vira corneta com o exército no quartel) | 4 |
 
@@ -212,6 +213,38 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   agora fica salva. Não há craft; a coleta vai servir para erguer a **sede do
   clã** (próxima etapa).
 
+### Sede do clã (`src/systems/HQ.ts`, `src/ui/HQPanel.ts`, ícone da casa, tecla H)
+- **Erguer:** só um **Clã** (600 de Glória, não um Bando), num terreno plano
+  e seco a até 60 tiles de uma cidade (fora dos muros), com 40 madeira e 30
+  pedra. A sede (30×24 tiles) é erguida em volta do herói; árvores e pedras do
+  lugar somem e uma estrada de terra liga o portão (ao sul) ao Salão.
+- **Construções** (com o que se coleta + ouro; nível 2/3 pede o Salão no mesmo
+  nível): **Salão** (coração: cura, chamados dos Lordes, ouro; se cair, o clã
+  acaba), **muralhas** por lado (paliçada → pedra), **4 torres** (atiram em
+  inimigos e criaturas), **Alojamento** (guarda de 15/40/80 soldados; recrutar
+  na sede), **Arsenal** (treino), **Enfermaria** (cura 8% → 16% → 28%/s),
+  **Tesouraria** (+20/50/110 de ouro/min) e **Armazém** (baú de 24/48 espaços).
+  Construções danificadas são reparadas com material.
+- **Só na sede:** os soldados **se curam** (sem sede, em Brumavale), aceitam-se
+  **missões** (os chamados vêm do Lorde da cidade mais próxima; sem sede, no
+  salão de Brumavale), **treina-se** o exército e usa-se o **baú**.
+- **Soldados não sobem mais de patente por abates.** O Arsenal treina
+  **Ataque** (+10% de dano por nível), **Defesa** (−5% de dano recebido) e
+  **Vida** (+12%), até o nível 10, com ouro e minério; a insígnia do exército
+  sobe com o treino total.
+- **Guarda:** POSTAR manda soldados ficarem de guarda nos postos da sede (eles
+  saem do posto só atrás de quem chega perto); CHAMAR traz de volta.
+- **Ataques de rivais:** clãs de força parecida marcham contra a sede (aviso
+  com 2 min). Com o herói por perto, a batalha é de verdade: o inimigo ataca
+  muralhas, torres e prédios, e os aquartelados saem para os postos. Longe, a
+  força da defesa (guarda, treino, torres, muralhas, Salão) decide; perder
+  derruba construções. **Se o Salão cair, o clã acaba**: soldados se
+  dispersam, metade da Glória e 25% dos atributos distribuídos se perdem, o
+  baú some e é preciso fundar outro clã.
+- **Ouro:** rende na Tesouraria/Salão e vem das missões; mostrado no HUD.
+- **Corneta:** VOLTAR À SEDE leva o herói para casa (espera de 90 s, não em
+  guerra). O herói renasce na sede.
+
 ### Patentes e Glória (`src/systems/Ranks.ts`, `src/systems/Progress.ts`)
 - Teren **não tem nível**: tem **patente**. Sobe quando **todos os 4
   atributos** chegam ao mínimo, quando tem a **Glória** exigida e, em algumas,
@@ -261,8 +294,8 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - Os soldados **sobem de patente** com abates (Miliciano → Escudeiro →
   Lâmina Jurada → Guardião de Ferro), ganhando vida e dano. Quem morre se
   perde (e custa Glória).
-- **Cura:** após 4 s sem levar dano, cada soldado recupera 4% da vida por
-  segundo no campo e 15% dentro de cidades (partículas verdes).
+- **Cura:** após 4 s sem levar dano, só na sede do clã (8–28% da vida por
+  segundo); antes de ter sede, em Brumavale (15%).
 - **Aquartelar / convocar:** o botão da tenda manda o exército para o
   quartel e Teren anda sozinho; a corneta convoca todos de volta, curados,
   marchando por trás do herói (não funciona no meio de uma guerra).
