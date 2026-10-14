@@ -985,24 +985,35 @@ export class Player extends Creature {
   }
 
   // ---------------------------------------------------------------- dano
-  hurt(amount: number, fromX: number, fromY: number) {
-    if (this.invulnerable) return;
+  /**
+   * Dano no herói. Criaturas dão um tempo de invulnerabilidade depois do golpe;
+   * `swarm` (soldados de exército) não: cada soldado que acerta conta — cercado
+   * por muitos, o herói cai rápido (antes, 0,9 s de invulnerabilidade a cada
+   * golpe o deixava quase imortal contra um exército).
+   */
+  hurt(amount: number, fromX: number, fromY: number, swarm = false) {
     const s = this.scene;
+    if (swarm ? this.god || this.state2 === 'roll' || this.state2 === 'dead' : this.invulnerable) return;
     // a armadura absorve parte do dano (mínimo 1)
     const dmg = Math.max(1, Math.round(amount * (1 - this.defense)));
     this.hp = Math.max(0, this.hp - dmg);
     this.lastHurt = s.time.now;
-    this.invulnUntil = s.time.now + PLAYER.hurtInvuln;
+    if (!swarm) this.invulnUntil = s.time.now + PLAYER.hurtInvuln;
     s.fx.damageText(this.x, this.y - 24, dmg, '#ff6060');
     this.flash(0xff4040, 120);
     const a = Phaser.Math.Angle.Between(fromX, fromY, this.fx, this.fy);
-    this.body.setVelocity(Math.cos(a) * 150, Math.sin(a) * 150);
-    this.gatherDone = undefined;
-    this.pendingShot = undefined;
+    const kb = swarm ? 60 : 150;
+    this.body.setVelocity(Math.cos(a) * kb, Math.sin(a) * kb);
+    if (!swarm) {
+      this.gatherDone = undefined;
+      this.pendingShot = undefined;
+    }
     if (this.hp <= 0) {
       this.die();
       return;
     }
+    // golpe de soldado não atordoa (senão, cercado, o herói nunca mais ataca)
+    if (swarm) return;
     this.state2 = 'hurt';
     this.stateUntil = s.time.now + 180;
     // recuo: quadro de "encolher" da queda

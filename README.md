@@ -152,9 +152,9 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   9-slice em pixel art (painel, painel interno, destaque), botões em 5 cores
   com bisel que afunda ao tocar, barras e 18 ícones; fonte **Tiny5** (números bem legíveis)
   embutida (`public/fonts`). Todas as telas usam as mesmas peças.
-- **HUD:** à esquerda a insígnia da patente, vida, Glória, nome da patente,
-  tamanho do exército e as 4 ordens; à direita o **minimapa**, o relógio e os
-  ícones de menu.
+- **HUD:** à esquerda o brasão do clã com a insígnia da patente, vida, Glória,
+  ouro, patente, exército, as 4 ordens e as missões ativas; à direita, no alto,
+  a **barra de menu** numa moldura só e, embaixo dela, o **minimapa** e o relógio.
 - **Minimapa** (`Minimap.ts`): 110 tiles em volta do herói com cidades
   (quadrados; Brumavale dourada), **spots de up** (anéis dourados), campeões
   (losangos vermelhos), soldados (azul aliado / vermelho inimigo) e o herói
@@ -189,13 +189,10 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   nome, brasão, cor, Glória, soldados e uma peça rara. Um motor do mundo
   (a cada ~22 s) faz os clãs recrutarem, guerrearem entre si, subirem de
   degrau, surgirem e se desfazerem; tudo vira **crônica** (linha no alto da
-  tela e lista no painel). De vez em quando um rival de força parecida
-  **desafia** o jogador: 3 min para aceitar, ou o clã perde Glória.
+  tela e lista no painel).
 - **Ranking de Clãs** (ícone da coroa, tecla R): lista por Glória com brasão,
-  degrau, cidade e soldados; ficha do clã; **DESAFIAR** traz o exército
-  inteiro do rival com o **líder** à frente (personagem nomeado). Vencer tira
-  Glória e soldados dele; o líder derrotado deixa cair a peça que carregava.
-  Cada rival descansa 2 min depois de uma batalha.
+  degrau, cidade e soldados; ficha do clã e onde anda o bando dele (ver
+  "Clãs no mapa").
 - **Missões** (ícone do pergaminho, tecla T): o **Lorde** de cada cidade
   oferece 3 missões (é preciso estar na cidade): **caçada** (N criaturas no
   bioma), **procurado** (personagem nomeado marcado no minimapa e no mapa,
@@ -212,6 +209,42 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   facho de luz na cor da raridade e são pegos ao passar por cima. A mochila
   agora fica salva. Não há craft; a coleta vai servir para erguer a **sede do
   clã** (próxima etapa).
+
+### Clãs no mapa (`src/systems/Bands.ts`)
+- Não existe mais "desafiar" por botão: **cada clã rival tem um bando em campo**
+  (60% dos soldados, com o líder) que anda de verdade pelo mapa — patrulha
+  entre as cidades perto da sede dele, **caça o herói** quando se acha mais
+  forte (só rivais de força parecida), **marcha contra a sua sede** e briga
+  com bandos rivais quando se cruzam (o vencedor ganha Glória, o perdedor se
+  refaz em 3 min).
+- **Minimapa e mapa** mostram os bandos na cor do clã; **contorno vermelho
+  piscando** = vem atrás de você ou da sua sede (no minimapa, preso na borda na
+  direção dele). Quando um caçador chega a ~55 tiles aparece o aviso
+  "X SE APROXIMA — lute ou fuja".
+- A **26 tiles** o bando vira um exército de soldados de verdade, com o líder
+  (personagem nomeado) à frente. **Fugir** funciona: a 50 tiles da batalha os
+  inimigos que sobraram voltam a ser um bando. Vencer destrói o bando (o líder
+  deixa cair a peça rara dele) e o clã leva 4 min para pôr outro em campo.
+- Ataques à sede chegam a pé: o bando aparece no minimapa marchando; a chegada
+  estimada vai no painel da sede.
+- O painel de Clãs mostra onde anda o bando de cada um (cidade, distância, se
+  está caçando) e um botão para ver no mapa.
+
+### Personagens com cara própria
+- Líderes de clã, procurados e os capangas deles são montados com as camadas
+  LPC: 5 trajes × 4 armas, mais o tom (antes, todo personagem era o mesmo
+  bandido). Os procurados andam com 2–7 capangas.
+
+### Herói menos "roubado"
+- Golpes de soldados não dão mais 0,9 s de invulnerabilidade ao herói (cada
+  soldado que acerta conta) nem o atordoam. Sozinho contra 25 soldados, o
+  herói inicial cai em ~15 s.
+
+### Coletores da sede
+- Aba **TRABALHO** da sede: contrate coletores (ouro; o Salão comporta 6/12/20)
+  para madeira, pedra, fibra, minério e cristal. Eles enchem o **estoque do
+  Armazém** (100/300/800 de cada) sozinhos, e o estoque conta para construir,
+  melhorar, reparar e treinar. Alguns andam pela sede.
 
 ### Sede do clã (`src/systems/HQ.ts`, `src/ui/HQPanel.ts`, ícone da casa, tecla H)
 - **Erguer:** só um **Clã** (600 de Glória, não um Bando), num terreno plano

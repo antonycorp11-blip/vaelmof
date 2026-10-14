@@ -79,11 +79,11 @@ export class ClansPanel {
     this.dName = label(scene, '', 12, COLOR.gold);
     this.dInfo = label(scene, '', 9, COLOR.text, 1, false).setLineSpacing(3);
     this.dGear = label(scene, '', 9, COLOR.text, 1, false);
-    this.action = new Button(scene, { label: 'DESAFIAR', icon: 5, color: 'red', size: 11, onTap: () => this.challenge() });
+    this.action = new Button(scene, { label: 'VER NO MAPA', icon: 3, color: 'blue', size: 11, onTap: () => this.challenge() });
     this.status = label(scene, '', 9, COLOR.red, 1, false);
     this.banner = frame(scene, 'frame-hl');
     this.bannerText = label(scene, '', 9, COLOR.gold);
-    this.accept = new Button(scene, { label: 'ACEITAR', color: 'gold', size: 10, onTap: () => this.acceptChallenge() });
+    this.accept = new Button(scene, { label: 'ACEITAR', color: 'gold', size: 10, onTap: () => this.challenge() });
     this.chron = label(scene, '', 8, COLOR.dim, 1, false).setLineSpacing(3);
     this.win.add(this.detailBox, ...this.bigCrest.parts, this.dName, this.dInfo, this.dGear, this.status, this.banner, this.bannerText, this.chron);
     this.action.addTo(this.win.root);
@@ -127,20 +127,24 @@ export class ClansPanel {
     this.refresh();
   }
 
+  /** Abre o mapa (definido pela UIScene). */
+  onMap?: () => void;
+
   private challenge() {
-    const c = this.sel;
-    if (!c || c.player) return;
-    const why = this.world.startClanWar(c);
-    if (why) return this.status.setText(why).setColor(COLOR.red);
-    this.setOpen(false);
+    this.onMap?.();
   }
 
-  private acceptChallenge() {
-    const ch = this.world.clans.challenge;
-    const c = ch && this.world.clans.byId(ch.clan);
-    if (!c) return;
-    this.sel = c;
-    this.challenge();
+  /** Onde anda o bando do clã. */
+  private bandText(c: Clan): string {
+    const w = this.world;
+    const b = w.bands.byClan(c.id);
+    if (!b) return '';
+    if (b.n <= 0) return 'Bando derrotado: refazendo-se na sede do clã';
+    const p = w.player;
+    const d = Math.round(Math.hypot(b.x - p.x, b.y - p.y) / 16);
+    const city = [...w.map.cities].sort((a, q) => Math.hypot(a.cx * 16 - b.x, a.cy * 16 - b.y) - Math.hypot(q.cx * 16 - b.x, q.cy * 16 - b.y))[0];
+    const what = b.goal === 'hunt' ? 'CAÇANDO VOCÊ' : b.goal === 'raid' ? 'MARCHANDO CONTRA SUA SEDE' : 'em patrulha';
+    return `Bando em campo: ${b.n} soldados perto de ${city.name}, a ${d} tiles de você · ${what}`;
   }
 
   refresh(force = false) {
@@ -180,20 +184,14 @@ export class ClansPanel {
     const g = c.gear && ITEMS[c.gear];
     if (g && !c.player) this.dGear.setText(`O líder carrega: ${g.name} (${RARITY[g.tier ?? 0].name})`).setColor(RARITY[g.tier ?? 0].color);
     else this.dGear.setText(c.player ? 'Vença rivais, cumpra missões e derrote personagens para subir.' : '').setColor(COLOR.dim);
-    this.action.setVisible(!c.player);
-    if (!c.player) {
-      const why = C.challengeBlock(c);
-      this.action.setLabel(`DESAFIAR (${C.armyOf(c)} soldados)`).setEnabled(!why);
-      if (why && !this.status.text) this.status.setText(why).setColor(COLOR.dim);
-    }
-    // desafio pendente
-    const ch = C.challenge;
-    const cc = ch && C.byId(ch.clan);
-    const on = !!cc;
-    this.banner.setVisible(on);
-    this.bannerText.setVisible(on);
-    this.accept.setVisible(on);
-    if (cc) this.bannerText.setText(`${cc.name} desafiou você! ${Math.max(0, Math.ceil((ch!.until - C.now) / 1000))} s`);
+    this.action.setVisible(!c.player).setLabel('VER NO MAPA');
+    this.status.setText(c.player ? '' : this.bandText(c)).setColor(this.world.bands.byClan(c.id)?.goal === 'hunt' ? COLOR.red : COLOR.text);
+    // aviso: alguém vem atrás de você
+    const hunter = this.world.bands.active.find((a) => a.band.goal === 'hunt' || a.band.goal === 'raid');
+    this.banner.setVisible(!!hunter);
+    this.bannerText.setVisible(!!hunter);
+    this.accept.setVisible(false);
+    if (hunter) this.bannerText.setText(`${hunter.clan.name} ${hunter.band.goal === 'hunt' ? 'está atrás de você!' : 'marcha contra sua sede!'}`);
     this.chron.setText(C.chronicle.slice(0, 4).map((e) => `· ${e.text}`).join('\n'));
   }
 

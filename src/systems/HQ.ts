@@ -6,6 +6,7 @@ import { DEPTH } from '../entities/Creature';
 import type { Hittable } from '../entities/Hittable';
 import type { WorldScene } from '../scenes/WorldScene';
 import { allyTint, type Soldier } from './Army';
+import type { Band } from './Bands';
 import type { Clan } from './Clans';
 import type { ItemStack } from './Inventory';
 import { T } from './Tiles';
@@ -112,6 +113,13 @@ const TREASURY_INCOME = [0, 20, 50, 110];
 const CHEST = [0, 24, 48];
 export const TRAIN_MAX = 10;
 export type Train = 'atk' | 'def' | 'hp';
+export const MATERIALS: Material[] = ['wood', 'stone', 'fiber', 'ore', 'crystal'];
+/** Quanto cada coletor junta por minuto. */
+export const WORK_RATE: Record<Material, number> = { wood: 6, stone: 5, fiber: 6, ore: 2, crystal: 1 };
+/** Coletores por nível do Salão e estoque por material por nível do Armazém. */
+const WORKER_CAP = [0, 6, 12, 20];
+const STOCK_CAP = [100, 300, 800];
+export const hireCost = (n: number) => 60 + n * 15;
 export const TRAIN_NAME: Record<Train, string> = { atk: 'Ataque', def: 'Defesa', hp: 'Vida' };
 /** Custo do próximo nível de treino. */
 export const trainCost = (lv: number): Cost => ({ gold: Math.round(60 * Math.pow(lv + 1, 1.6)), ore: 2 * (lv + 1) });
@@ -128,6 +136,9 @@ interface State {
   chest: (ItemStack | null)[];
   train: Record<Train, number>;
   raid: { clan: string; at: number } | null;
+  /** Coletores contratados por material e o que já juntaram (estoque do Armazém). */
+  workers: Record<Material, number>;
+  stock: Record<Material, number>;
 }
 
 const fresh = (): State => ({
@@ -140,6 +151,8 @@ const fresh = (): State => ({
   chest: [],
   train: { atk: 0, def: 0, hp: 0 },
   raid: null,
+  workers: { wood: 0, stone: 0, fiber: 0, ore: 0, crystal: 0 },
+  stock: { wood: 0, stone: 0, fiber: 0, ore: 0, crystal: 0 },
 });
 
 /** Ponto que os inimigos atacam (um por construção; várias por lado de muralha). */
@@ -184,7 +197,10 @@ export class HQ extends Phaser.Events.EventEmitter {
   constructor(private scene: WorldScene) {
     super();
     this.load();
-    if (this.st.founded) this.apply();
+    if (this.st.founded) {
+      this.apply();
+      this.makeWorkers();
+    }
     const army = scene.army;
     army.healAt = (x, y) => this.healAt(x, y);
     army.structures = () => this.targets;
@@ -302,7 +318,7 @@ export class HQ extends Phaser.Events.EventEmitter {
     const inv = this.scene.inventory;
     const out: string[] = [];
     for (const [k, n] of Object.entries(c) as [Material | 'gold', number][]) {
-      const have = k === 'gold' ? this.gold : inv.countFamily(k);
+      const have = k === 'gold' ? this.gold : inv.countFamily(k) + Math.floor(this.st.stock[k] ?? 0);
       if (have < n) out.push(`${n - have} de ${MATERIAL_NAME[k]}`);
     }
     return out.join(', ');
@@ -312,7 +328,12 @@ export class HQ extends Phaser.Events.EventEmitter {
     const inv = this.scene.inventory;
     for (const [k, n] of Object.entries(c) as [Material | 'gold', number][]) {
       if (k === 'gold') this.st.gold -= n;
-      else inv.removeFamily(k, n);
+      else {
+        // primeiro o estoque do Armazém, depois a mochila
+        const fromStock = Math.min(n, Math.floor(this.st.stock[k] ?? 0));
+        this.st.stock[k] -= fromStock;
+        if (n - fromStock > 0) inv.removeFamily(k, n - fromStock);
+      }
     }
   }
 
@@ -397,6 +418,70 @@ export class HQ extends Phaser.Events.EventEmitter {
     this.save();
     this.emit('change');
     return '';
+  }
+
+  // ------------------------------------------------------------ coletores
+  get workerCap() {
+    return this.st.hp.hall > 0 ? WORKER_CAP[this.st.lv.hall] : 0;
+  }
+
+  get workerCount() {
+    return MATERIALS.reduce((n, m) => n + this.st.workers[m], 0);
+  }
+
+  get stockCap() {
+    return STOCK_CAP[this.st.hp.warehouse > 0 ? this.st.lv.warehouse : 0];
+  }
+
+  hireBlock(): string {
+    if (!this.heroInside) return 'Contrate estando na sede';
+    if (this.workerCount >= this.workerCap) return `O Salão nível ${this.st.lv.hall} comporta ${this.workerCap} coletores`;
+    if (this.gold < hireCost(this.workerCount)) return `Faltam ${hireCost(this.workerCount) - this.gold} de ouro`;
+    return '';
+  }
+
+  hire(m: Material): string {
+    const why = this.hireBlock();
+    if (why) return why;
+    this.st.gold -= hireCost(this.workerCount);
+    this.st.workers[m]++;
+    this.makeWorkers();
+    this.save();
+    this.emit('change');
+    return '';
+  }
+
+  dismiss(m: Material): string {
+    if (this.st.workers[m] <= 0) return '';
+    this.st.workers[m]--;
+    this.makeWorkers();
+    this.save();
+    this.emit('change');
+    return '';
+  }
+
+  /** Coletores andando pela sede (só enfeite: a coleta é contada no tempo). */
+  private walkers: { s: Phaser.GameObjects.Sprite; tx: number; ty: number; t: number; dir: number }[] = [];
+  private makeWorkers() {
+    for (const w of this.walkers) w.s.destroy();
+    this.walkers = [];
+    if (!this.founded) return;
+    const s = this.scene;
+    const n = Math.min(10, this.workerCount);
+    const outfits = ['leather', 'hunter'];
+    s.army.prepare(() => {
+      for (let i = 0; i < n; i++) {
+        const key = s.army.textureFor(outfits[i % 2], i % 3 === 0 ? 'staff' : 'sword');
+        const p = this.yardPoint();
+        const spr = s.add.sprite(p.x, p.y, key, 0).setOrigin(0.5, 77 / 96).setScale(s.army.scale);
+        this.walkers.push({ s: spr, tx: p.x, ty: p.y, t: Math.random() * 8, dir: 0 });
+      }
+    });
+  }
+
+  private yardPoint() {
+    const o = this.st;
+    return { x: (o.ox + 3 + Math.random() * (HQ_W - 6)) * TILE, y: (o.oy + 4 + Math.random() * (HQ_H - 8)) * TILE };
   }
 
   // ------------------------------------------------------------ baú
@@ -654,24 +739,21 @@ export class HQ extends Phaser.Events.EventEmitter {
 
   // ------------------------------------------------------------ ataques de rivais
   /** O rival que ataca e quando chega. */
-  scheduleRaid(c: Clan) {
+  scheduleRaid(c: Clan, etaSec = 120) {
     if (!this.founded || this.st.raid) return;
-    this.st.raid = { clan: c.id, at: this.scene.clans.now + 120000 };
-    this.scene.clans.log(`${c.name} marcha contra a sede do ${this.scene.clans.player.name}! Chega em 2 minutos.`, true);
+    this.st.raid = { clan: c.id, at: this.scene.clans.now + etaSec * 1000 };
+    const min = Math.max(1, Math.round(etaSec / 60));
+    this.scene.clans.log(`${c.name} marcha contra a sede do ${this.scene.clans.player.name}! Chega em uns ${min} min (veja no minimapa).`, true);
     this.save();
     this.emit('change');
   }
 
-  private resolveRaid() {
+  /** O bando do rival chegou à sede. */
+  raidArrived(c: Clan, band: Band) {
     const s = this.scene;
-    const r = this.st.raid!;
-    const c = s.clans.byId(r.clan);
-    if (!c) {
-      this.st.raid = null;
-      return;
-    }
+    const r = this.st.raid ?? { clan: c.id, at: s.clans.now };
     const p = s.player;
-    const n = Math.max(8, Math.min(300, Math.round(c.soldiers * 0.8)));
+    const n = band.n;
     const vet = Math.min(3, s.clans.tier(c));
     const ctr = this.center;
     // herói perto: a batalha acontece de verdade, nos muros
@@ -681,10 +763,10 @@ export class HQ extends Phaser.Events.EventEmitter {
         return;
       }
       this.st.raid = null;
+      s.bands.engaged = band;
       s.army.prepare(() => {
         s.army.garrisonToPosts();
-        const g = this.gate;
-        s.army.declareWar(n, { name: c.name, color: c.color, clan: c.id }, { origin: { x: g.x, y: g.y + 12 * TILE }, vet, siege: { x: ctr.x, y: (this.st.oy + 11) * TILE } });
+        s.army.declareWar(n, { name: c.name, color: c.color, clan: c.id }, { origin: { x: band.x, y: band.y }, exact: true, vet, siege: { x: ctr.x, y: (this.st.oy + 11) * TILE } });
         s.events.emit('area', 'A SEDE ESTÁ SOB ATAQUE!', `${c.name} chega com ${n} soldados`);
       });
       this.save();
@@ -692,6 +774,10 @@ export class HQ extends Phaser.Events.EventEmitter {
     }
     // longe: o combate é resolvido pela força da defesa
     this.st.raid = null;
+    // depois do ataque, o bando volta a patrulhar
+    band.goal = 'patrol';
+    band.tx = band.x;
+    band.ty = band.y;
     const guards = s.army.stationed.length + s.army.garrison.length;
     const tr = 1 + (this.st.train.atk + this.st.train.def + this.st.train.hp) * 0.04;
     let def = guards * tr + this.st.lv.hall * 5;
@@ -705,6 +791,7 @@ export class HQ extends Phaser.Events.EventEmitter {
       const lost = Math.min(guards, Math.round(guards * 0.25 * (att / Math.max(1, def))));
       this.loseGuards(lost);
       c.soldiers = Math.max(0, c.soldiers - Math.round(n * 0.6));
+      band.n = Math.max(1, Math.round(n * 0.4));
       s.gainGlory(Math.round(n * 1.5), p.x, p.y - 40);
       s.clans.log(`A sede do ${s.clans.player.name} resistiu ao ataque do ${c.name} (${lost} baixas).`, true);
     } else {
@@ -750,6 +837,8 @@ export class HQ extends Phaser.Events.EventEmitter {
     s.army.disband();
     s.progress.penalize(0.5, 0.25);
     this.clear();
+    for (const w of this.walkers) w.s.destroy();
+    this.walkers = [];
     const gold = this.st.gold;
     this.st = fresh();
     this.st.gold = Math.floor(gold * 0.3);
@@ -776,6 +865,35 @@ export class HQ extends Phaser.Events.EventEmitter {
       this.st.gold += k;
       this.incomeFrac -= k;
       this.emit('gold');
+    }
+    // coletores juntam material no estoque (até o limite do Armazém)
+    const cap = this.stockCap;
+    for (const m of MATERIALS) {
+      const w = this.st.workers[m];
+      if (w) this.st.stock[m] = Math.min(cap, (this.st.stock[m] ?? 0) + (w * WORK_RATE[m] * delta) / 60000);
+    }
+    for (const w of this.walkers) {
+      const dx = w.tx - w.s.x;
+      const dy = w.ty - w.s.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 3) {
+        const p = this.yardPoint();
+        w.tx = p.x;
+        w.ty = p.y;
+        continue;
+      }
+      const v = (22 * delta) / 1000;
+      if (s.collision.solid(Math.floor((w.s.x + (dx / d) * 6) / TILE), Math.floor((w.s.y + (dy / d) * 6) / TILE))) {
+        const p = this.yardPoint();
+        w.tx = p.x;
+        w.ty = p.y;
+        continue;
+      }
+      w.s.x += (dx / d) * v;
+      w.s.y += (dy / d) * v;
+      w.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : dy < 0 ? 3 : 0;
+      w.t = (w.t + (delta / 1000) * 8) % 8;
+      w.s.setFrame(w.dir * 15 + 1 + Math.floor(w.t)).setDepth(DEPTH.entities + w.s.y);
     }
     // torres
     const foes = s.army.war ? s.army.soldiers : null;
@@ -813,16 +931,11 @@ export class HQ extends Phaser.Events.EventEmitter {
     const p = s.player;
     const near = this.inside(p.x, p.y, 12);
     for (const l of this.labels.values()) l.setVisible(near);
-    // ataque marcado
-    if (this.st.raid && s.clans.now >= this.st.raid.at) this.resolveRaid();
-    // de vez em quando um rival de força parecida ataca
-    if (time - this.raidCheck > 30000) {
+    // ataque sem bando a caminho (save antigo, clã desfeito): cancela
+    if (this.st.raid && time - this.raidCheck > 5000) {
       this.raidCheck = time;
-      if (!this.st.raid && Math.random() < 0.06) {
-        const me = s.clans.tier(s.clans.player);
-        const c = s.clans.rivals.filter((c) => c.soldiers >= 10 && Math.abs(s.clans.tier(c) - me) <= 1);
-        if (c.length) this.scheduleRaid(c[Math.floor(Math.random() * c.length)]);
-      }
+      const b = s.bands.byClan(this.st.raid.clan);
+      if (!b || b.goal !== 'raid' || b.n <= 0) this.st.raid = null;
     }
   }
 
@@ -870,6 +983,8 @@ export class HQ extends Phaser.Events.EventEmitter {
       st.lv = { ...fresh().lv, ...(d.lv ?? {}) };
       st.hp = { ...fresh().hp, ...(d.hp ?? {}) };
       st.train = { ...fresh().train, ...(d.train ?? {}) };
+      st.workers = { ...fresh().workers, ...(d.workers ?? {}) };
+      st.stock = { ...fresh().stock, ...(d.stock ?? {}) };
       st.chest = Array.isArray(d.chest) ? d.chest.map((c: ItemStack | null) => (c && ITEMS[c.id] ? c : null)) : [];
       this.st = st;
     } catch {

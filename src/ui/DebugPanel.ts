@@ -95,12 +95,26 @@ export class DebugPanel {
       world.hq.addGold(2000);
     }, 'gold');
     add('Virar Clã (+700 glória)', () => world.progress.addGlory(700), 'gold');
+    add('Bando vem atrás de mim', () => {
+      const act = world.bands.active.filter((a) => a.band !== world.bands.engaged);
+      const it = act.sort((a, b) => a.band.n - b.band.n)[0];
+      if (!it) return;
+      const p = world.player;
+      it.band.x = p.x + 50 * 16;
+      it.band.y = p.y;
+      it.band.goal = 'hunt';
+      it.band.warned = false;
+    }, 'red');
     add('Ataque à sede (teste)', () => {
-      const c = world.clans.rivals.sort((a, b) => a.soldiers - b.soldiers)[0];
-      if (c && world.hq.founded) {
-        world.hq.scheduleRaid(c);
-        if (world.hq.st.raid) world.hq.st.raid.at = world.clans.now + 3000;
-      }
+      const it = world.bands.active.filter((a) => a.band !== world.bands.engaged).sort((a, b) => a.band.n - b.band.n)[0];
+      if (!it || !world.hq.founded) return;
+      const g = world.hq.gate;
+      it.band.x = g.x;
+      it.band.y = g.y + 30 * 16;
+      it.band.goal = 'raid';
+      it.band.tx = g.x;
+      it.band.ty = g.y + 6 * 16;
+      world.hq.scheduleRaid(it.clan, 30);
     }, 'red');
     add('Clãs: avançar mundo', () => {
       for (let i = 0; i < 5; i++) world.clans.update(30000);

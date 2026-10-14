@@ -26,7 +26,8 @@ import { fmtPts, Progress } from '../systems/Progress';
 import { SpawnSpots, type Spot } from '../systems/SpawnSpots';
 import { Biome, BIOMES, generateWorld, type WorldData } from '../systems/WorldGenerator';
 import { TileCollision } from '../systems/TileCollision';
-import { allyTint, Army } from '../systems/Army';
+import { Army } from '../systems/Army';
+import { Bands } from '../systems/Bands';
 import { Bosses } from '../systems/Bosses';
 import { Clans, type Clan } from '../systems/Clans';
 import { Loot } from '../systems/Loot';
@@ -74,6 +75,8 @@ export class WorldScene extends Phaser.Scene {
   loot!: Loot;
   /** Sede do clã. */
   hq!: HQ;
+  /** Bandos dos clãs rivais andando pelo mapa. */
+  bands!: Bands;
   animals: Animal[] = [];
   flames: Flame[] = [];
   dayNight!: DayNightSystem;
@@ -142,6 +145,7 @@ export class WorldScene extends Phaser.Scene {
     this.clans = new Clans(this);
     this.missions = new Missions(this);
     this.hq = new HQ(this);
+    this.bands = new Bands(this);
     this.setupClans();
     this.rankIcon = this.add.image(0, 0, 'rank-icons', this.progress.rankIdx).setDepth(DEPTH.fx - 50);
     this.progress.on('change', () => this.rankIcon.setFrame(this.progress.rankIdx));
@@ -296,55 +300,10 @@ export class WorldScene extends Phaser.Scene {
       this.army.setClanColor(c.color);
       this.hq.refreshBanners();
     });
-    this.army.on('war-end', (w: { clan?: string; won: boolean; killed: number; glory: number }) => {
-      if (this.clanLeader) {
-        // o líder que sobrou foge com o exército
-        this.bosses.remove(this.clanLeader);
-        this.clanLeader = undefined;
-      }
-      const c = w.clan ? C.byId(w.clan) : undefined;
-      if (!c) return;
-      C.settle(c, w.won, w.killed, Math.abs(w.glory));
-      if (w.won) this.events.emit('clan-beaten', c.id);
-    });
     // bandidos comuns: raramente uma peça Temperada
     this.events.on('enemy-killed', (e: Enemy) => {
       if (!e.transient && e instanceof Bandit && Math.random() < 0.05) this.loot.drop(rollGear(1), e.x, e.y);
     });
-  }
-
-  private clanLeader?: Enemy;
-
-  /** Desafia um clã rival: o exército dele vem com o líder à frente. Devolve o motivo se não der. */
-  startClanWar(c: Clan): string {
-    const why = this.clans.challengeBlock(c);
-    if (why) return why;
-    const n = this.clans.armyOf(c);
-    this.army.prepare(() => {
-      this.army.declareWar(n, { name: c.name, color: c.color, clan: c.id });
-      const w = this.army.war;
-      if (!w) return;
-      const t = this.clans.tier(c);
-      this.clanLeader = this.bosses.spawn({
-        name: `${c.leader}`,
-        x: w.x,
-        y: w.y,
-        hp: Math.round(60 + this.clans.glory(c) / 18),
-        damage: 2.5 + t * 1.4,
-        tint: allyTint(c.color),
-        scale: 1.2,
-        points: 10 + t * 8,
-        rank: Math.min(9, t * 2 + 1),
-        loot: c.gear,
-        onKill: () => {
-          this.clanLeader = undefined;
-          this.events.emit('toast', `${c.leader}, líder do ${c.name}, caiu!`);
-        },
-      });
-      if (this.clans.challenge?.clan === c.id) this.clans.challenge = null;
-      this.clans.emit('change');
-    });
-    return '';
   }
 
   /** Apaga todo o progresso salvo e recomeça (debug). */
@@ -607,6 +566,7 @@ export class WorldScene extends Phaser.Scene {
     this.clans.update(dt);
     this.missions.update(time);
     this.hq.update(time, dt);
+    this.bands.update(time, dt);
     const pl = this.player;
     this.rankIcon
       .setPosition(Math.round(pl.x), Math.round(pl.y - 25))

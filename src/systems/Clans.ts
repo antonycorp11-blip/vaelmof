@@ -160,7 +160,7 @@ export class Clans extends Phaser.Events.EventEmitter {
       city,
       leader: `${pick(LEADERS)} ${pick(EPITHETS)}`,
       glory: g,
-      soldiers: Math.round(Math.min(300, 6 + g / 45 + Math.random() * 10)),
+      soldiers: Math.round(Math.min(300, 6 + g / 90 + Math.random() * 10)),
       gear: rollGear(1 + Math.min(3, tierOfGlory(g) * 0.8)),
     };
   }
@@ -196,34 +196,8 @@ export class Clans extends Phaser.Events.EventEmitter {
       if (c.soldiers < cap) c.soldiers = Math.min(Math.round(cap), c.soldiers + 1 + Math.floor(Math.random() * 4));
       c.glory += Math.round(Math.random() * 12 + c.glory * 0.002);
     }
-    // uma guerra entre rivais (de preferência de força parecida)
-    if (rivals.length > 2 && Math.random() < 0.7) {
-      const a = pick(rivals);
-      const near = rivals.filter((c) => c !== a).sort((x, y) => Math.abs(x.glory - a.glory) - Math.abs(y.glory - a.glory));
-      const b = pick(near.slice(0, 4));
-      const pa = a.soldiers * Math.pow(a.glory + 100, 0.3);
-      const pb = b.soldiers * Math.pow(b.glory + 100, 0.3);
-      const [win, lose] = Math.random() < pa / (pa + pb) ? [a, b] : [b, a];
-      const prize = Math.round(lose.glory * 0.08 + 20);
-      win.glory += prize;
-      lose.glory = Math.max(0, lose.glory - prize);
-      win.soldiers = Math.max(0, Math.round(win.soldiers * 0.85));
-      lose.soldiers = Math.max(0, Math.round(lose.soldiers * 0.6));
-      const before = tierOfGlory(win.glory - prize);
-      this.log(`${win.name} venceu ${lose.name} perto de ${lose.city} (+${prize} Glória).`);
-      if (tierOfGlory(win.glory) > before) this.log(`${win.name} agora é ${CLAN_TIERS[tierOfGlory(win.glory)].name}!`);
-    }
-    // um rival de força parecida desafia o jogador
-    const me = this.player;
-    const myTier = this.tier(me);
-    if (!this.challenge && !this.scene.army.war && Math.random() < 0.18) {
-      const cands = rivals.filter((c) => Math.abs(tierOfGlory(c.glory) - myTier) <= 1 && (c.restUntil ?? 0) < this.clock && c.soldiers > 0);
-      if (cands.length) {
-        const c = pick(cands);
-        this.challenge = { clan: c.id, until: this.clock + 180000 };
-        this.log(`${c.name} desafiou o ${me.name}! Aceite no painel de Clãs em até 3 minutos.`, true);
-      }
-    }
+    // as guerras entre rivais e contra o jogador agora acontecem no mapa (systems/Bands)
+    this.scene.bands?.refresh();
     // clãs nascem e morrem
     if (rivals.length < 24 && Math.random() < 0.05) {
       const city = pick(this.scene.map.cities).name;

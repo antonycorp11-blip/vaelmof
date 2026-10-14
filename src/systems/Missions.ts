@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { TILE } from '../config';
 import { rollGear } from '../data/gear';
 import type { Enemy } from '../entities/Enemy';
+import type { Soldier } from './Army';
 import type { WorldScene } from '../scenes/WorldScene';
 import type { City } from './Cities';
 import { CHAMPIONS, RANKS, type ChampionId } from './Ranks';
@@ -52,7 +53,8 @@ export class Missions extends Phaser.Events.EventEmitter {
   active: Mission[] = [];
   offers = new Map<string, Mission[]>();
   done = 0;
-  private bounty = new Map<string, Enemy>();
+  /** Procurados no mapa (e o bando de capangas de cada um); null = nascendo. */
+  private bounty = new Map<string, Soldier[] | null>();
   private lastCheck = 0;
 
   constructor(private scene: WorldScene) {
@@ -108,8 +110,7 @@ export class Missions extends Phaser.Events.EventEmitter {
     const i = this.active.indexOf(m);
     if (i < 0) return;
     this.active.splice(i, 1);
-    const e = this.bounty.get(m.id);
-    if (e) this.scene.bosses.remove(e);
+    this.despawn(m.id);
     this.bounty.delete(m.id);
     this.save();
     this.emit('change');
@@ -128,7 +129,8 @@ export class Missions extends Phaser.Events.EventEmitter {
     const i = this.active.indexOf(m);
     if (i < 0) return;
     this.active.splice(i, 1);
-    this.bounty.delete(m.id);
+    // os capangas que sobraram somem depois de um tempo
+    this.scene.time.delayedCall(60000, () => this.despawn(m.id));
     this.done++;
     const s = this.scene;
     s.gainGlory(m.reward, s.player.x, s.player.y - 50);
@@ -163,7 +165,7 @@ export class Missions extends Phaser.Events.EventEmitter {
       const near = rivals.sort((a, b) => Math.abs(s.clans.tier(a) - me) - Math.abs(s.clans.tier(b) - me) || a.soldiers - b.soldiers).slice(0, 5);
       const c = near.length ? pick(near) : undefined;
       if (c)
-        return { ...base, kind, clan: c.id, title: `Guerra: ${c.name}`, desc: `${lordOf(city.name)} quer ${c.name} (${c.soldiers} soldados) humilhado. Desafie-o no painel de Clãs e vença.`, reward: Math.round(120 + c.soldiers * 4 + c.glory * 0.05), recruits: 20 };
+        return { ...base, kind, clan: c.id, title: `Guerra: ${c.name}`, desc: `${lordOf(city.name)} quer ${c.name} humilhado. O bando dele anda pelo mapa (quadrado da cor do clã no minimapa): encontre-o e vença.`, reward: Math.round(120 + c.soldiers * 4 + c.glory * 0.05), recruits: 20 };
       kind = 'hunt';
     }
     if (kind === 'bounty') {
@@ -206,7 +208,9 @@ export class Missions extends Phaser.Events.EventEmitter {
       const live = this.bounty.get(m.id);
       if (!live && d < 40 * TILE) {
         const k = t.tier;
-        const e = s.bosses.spawn({
+        this.bounty.set(m.id, null);
+        const group: Soldier[] = [];
+        s.bosses.spawn({
           name: t.name,
           x: t.x,
           y: t.y,
@@ -218,12 +222,32 @@ export class Missions extends Phaser.Events.EventEmitter {
           rank: k * 2,
           loot: rollGear(k),
           onKill: () => this.progress(m, 1),
+        }, (u) => {
+          group.push(u);
+          // capangas: alguns bandidos com armas e trajes variados, perto do chefe
+          const n = 2 + k + Math.floor(Math.random() * 3);
+          const types = ['sword', 'sword', 'bow', 'greatsword', 'staff'] as const;
+          const outfits = ['leather', 'hunter', 'plate', 'legion', 'arcane'];
+          for (let i = 0; i < n; i++) {
+            const a = (i / n) * Math.PI * 2;
+            const type = types[Math.floor(Math.random() * types.length)];
+            group.push(
+              s.army.spawnChampion({
+                x: t.x + Math.cos(a) * 26,
+                y: t.y + Math.sin(a) * 18,
+                type,
+                outfit: outfits[Math.floor(Math.random() * outfits.length)],
+                hp: Math.round(12 + k * 10),
+                damage: 1.5 + k * 0.8,
+                tint: 0xd8c8b0,
+                scale: 1,
+                rank: Math.max(0, k - 1),
+              }),
+            );
+          }
+          this.bounty.set(m.id, group);
         });
-        this.bounty.set(m.id, e);
-      } else if (live && d > 80 * TILE) {
-        s.bosses.remove(live);
-        this.bounty.delete(m.id);
-      }
+      } else if (live && d > 80 * TILE) this.despawn(m.id);
     }
   }
 
@@ -260,9 +284,19 @@ export class Missions extends Phaser.Events.EventEmitter {
     }
   }
 
+  private despawn(id: string) {
+    const g = this.bounty.get(id);
+    this.bounty.delete(id);
+    if (!g) return;
+    for (const u of g) {
+      if (u.dead) continue;
+      if (this.scene.bosses.list.some((b) => b.unit === u)) this.scene.bosses.remove(u);
+      else this.scene.army.remove(u);
+    }
+  }
+
   reset() {
-    for (const e of this.bounty.values()) this.scene.bosses.remove(e);
-    this.bounty.clear();
+    for (const id of [...this.bounty.keys()]) this.despawn(id);
     this.active = [];
     this.offers.clear();
     this.done = 0;

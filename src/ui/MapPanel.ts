@@ -84,7 +84,7 @@ export class MapPanel {
     fit(this.title, 15, u).setPosition(x0 + pad, y0 + 9 * u);
     this.close.place(x0 + W - pad - 30 * u, y0 + 6 * u, u, 30 * u, 24 * u);
     fit(this.legend, 10, u)
-      .setText(`■ cidade   ■ sua sede   ◯ spot de up   ◆ campeão   ● procurado   ▲ você${this.teleport ? '   · toque para ir até lá' : ''}`)
+      .setText(`■ cidade   ■ sua sede   ■ bando rival (vermelho = vem atrás de você)   ◯ spot   ◆ campeão   ● procurado${this.teleport ? '   · toque para ir até lá' : ''}`)
       .setPosition(x0 + pad, y0 + head + side + 6 * u);
     const k = s / (TILE * 2);
     this.world.map.cities.forEach((c, i) => {
@@ -123,6 +123,12 @@ export class MapPanel {
       g.fillStyle(0x0b0d14, 1).fillRect(x - 5 * u, y - 5 * u, 10 * u, 10 * u);
       g.fillStyle(w.clans.player.color, 1).fillRect(x - 4 * u, y - 4 * u, 8 * u, 8 * u);
       g.fillStyle(0xffd77a, 1).fillRect(x - u, y - u, 2 * u, 2 * u);
+    }
+    for (const { band: b, clan: c } of w.bands.active) {
+      const [x, y] = at(b.x, b.y);
+      const danger = b.goal === 'hunt' || b.goal === 'raid';
+      g.fillStyle(danger ? 0xff3a3a : 0x0b0d14, 1).fillRect(x - 4 * u, y - 4 * u, 8 * u, 8 * u);
+      g.fillStyle(c.color, 1).fillRect(x - 3 * u, y - 3 * u, 6 * u, 6 * u);
     }
     for (const m of w.missions.active) {
       if (!m.target) continue;

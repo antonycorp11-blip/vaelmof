@@ -76,6 +76,7 @@ export class UIScene extends Phaser.Scene {
   private lastMax = -1;
   private lastHud = 0;
   private hudBottom = 0;
+  private menuBar!: Phaser.GameObjects.NineSlice;
 
   constructor() {
     super('UI');
@@ -137,6 +138,7 @@ export class UIScene extends Phaser.Scene {
       ['map', 3, 'dark'],
       ['debug', 4, 'red'],
     ];
+    this.menuBar = frame(this, 'frame').setDepth(1399);
     for (const [id, icon, color] of menuDefs) this.menu.push({ id, b: new Button(this, { icon, color, onTap: () => this.togglePanel(id) }).setDepth(1400) });
     this.pointsBadge = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '9px', fontStyle: 'bold', color: COLOR.ink }).setOrigin(0.5).setDepth(1405).setBackgroundColor('#ffd77a');
 
@@ -162,6 +164,7 @@ export class UIScene extends Phaser.Scene {
     };
     this.missionsPanel = new MissionsPanel(this, world);
     this.clansPanel = new ClansPanel(this, world);
+    this.clansPanel.onMap = () => this.togglePanel('map');
     this.hqPanel = new HQPanel(this, world);
     this.clanCreate = new ClanCreate(this, world);
     this.armyPanel.onClans = () => this.togglePanel('clans');
@@ -170,13 +173,19 @@ export class UIScene extends Phaser.Scene {
       this.clanCreate.open ||
       Object.values(this.panels).some((p) => p.open && p.contains(x, y)) ||
       this.minimap.contains(x, y) ||
+      this.menuBar.getBounds().contains(x, y) ||
       [...this.menu.map((m) => m.b), ...this.orders.map((o) => o.b)].some((b) => b.contains(x, y));
 
     // --- eventos do mundo
     army.on('mode', () => this.updateHud());
     army.on('change', () => this.updateHud());
-    army.on('war', (w: War) => this.showArea('GUERRA!', `${w.house} marcha com ${w.start} soldados`));
-    army.on('war-end', (w: War & { won: boolean; glory: number }) => {
+    army.on('war', (w: War) => !w.clan && this.showArea('GUERRA!', `${w.house} marcha com ${w.start} soldados`));
+    army.on('war-end', (w: War & { won: boolean; glory: number; fled?: boolean; left?: number }) => {
+      if (w.fled) {
+        this.showArea('FUGA', `você escapou do ${w.house} · ${w.left ?? 0} soldados seguem pelo mapa`);
+        this.updateHud();
+        return;
+      }
       if (w.won) this.showArea('VITÓRIA', `${w.killed} inimigos derrotados · ${w.lost} baixas · +${w.glory} de glória`);
       else this.showArea('DERROTA', `${w.house} venceu · ${w.lost} baixas · ${w.glory} de glória`);
       this.updateHud();
@@ -300,19 +309,24 @@ export class UIScene extends Phaser.Scene {
     }
     fit(this.missionText, 9, u).setPosition(m, oy + 54 * u);
     // --- direita
-    const mw = Math.min(150 * u, width * 0.2);
-    const mh = Math.round(mw * 0.72);
-    const mx = width - m - mw;
-    this.minimap.layout(u, mx, m, mw, mh);
-    fit(this.clock, 10, u).setPosition(width - m, this.minimap.bottom + 2 * u);
-    let bx = width - m;
-    const by = this.clock.y + this.clock.height + 4 * u;
+    // barra de menu no alto, numa moldura só; o minimapa logo abaixo
+    const ms = 28 * u;
+    const gap = 3 * u;
+    const bp = 6 * u;
+    const barW = this.menu.length * ms + (this.menu.length - 1) * gap + bp * 2;
+    const barH = ms + bp * 2;
+    sizeFrame(this.menuBar, width - m - barW, m, barW, barH, u);
+    let bx = width - m - bp;
     for (const it of [...this.menu].reverse()) {
-      it.b.place(bx - 34 * u, by, u, 34 * u, 30 * u);
-      bx -= 34 * u + 4 * u;
+      it.b.place(bx - ms, m + bp, u, ms, ms);
+      bx -= ms + gap;
     }
     this.pointsBadge.setFontSize(Math.round(10 * u)).setPadding(Math.round(3 * u), Math.round(1 * u), Math.round(3 * u), Math.round(1 * u));
-    this.hudBottom = by + 30 * u;
+    const mw = Math.min(150 * u, width * 0.2);
+    const mh = Math.round(mw * 0.72);
+    this.minimap.layout(u, width - m - mw, m + this.menuBar.displayHeight + 4 * u, mw, mh);
+    fit(this.clock, 10, u).setPosition(width - m, this.minimap.bottom + 2 * u);
+    this.hudBottom = this.clock.y + this.clock.height;
     // --- centro
     fit(this.areaText, 22, u).setPosition(width / 2, height * 0.22);
     fit(this.areaSub, 12, u).setPosition(width / 2, height * 0.22 + 22 * u);

@@ -2,12 +2,12 @@ import Phaser from 'phaser';
 import { RARITY } from '../data/gear';
 import { ITEMS, type ItemDef } from '../data/items';
 import type { WorldScene } from '../scenes/WorldScene';
-import { BUILD_ORDER, DEFS, HQ, TRAIN_MAX, TRAIN_NAME, trainCost, type BuildId, type Train } from '../systems/HQ';
+import { BUILD_ORDER, DEFS, HQ, hireCost, MATERIAL_NAME, MATERIALS, TRAIN_MAX, TRAIN_NAME, trainCost, WORK_RATE, type BuildId, type Material, type Train } from '../systems/HQ';
 import { Inventory } from '../systems/Inventory';
 import { Button, COLOR, drawBar, fit, frame, label, sizeFrame, Window } from './kit';
 
 type Txt = Phaser.GameObjects.Text;
-type Tab = 'build' | 'troops' | 'chest';
+type Tab = 'build' | 'work' | 'troops' | 'chest';
 
 interface BRow {
   id: BuildId;
@@ -66,6 +66,8 @@ export class HQPanel {
   private chestTitle: Txt;
   private bagCells: Cell[] = [];
   private chestCells: Cell[] = [];
+  private workTitle!: Txt;
+  private wrows: { m: Material; box: Phaser.GameObjects.NineSlice; name: Txt; info: Txt; bar: Phaser.GameObjects.Graphics; hire: Button; fire: Button }[] = [];
   private u = 1;
   private lastTick = 0;
 
@@ -75,7 +77,24 @@ export class HQPanel {
   ) {
     const w = (this.win = new Window(scene, 'SEDE DO CLÃ', 23, () => this.setOpen(false)));
     const tab = (t: Tab, text: string, icon: number) => new Button(scene, { label: text, icon, color: 'dark', size: 10, onTap: () => this.show(t) }).addTo(w.root);
-    this.tabs = { build: tab('build', 'CONSTRUIR', 25), troops: tab('troops', 'SOLDADOS', 2), chest: tab('chest', 'BAÚ', 24) };
+    this.tabs = { build: tab('build', 'CONSTRUIR', 25), work: tab('work', 'TRABALHO', 22), troops: tab('troops', 'SOLDADOS', 2), chest: tab('chest', 'BAÚ', 24) };
+    this.workTitle = label(scene, '', 10, COLOR.gold);
+    w.add(this.workTitle);
+    for (const m of MATERIALS) {
+      const r = {
+        m,
+        box: frame(scene, 'frame-inner'),
+        name: label(scene, MATERIAL_NAME[m].toUpperCase(), 11, COLOR.gold),
+        info: label(scene, '', 8.5, COLOR.text, 1, false),
+        bar: scene.add.graphics(),
+        hire: new Button(scene, { label: 'CONTRATAR', color: 'green', size: 9, onTap: () => this.say(world.hq.hire(m)) }),
+        fire: new Button(scene, { label: 'DISPENSAR', color: 'dark', size: 9, onTap: () => this.say(world.hq.dismiss(m)) }),
+      };
+      w.add(r.box, r.bar, r.name, r.info);
+      r.hire.addTo(w.root);
+      r.fire.addTo(w.root);
+      this.wrows.push(r);
+    }
     this.home = new Button(scene, { label: 'VOLTAR À SEDE', icon: 11, color: 'gold', size: 10, onTap: () => this.say(world.hq.returnHome() || '') }).addTo(w.root);
     this.status = label(scene, '', 9, COLOR.red, 1, false);
     this.intro = label(scene, '', 10, COLOR.text, 1, false).setLineSpacing(4);
@@ -264,6 +283,23 @@ export class HQPanel {
       r.bar.clear();
       if (lv) drawBar(r.bar, r.box.x + 8 * u, r.box.y + r.box.displayHeight - 7 * u, r.box.displayWidth - 100 * u, 3 * u, hp / D.hp[lv], hp / D.hp[lv] > 0.4 ? 0x5fbf52 : 0xd83c3c, u);
     }
+    // trabalho: coletores enchendo o estoque
+    const wk = tab === 'work';
+    this.workTitle.setVisible(wk);
+    if (wk) this.workTitle.setText(`Coletores: ${hq.workerCount}/${hq.workerCap} (o Salão comporta mais a cada nível) · contratar custa ${hireCost(hq.workerCount)} ouro · estoque até ${hq.stockCap} de cada (Armazém aumenta)`);
+    for (const r of this.wrows) {
+      for (const o of [r.box, r.name, r.info, r.bar]) o.setVisible(wk);
+      r.hire.setVisible(wk);
+      r.fire.setVisible(wk);
+      if (!wk) continue;
+      const n = hq.st.workers[r.m];
+      const st = Math.floor(hq.st.stock[r.m]);
+      r.info.setText(`${n} coletor${n === 1 ? '' : 'es'} · +${n * WORK_RATE[r.m]}/min · estoque ${st}/${hq.stockCap} · na mochila ${w.inventory.countFamily(r.m)}`);
+      r.hire.setEnabled(!hq.hireBlock());
+      r.fire.setEnabled(n > 0);
+      r.bar.clear();
+      drawBar(r.bar, r.box.x + 10 * u, r.box.y + r.box.displayHeight - 12 * u, r.box.displayWidth - 220 * u, 5 * u, st / hq.stockCap, 0x8a6a3a, u);
+    }
     // soldados
     const tr = tab === 'troops';
     for (const r of this.trows) {
@@ -326,9 +362,9 @@ export class HQPanel {
     const founded = this.world.hq.founded;
     // abas
     const tw = 104 * u;
-    (['build', 'troops', 'chest'] as Tab[]).forEach((t, i) => this.tabs[t].place(pad + i * (tw + 4 * u), top, u, tw, 24 * u));
+    (['build', 'work', 'troops', 'chest'] as Tab[]).forEach((t, i) => this.tabs[t].place(pad + i * (tw + 4 * u), top, u, tw, 24 * u));
     this.home.place(win.W - pad - 130 * u, top, u, 130 * u, 24 * u);
-    fit(this.status, 9, u).setPosition(pad + 3 * (tw + 4 * u) + 6 * u, top + 6 * u).setWordWrapWidth(win.W - pad * 2 - 3 * (tw + 4 * u) - 140 * u);
+    fit(this.status, 9, u).setPosition(pad + 4 * (tw + 4 * u) + 6 * u, top + 2 * u).setWordWrapWidth(win.W - pad * 2 - 4 * (tw + 4 * u) - 140 * u);
     if (founded) top += 30 * u;
     // sem sede
     fit(this.intro, 9.5, u).setPosition(pad, top).setWordWrapWidth(win.W - pad * 2);
@@ -345,6 +381,17 @@ export class HQPanel {
       fit(r.desc, 7.5, u).setPosition(x + 8 * u, y + 16 * u).setWordWrapWidth(L - 104 * u);
       fit(r.cost, 7.5, u).setPosition(x + 8 * u, y + 27 * u).setOrigin(0, 0).setWordWrapWidth(L - 104 * u);
       r.btn.place(x + L - 92 * u, y + (rh - 3 * u) / 2 - 11 * u, u, 84 * u, 22 * u);
+    });
+    // trabalho
+    fit(this.workTitle, 9, u).setPosition(pad, top).setWordWrapWidth(win.W - pad * 2);
+    const wh = (win.H - top - pad - 30 * u) / MATERIALS.length;
+    this.wrows.forEach((r, i) => {
+      const y = top + 28 * u + i * wh;
+      sizeFrame(r.box, pad, y, win.W - pad * 2, wh - 4 * u, u);
+      fit(r.name, 11, u).setPosition(pad + 10 * u, y + 6 * u);
+      fit(r.info, 8.5, u).setPosition(pad + 110 * u, y + 8 * u);
+      r.hire.place(win.W - pad - 200 * u, y + (wh - 4 * u) / 2 - 12 * u, u, 94 * u, 24 * u);
+      r.fire.place(win.W - pad - 100 * u, y + (wh - 4 * u) / 2 - 12 * u, u, 92 * u, 24 * u);
     });
     // soldados
     this.trows.forEach((r, i) => {

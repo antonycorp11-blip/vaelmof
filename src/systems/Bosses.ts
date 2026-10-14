@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import type { Enemy } from '../entities/Enemy';
 import type { WorldScene } from '../scenes/WorldScene';
+import type { Soldier, SoldierType } from './Army';
 
 export interface BossSpec {
   name: string;
@@ -13,76 +13,88 @@ export interface BossSpec {
   points: number;
   /** Patente mostrada na insígnia vermelha (0–9). */
   rank: number;
+  /** Arma e armadura (sorteadas se faltarem): cada personagem tem a sua cara. */
+  type?: SoldierType;
+  outfit?: string;
   /** Peça rara que cai ao morrer. */
   loot?: string;
-  onKill?: (e: Enemy) => void;
+  onKill?: () => void;
 }
 
 interface Live {
   spec: BossSpec;
-  enemy: Enemy;
+  unit: Soldier;
   label: Phaser.GameObjects.Text;
-  icon: Phaser.GameObjects.Image;
 }
 
+const TYPES: SoldierType[] = ['sword', 'greatsword', 'bow', 'staff'];
+const OUTFITS = ['leather', 'plate', 'legion', 'arcane', 'hunter'];
+const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+
 /**
- * Personagens nomeados (líderes de clã, procurados das missões): um bandido
- * forte, tingido, com nome e insígnia sobre a cabeça; ao morrer, deixa cair a
- * peça rara que carregava e avisa quem o chamou.
+ * Personagens nomeados (líderes de clã, procurados): soldados inimigos com
+ * armadura e arma próprias (5 × 4 combinações, mais o tom), maiores e mais
+ * fortes, com nome e insígnia sobre a cabeça. Ao morrer, deixam cair a peça
+ * rara que carregavam e avisam quem os chamou.
  */
 export class Bosses {
   readonly list: Live[] = [];
 
-  constructor(private scene: WorldScene) {
-    scene.events.on('enemy-killed', (e: Enemy) => {
-      const i = this.list.findIndex((l) => l.enemy === e);
-      if (i < 0) return;
-      const b = this.list[i];
-      this.list.splice(i, 1);
-      b.label.destroy();
-      b.icon.destroy();
-      if (b.spec.loot) scene.loot.drop(b.spec.loot, e.x, e.y);
-      b.spec.onKill?.(e);
+  constructor(private scene: WorldScene) {}
+
+  spawn(spec: BossSpec, done?: (s: Soldier) => void) {
+    const s = this.scene;
+    const army = s.army;
+    army.prepare(() => {
+      const type = spec.type ?? pick(TYPES);
+      const outfit = spec.outfit ?? pick(OUTFITS);
+      const live: Partial<Live> = { spec };
+      const unit = army.spawnChampion({
+        x: spec.x,
+        y: spec.y,
+        type,
+        outfit,
+        hp: spec.hp,
+        damage: spec.damage,
+        tint: spec.tint,
+        scale: spec.scale,
+        rank: Math.min(3, Math.floor(spec.rank / 3)),
+        onDeath: () => {
+          const i = this.list.indexOf(live as Live);
+          if (i >= 0) this.list.splice(i, 1);
+          live.label?.destroy();
+          s.gainGlory(spec.points * 4, unit.x, unit.y - 50);
+          if (spec.loot) s.loot.drop(spec.loot, unit.x, unit.y);
+          spec.onKill?.();
+        },
+      });
+      // insígnia vermelha com a patente do personagem
+      unit.icon.setFrame(10 + Math.max(0, Math.min(9, spec.rank)));
+      live.unit = unit;
+      live.label = s.add
+        .text(spec.x, spec.y - 40, spec.name, { fontFamily: 'Tiny5, monospace', fontSize: '7px', color: '#ffd34a', stroke: '#1e1a24', strokeThickness: 2 })
+        .setOrigin(0.5)
+        .setResolution(4)
+        .setDepth(4250);
+      this.list.push(live as Live);
+      done?.(unit);
     });
   }
 
-  spawn(spec: BossSpec): Enemy {
-    const s = this.scene;
-    const e = s.spawnEnemy('bandit', spec.x, spec.y);
-    e.transient = true;
-    e.maxHp = e.hp = spec.hp;
-    e.dmgMul = spec.damage / 2;
-    e.points = spec.points;
-    e.knockbackScale = 0.3;
-    e.baseTint = spec.tint;
-    e.setTint(spec.tint).setScale(spec.scale);
-    const label = s.add
-      .text(spec.x, spec.y - 40, spec.name, { fontFamily: 'Tiny5, monospace', fontSize: '7px', color: '#ffd34a', stroke: '#1e1a24', strokeThickness: 2 })
-      .setOrigin(0.5)
-      .setResolution(4)
-      .setDepth(4250);
-    const icon = s.add.image(spec.x, spec.y - 34, 'rank-icons', 10 + Math.max(0, Math.min(9, spec.rank))).setDepth(4150);
-    this.list.push({ spec, enemy: e, label, icon });
-    return e;
-  }
-
   /** Remove sem recompensa (fim de guerra, missão cancelada, longe demais). */
-  remove(e: Enemy) {
-    const i = this.list.findIndex((l) => l.enemy === e);
-    if (i < 0) return;
-    const b = this.list[i];
-    this.list.splice(i, 1);
-    b.label.destroy();
-    b.icon.destroy();
-    if (e.active) this.scene.removeEnemy(e);
+  remove(unit: Soldier) {
+    const i = this.list.findIndex((l) => l.unit === unit);
+    if (i >= 0) {
+      this.list[i].label.destroy();
+      this.list.splice(i, 1);
+    }
+    if (!unit.dead) this.scene.army.remove(unit);
   }
 
   update() {
-    const k = this.scene.army.iconScale * 1.2;
     for (const b of this.list) {
-      const e = b.enemy;
-      b.label.setPosition(Math.round(e.x), Math.round(e.y - 44)).setVisible(e.visible);
-      b.icon.setPosition(Math.round(e.x), Math.round(e.y - 36)).setScale(k).setVisible(e.visible);
+      const u = b.unit;
+      b.label.setPosition(Math.round(u.x), Math.round(u.y - 34 - 10 * u.sizeK)).setVisible(u.sprite.visible);
     }
   }
 }

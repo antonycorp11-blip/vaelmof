@@ -135,6 +135,17 @@ export class Minimap {
       g.fillStyle(w.clans.player.color, 1).fillRect(pt[0] - r, pt[1] - r, r * 2, r * 2);
       g.fillStyle(0xffd77a, 1).fillRect(pt[0] - u, pt[1] - u, 2 * u, 2 * u);
     }
+    // bandos dos clãs rivais: quadrado na cor do clã; vermelho piscando se vêm atrás de você
+    const blink = Math.floor(time / 300) % 2 === 0;
+    for (const { band: b, clan: c } of w.bands.active) {
+      if (b === w.bands.engaged) continue;
+      const danger = b.goal === 'hunt' || b.goal === 'raid';
+      const pt = this.toScreen(b.x, b.y) ?? (danger ? this.edge(b.x, b.y) : null);
+      if (!pt) continue;
+      const r = (b.n > 60 ? 4 : 3) * u;
+      g.fillStyle(danger && blink ? 0xff3a3a : 0x0b0d14, 1).fillRect(pt[0] - r - u, pt[1] - r - u, r * 2 + 2 * u, r * 2 + 2 * u);
+      g.fillStyle(c.color, 1).fillRect(pt[0] - r, pt[1] - r, r * 2, r * 2);
+    }
     // procurados das missões: alvo vermelho
     for (const m of w.missions.active) {
       if (!m.target) continue;

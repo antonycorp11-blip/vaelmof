@@ -119,6 +119,12 @@ export class Soldier implements Hittable {
   lastHurt = -99999;
   /** O caminho reto até o herói está bloqueado: segue o campo de fluxo. */
   useFlow = false;
+  /** Personagem nomeado: dano extra, tamanho, casa (sem guerra fica perto dela) e aviso de morte. */
+  dmgK = 1;
+  sizeK = 1;
+  champion = false;
+  home: { x: number; y: number } | null = null;
+  onDeath?: () => void;
   /** Taxa de cura do lugar onde está (sede ou, sem sede, Brumavale); 0 = não cura. */
   healRate = 0;
   /** Postado na sede do clã: fica de guarda lá em vez de seguir o herói. */
@@ -167,7 +173,7 @@ export class Soldier implements Hittable {
 
   /** Multiplicador de dano. */
   get mul() {
-    return this.team === 0 ? 1 + 0.1 * this.army.upg.atk : SOLDIER_RANKS[this.rank].mul;
+    return this.team === 0 ? 1 + 0.1 * this.army.upg.atk : SOLDIER_RANKS[this.rank].mul * this.dmgK;
   }
 
   /** Multiplicador de vida. */
@@ -424,7 +430,7 @@ export class Army extends Phaser.Events.EventEmitter {
       get targetable() {
         return !p.dead;
       },
-      takeDamage: (a, x, y) => p.hurt(a, x, y),
+      takeDamage: (a, x, y) => p.hurt(a, x, y, true),
       stun: () => {},
       slow: () => {},
     };
@@ -509,11 +515,9 @@ export class Army extends Phaser.Events.EventEmitter {
     s.load.start();
   }
 
-  private compose(team: 0 | 1, type: SoldierType) {
+  private compose(team: 0 | 1, type: SoldierType, o = OUTFIT[team][type], key = `sold-${team}-${type}`) {
     const s = this.scene;
-    const key = `sold-${team}-${type}`;
     if (s.textures.exists(key)) return;
-    const o = OUTFIT[team][type];
     const img = (k: string) => (s.textures.exists(k) ? (s.textures.get(k).getSourceImage() as HTMLImageElement) : null);
     const body = img(`outfit-${o}`)!;
     const back = BACK[o] ? img(`outfit-${o}-back`) : null;
@@ -636,7 +640,7 @@ export class Army extends Phaser.Events.EventEmitter {
 
   // ------------------------------------------------------------------ guerra
   /** Uma casa rival manda um exército de `n` soldados contra o herói. */
-  declareWar(n: number, house?: { name: string; color: number; clan?: string }, opts: { origin?: { x: number; y: number }; vet?: number; siege?: { x: number; y: number } } = {}) {
+  declareWar(n: number, house?: { name: string; color: number; clan?: string }, opts: { origin?: { x: number; y: number }; exact?: boolean; vet?: number; siege?: { x: number; y: number } } = {}) {
     if (this.war) return;
     const p = opts.origin ?? this.scene.player;
     // cada casa rival tem a sua cor (tingindo o exército inteiro)
@@ -660,8 +664,11 @@ export class Army extends Phaser.Events.EventEmitter {
         ang = a;
       }
     }
-    const cx = p.x + Math.cos(ang) * 300;
-    const cy = p.y + Math.sin(ang) * 300;
+    // bando que já está no mapa: aparece onde está, de frente para o herói
+    const hero = this.scene.player;
+    if (opts.exact) ang = Math.atan2(p.y - hero.y, p.x - hero.x);
+    const cx = opts.exact ? p.x : p.x + Math.cos(ang) * 300;
+    const cy = opts.exact ? p.y : p.y + Math.sin(ang) * 300;
     const fx = -Math.cos(ang);
     const fy = -Math.sin(ang);
     const rx = -fy;
@@ -693,6 +700,46 @@ export class Army extends Phaser.Events.EventEmitter {
     this.emit('war', this.war);
   }
 
+  /**
+   * O herói fugiu: os inimigos que sobraram voltam a ser um bando no mapa.
+   * Devolve quantos estavam de pé.
+   */
+  dismissFoes(): number {
+    const w = this.war;
+    if (!w) return 0;
+    let left = 0;
+    for (const s of this.soldiers) {
+      if (s.team !== 1 || s.dead || s.champion) continue;
+      left++;
+      s.dead = true;
+      this.scene.tweens.add({ targets: [s.sprite, s.ring, s.icon], alpha: 0, duration: 500, onComplete: () => s.destroy() });
+    }
+    this.war = null;
+    this.emit('war-end', { ...w, won: false, fled: true, left, glory: 0 });
+    return left;
+  }
+
+  /** Inimigos ainda de pé na guerra (sem os personagens nomeados). */
+  get foesLeft(): number {
+    let n = 0;
+    for (const s of this.soldiers) if (s.team === 1 && !s.dead && !s.champion) n++;
+    return n;
+  }
+
+  /** Centro dos inimigos de pé. */
+  get foeCenter(): { x: number; y: number } | null {
+    let x = 0;
+    let y = 0;
+    let n = 0;
+    for (const s of this.soldiers)
+      if (s.team === 1 && !s.dead) {
+        x += s.x;
+        y += s.y;
+        n++;
+      }
+    return n ? { x: x / n, y: y / n } : null;
+  }
+
   /** Remove todos os soldados inimigos (debug). */
   clearFoes() {
     for (const s of this.soldiers) if (s.team === 1) s.destroy();
@@ -704,6 +751,7 @@ export class Army extends Phaser.Events.EventEmitter {
   kill(s: Soldier, by?: Soldier) {
     s.dead = true;
     s.target = null;
+    s.onDeath?.();
     const sc = this.scene;
     if (by && !by.dead) {
       const before = by.rank;
@@ -807,11 +855,51 @@ export class Army extends Phaser.Events.EventEmitter {
     return [ox + bx * (26 + row * 13) - by * col * 13, oy + by * (26 + row * 13) + bx * col * 13];
   }
 
+  /**
+   * Personagem nomeado (líder de clã, procurado): um soldado inimigo com
+   * armadura e arma próprias, maior, mais forte e tingido. Sem guerra, fica
+   * perto de casa até o herói chegar. Precisa de `prepare` antes.
+   */
+  spawnChampion(spec: { x: number; y: number; type: SoldierType; outfit: string; hp: number; damage: number; tint: number; scale: number; rank: number; onDeath?: () => void }): Soldier {
+    const key = `sold-v-${spec.outfit}-${spec.type}`;
+    this.compose(1, spec.type, spec.outfit, key);
+    const s = new Soldier(this, 1, spec.type, spec.x, spec.y, SOLDIER_RANKS[Math.min(3, spec.rank)].kills);
+    s.sprite.setTexture(key, 0);
+    s.maxHp = s.hp = spec.hp;
+    s.dmgK = spec.damage / SOLDIERS[spec.type].damage;
+    s.sizeK = spec.scale;
+    s.sprite.setScale(this.scale * spec.scale);
+    s.ring.setScale(this.scale * 2 * spec.scale);
+    s.baseTint = spec.tint;
+    s.sprite.setTint(spec.tint);
+    s.home = { x: spec.x, y: spec.y };
+    s.onDeath = spec.onDeath;
+    s.champion = true;
+    s.thinkAt = this.scene.time.now + 300;
+    this.soldiers.push(s);
+    return s;
+  }
+
+  /** Folha fundida de um traje + arma (para coletores e outros figurantes). Precisa de `prepare`. */
+  textureFor(outfit: string, type: SoldierType): string {
+    const key = `sold-v-${outfit}-${type}`;
+    this.compose(1, type, outfit, key);
+    return key;
+  }
+
+  /** Tira um soldado do campo sem contar como abate (despawn). */
+  remove(s: Soldier) {
+    s.dead = true;
+    s.destroy();
+    const i = this.soldiers.indexOf(s);
+    if (i >= 0) this.soldiers.splice(i, 1);
+  }
+
   setScale(k: number) {
     this.scale = k;
     for (const s of this.soldiers) {
-      s.sprite.setScale(k);
-      s.ring.setScale(k * 2);
+      s.sprite.setScale(k * s.sizeK);
+      s.ring.setScale(k * 2 * s.sizeK);
       s.icon.setScale(this.iconScale);
     }
   }
@@ -1008,11 +1096,15 @@ export class Army extends Phaser.Events.EventEmitter {
           // guarda: só sai do posto atrás de quem chega perto da sede
           const t = this.nearest(s, 170);
           s.target = t && Math.hypot(t.fx - s.postX, t.fy - s.postY) < 230 ? t : null;
+        } else if (s.champion && s.home && !this.war) {
+          // sem guerra: só sai de casa atrás de quem chega perto, e não vai longe
+          const t = this.nearest(s, 150);
+          s.target = t && Math.hypot(t.fx - s.home.x, t.fy - s.home.y) < 320 ? t : null;
         } else if (s.team === 1) s.target = this.nearest(s, this.war?.siege ? 160 : 520);
         else if (this.mode === 'attack') s.target = this.nearest(s, 260);
         else s.target = this.nearest(s, this.mode === 'hold' ? 90 : 70);
         // caminho reto até o herói bloqueado? então contorna pelo campo de fluxo
-        s.useFlow = !s.target && !s.station && !(s.team === 1 && this.war?.siege) && Math.hypot(s.x - p.x, s.y - p.y) > 30 && !this.los(s.x, s.y, p.x, p.y);
+        s.useFlow = !s.target && !s.station && !s.champion && !(s.team === 1 && this.war?.siege) && Math.hypot(s.x - p.x, s.y - p.y) > 30 && !this.los(s.x, s.y, p.x, p.y);
         s.healRate = s.team === 0 ? this.healAt(s.x, s.y) : 0;
         // longe demais do herói: alcança a formação
         if (s.team === 0 && !s.station && Math.hypot(s.x - p.x, s.y - p.y) > 520) {
@@ -1046,6 +1138,9 @@ export class Army extends Phaser.Events.EventEmitter {
         const [x, y] = this.mode === 'hold' ? this.slotPos(s.slot, this.holdX, this.holdY) : this.slotPos(s.slot, p.x, p.y);
         gx = x;
         gy = y;
+      } else if (s.champion && s.home && !this.war) {
+        gx = s.home.x;
+        gy = s.home.y;
       } else if (this.war?.siege) {
         gx = this.war.siege.x;
         gy = this.war.siege.y;
