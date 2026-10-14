@@ -3,6 +3,7 @@ import { PLAYER } from '../config';
 import { BUFFS, WEAPONS, type BuffId, type Effect, type Move, type WeaponDef } from '../data/weapons';
 import { ITEMS } from '../data/items';
 import { RARITY } from '../data/gear';
+import type { MountDef } from '../data/mounts';
 import { consume, inputState } from '../input/InputState';
 import type { WorldScene } from '../scenes/WorldScene';
 import { Creature, DEPTH } from './Creature';
@@ -135,6 +136,12 @@ export class Player extends Creature {
   weightMul = 1;
   /** Debug: não toma dano. */
   god = false;
+  /** Montaria em uso (null = a pé), o sprite dela e a sela em px da arte do herói. */
+  mount: MountDef | null = null;
+  private mountSpr?: Phaser.GameObjects.Sprite;
+  private mountAura?: Phaser.GameObjects.Image;
+  private seatArt = 0;
+  private mountT = 0;
   private artScale: number = HERO.scale;
   private lastUpdate = 0;
 
@@ -185,7 +192,7 @@ export class Player extends Creature {
     const P = this.scene.progress;
     const id = this.weapon.id;
     const base = id === 'bow' ? P.rangedMul : id === 'staff' ? P.magicMul : P.meleeMul;
-    let k = base * RARITY[ITEMS[this.scene.inventory.gear.weapon]?.tier ?? 0].power;
+    let k = base * RARITY[ITEMS[this.scene.inventory.gear.weapon]?.tier ?? 0].power * (1 + (this.mount?.power ?? 0));
     for (const b of this.activeBuffs) k *= BUFFS[b].dmg;
     return k;
   }
@@ -199,7 +206,7 @@ export class Player extends Creature {
 
   /** Quanto do dano a armadura (e o grito de guerra) absorve. */
   get defense(): number {
-    let d = OUTFITS[this.outfit].defense + RARITY[ITEMS[this.scene.inventory.gear.armor]?.tier ?? 0].guard;
+    let d = OUTFITS[this.outfit].defense + RARITY[ITEMS[this.scene.inventory.gear.armor]?.tier ?? 0].guard + (this.mount?.guard ?? 0);
     for (const b of this.activeBuffs) d += BUFFS[b].defense;
     return Math.min(0.8, d);
   }
@@ -285,14 +292,14 @@ export class Player extends Creature {
         if (!has) continue;
         const key = `wpn-${w}-${p.big.anim}-${side}`;
         if (s.texture.key !== key) s.setTexture(key);
-        s.setOrigin(0.5, big.footY / big.frame).setFrame(LPC_DIR[p.dir] * big.frames + p.big.i);
+        s.setOrigin(0.5, (big.footY + this.seatArt) / big.frame).setFrame(LPC_DIR[p.dir] * big.frames + p.big.i);
       } else {
         const has = HERO_SHEETS[w][side];
         s.setVisible(visible && has);
         if (!has) continue;
         const key = `wpn-${w}-${side}`;
         if (s.texture.key !== key) s.setTexture(key);
-        s.setOrigin(0.5, HERO.footY / HERO.frame).setFrame(frame);
+        s.setOrigin(0.5, (HERO.footY + this.seatArt) / HERO.frame).setFrame(frame);
       }
     }
     const d = this.depth;
@@ -302,6 +309,19 @@ export class Player extends Creature {
       [this.wFg, 0.2],
     ] as const) s.setPosition(this.x, this.y).setDepth(d + k).setAlpha(this.alpha);
     this.shadow.setPosition(this.x, this.y).setDepth(d - 2).setVisible(visible && this.state2 !== 'dead');
+    // montaria por cima do herói (que está erguido na sela): cobre as pernas, como montado
+    const m = this.mount;
+    if (m && this.mountSpr) {
+      const moving = this.body.velocity.lengthSq() > 100;
+      const f = moving ? Math.floor(this.mountT) : 0;
+      // atrás do herói (e da capa); o herói, com as pernas recortadas, fica sentado na sela
+      this.mountSpr.setFrame(m.row * 16 + p.dir * 4 + f).setPosition(Math.round(this.x), Math.round(this.y)).setDepth(d - 0.4).setVisible(visible).setAlpha(this.alpha * (m.ghost ? 0.85 : 1));
+      this.shadow.setScale(1.4, 0.8);
+      if (this.mountAura && m.glow) {
+        const k = 0.75 + 0.08 * Math.sin(this.scene.time.now / 260);
+        this.mountAura.setPosition(this.x, this.y - 14).setScale(k, k * 0.8).setAlpha(0.45).setDepth(d - 0.5).setVisible(visible);
+      }
+    } else this.shadow.setScale(0.75, 0.65);
   }
 
   private setPose(row: number, col: number, big?: Pose['big'], dir = this.dir) {
@@ -366,6 +386,38 @@ export class Player extends Creature {
     for (const [anim, b] of Object.entries(w.big as unknown as Record<string, BigAnim>))
       for (const side of ['bg', 'fg'] as const) if (b[side]) keys.push(`wpn-${id}-${anim}-${side}`);
     return keys;
+  }
+
+  /** Monta (def) ou desmonta (null). A sela ergue o herói; a física fica no chão. */
+  setMount(def: MountDef | null) {
+    const s = this.scene;
+    this.mount = def;
+    this.seatArt = def ? def.seat / this.artScale : 0;
+    const F = HERO.frame;
+    this.setOrigin(0.5, (HERO.footY + this.seatArt) / F);
+    this.back.setOrigin(0.5, (HERO.footY + this.seatArt) / F);
+    this.body.setOffset((F - 20) / 2, HERO.footY - 8 + this.seatArt);
+    // montado: corta as pernas do herói (do quadril para baixo) — parece sentado
+    if (def) {
+      this.setCrop(0, 0, F, HERO.footY - 15);
+      this.back.setCrop(0, 0, F, HERO.footY - 15);
+    } else {
+      this.setCrop();
+      this.back.setCrop();
+    }
+    if (def) {
+      if (!this.mountSpr) this.mountSpr = s.add.sprite(this.x, this.y, 'mounts', 0).setOrigin(0.5, 38 / 40);
+      const spr = this.mountSpr;
+      spr.setVisible(true);
+      // aura das montarias mágicas (atrás dela; o preFX bagunçaria a ordem com o herói)
+      if (!this.mountAura) this.mountAura = s.add.image(this.x, this.y, 'glow').setBlendMode(Phaser.BlendModes.ADD);
+      this.mountAura.setVisible(!!def.glow).setTint(def.glow || 0xffffff);
+      s.fx.burst(this.x, this.y - 8, 0xe8d8a8, 10);
+    } else {
+      this.mountSpr?.setVisible(false);
+      this.mountAura?.setVisible(false);
+    }
+    s.events.emit('mount', def);
   }
 
   setWeapon(id: WeaponId) {
@@ -477,6 +529,12 @@ export class Player extends Creature {
 
   /** Passos casados com a velocidade real (os pés não deslizam). */
   private walk(dt: number) {
+    if (this.mount) {
+      // montado: o herói fica sentado (quadro parado); quem anda é a montaria
+      this.mountT = (this.mountT + dt * 9 * Math.min(1.6, this.body.velocity.length() / 90)) % 4;
+      this.setPose(HERO.rows.walk, 0);
+      return;
+    }
     const rate = Math.max(0.35, this.body.velocity.length() / (PLAYER.speed * Math.max(1, this.speedMul)));
     this.walkT = (this.walkT + dt * WALK_FPS * rate) % 8;
     const col = 1 + Math.floor(this.walkT);
@@ -582,10 +640,10 @@ export class Player extends Creature {
       this.facing.copy(move).normalize();
       if (st === 'normal') this.updateDir(move.x, move.y);
     }
-    const speed = PLAYER.speed * O.speed * this.speedMul * this.weightMul * this.scene.progress.moveMul;
+    const speed = PLAYER.speed * O.speed * this.speedMul * this.weightMul * this.scene.progress.moveMul * (this.mount ? this.mount.speed : 1);
 
     // ações — a esquiva cancela tudo; o golpe pode ser encadeado no fim da recuperação
-    if (wantDodge && time - this.lastDodge >= this.dodgeCooldown) {
+    if (wantDodge && !this.mount && time - this.lastDodge >= this.dodgeCooldown) {
       this.startRoll(time, move);
       return;
     }
@@ -942,6 +1000,8 @@ export class Player extends Creature {
   /** Golpeia um recurso em (x, y): toca a animação e chama `onHit` no impacto. */
   startGather(x: number, y: number, onHit: () => void) {
     if (this.state2 !== 'normal') return false;
+    // para coletar, desce da montaria
+    if (this.mount) this.scene.stable.toggle();
     const time = this.scene.time.now;
     this.buffered.gather = 0;
     this.updateDir(x - this.x, y - (this.y - 4));

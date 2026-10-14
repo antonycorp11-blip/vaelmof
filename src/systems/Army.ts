@@ -1198,7 +1198,9 @@ export class Army extends Phaser.Events.EventEmitter {
         if (step >= 6) s.attackAt = -1;
       }
       // movimento
-      const speed = D.speed * (time < s.slowUntil ? 0.45 : 1) * (s.fleeing ? 1.3 : 1);
+      // com o herói montado, o exército acompanha em marcha forçada
+      const ride = s.team === 0 && !s.target && !s.station && p.mount ? Math.min(2, p.mount.speed * 0.9) : 1;
+      const speed = D.speed * (time < s.slowUntil ? 0.45 : 1) * (s.fleeing ? 1.3 : 1) * ride;
       let tx = 0;
       let ty = 0;
       const ddx = gx - s.x;

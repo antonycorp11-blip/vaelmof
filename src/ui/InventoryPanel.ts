@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { RARITY } from '../data/gear';
 import { ITEMS, type ItemDef } from '../data/items';
 import { Inventory } from '../systems/Inventory';
+import type { Market } from '../systems/Market';
 import { Button, COLOR, fit, frame, label, sizeFrame, Window } from './kit';
 
 type Icon = Phaser.GameObjects.Image;
@@ -18,6 +19,9 @@ export class InventoryPanel {
   private weight: Phaser.GameObjects.Text;
   private detail: Phaser.GameObjects.Text;
   private equipBtn: Button;
+  private sellBtn: Button;
+  /** Mercado (para vender direto da mochila quando há mercador por perto). */
+  market?: Market;
   private eqLabel: Phaser.GameObjects.Text;
   private eq: { box: Slot; icon: Icon; label: Phaser.GameObjects.Text; name: Phaser.GameObjects.Text }[] = [];
   private cells: { box: Slot; sel: Slot; icon: Icon; qty: Phaser.GameObjects.Text }[] = [];
@@ -36,6 +40,8 @@ export class InventoryPanel {
     this.eqLabel = label(scene, 'EQUIPADO', 10, COLOR.gold);
     this.win.add(this.weight, this.detail, this.eqLabel);
     this.equipBtn.addTo(this.win.root);
+    this.sellBtn = new Button(scene, { label: 'VENDER', color: 'gold', size: 10, onTap: () => this.sell() });
+    this.sellBtn.addTo(this.win.root);
     for (const name of ['ARMA', 'ARMADURA']) {
       const box = frame(scene, 'frame-hl');
       const icon = scene.add.image(0, 0, 'items', 0);
@@ -79,6 +85,14 @@ export class InventoryPanel {
   private select(i: number) {
     this.selected = i;
     this.refresh();
+  }
+
+  private sell() {
+    if (!this.market || this.selected < 0) return;
+    const msg = this.market.sell(this.selected, 999);
+    this.selected = -1;
+    this.refresh();
+    this.detail.setText(msg).setColor(msg.startsWith('Vendeu') ? COLOR.green : COLOR.red);
   }
 
   private equip() {
@@ -139,6 +153,9 @@ export class InventoryPanel {
       this.detail
         .setText(over ? 'Carga acima do máximo: Teren fica mais lento.' : 'Toque num item para ver; armas e armaduras podem ser equipadas.')
         .setColor(over ? COLOR.red : COLOR.dim);
+    const city = this.market?.cityHere();
+    const price = s && city ? this.market!.price(s.id, city) * s.qty : 0;
+    this.sellBtn.setVisible(!!s && !!city && this.open).setLabel(`VENDER ${price}`);
     this.equipBtn.setVisible(!!d?.equip && this.open).setLabel(need ? 'BLOQUEADO' : 'EQUIPAR').setColor(need ? 'dark' : 'green').setEnabled(!need);
   }
 
@@ -176,8 +193,9 @@ export class InventoryPanel {
       fit(c.qty, 9, u).setPosition(x + cell - 4 * u, y + cell - 3 * u);
     });
     const fy = win.H - pad - foot + 6 * u;
-    fit(this.detail, 9, u).setWordWrapWidth(win.W - pad * 3 - 110 * u).setPosition(pad, fy);
+    fit(this.detail, 9, u).setWordWrapWidth(win.W - pad * 3 - 230 * u).setPosition(pad, fy);
     this.equipBtn.place(win.W - pad - 110 * u, fy - 2 * u, u, 110 * u, 28 * u);
+    this.sellBtn.place(win.W - pad - 226 * u, fy - 2 * u, u, 110 * u, 28 * u);
     this.refresh();
   }
 }

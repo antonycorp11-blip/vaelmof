@@ -48,6 +48,8 @@ preciso rodar se você alterar `scripts/generate-assets.mjs`).
 | Missões do Lorde | ícone do **pergaminho** | T |
 | Ranking de Clãs | ícone da **coroa** | R |
 | Sede do clã | ícone da **casa** | H |
+| Mercado | ícone das **moedas** | V |
+| Montar / desmontar | botão do **cavalo** (começo das ordens) | X |
 | Ordens do exército | botões **seguir / atacar / segurar** sob a vida | 1 / 2 / 3 |
 | Aquartelar / convocar (andar sozinho) | botão da **tenda** (vira corneta com o exército no quartel) | 4 |
 
@@ -209,6 +211,43 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   facho de luz na cor da raridade e são pegos ao passar por cima. A mochila
   agora fica salva. Não há craft; a coleta vai servir para erguer a **sede do
   clã** (próxima etapa).
+
+### Montarias (`scripts/mount-art.mjs`, `src/data/mounts.ts`, `src/systems/Stable.ts`, botão do cavalo / tecla X)
+- **21 montarias** desenhadas por código (pixel art com 4 direções e passada
+  animada): Cavalo Baio, Cavalo Malhado, Corcel Negro, Égua Branca do Vale,
+  Corcel de Guerra (barda de aço), Unicórnio Lunar, Pesadelo Flamejante, Urso
+  Pardo de Batalha, Urso Polar Rúnico, Lobo Gigante, Lobo da Geada,
+  Rinoceronte Couraçado, Javali de Presas, Cervo Espiritual,
+  Tigre-Dente-de-Sabre, Pantera das Sombras, Raptor do Deserto, Salamandra de
+  Lava, Grifo Real, Dragão Esmeralda e Dragão Rubro.
+- Velocidade de ×1,5 a ×2,6; as de batalha dão defesa e/ou dano. As mágicas
+  têm aura. O herói vai sentado na sela (pernas recortadas); o exército
+  acompanha em marcha forçada. Não dá para esquivar montado; coletar desmonta.
+- **Como conseguir:** o estábulo de cada cidade vende as comuns e as da região
+  (urso em Greenland, lobo em Snowland, rinoceronte em Blockland, raptor e
+  tigre em Dustland, salamandra em Blackland…). As raras e lendárias só caem:
+  cada campeão de duelo deixa a sua (Brakk → Javali, Ysra → Lobo da Geada,
+  Ulgar → Grifo, Morvath → Dragão Rubro), líderes de clã têm 10% e procurados
+  fortes 15% de deixar uma rara.
+- **Estábulo** (ícone do cavalo no menu): as 21 em grade (as que faltam em
+  sombra), a ficha (velocidade, bônus, onde conseguir), USAR, COMPRAR e
+  MONTAR.
+
+### Alvos marcados e mapa
+- **Alvos:** o campeão do duelo da próxima patente, os procurados e os bandos
+  das missões viram **estrelas** no minimapa (presas na borda, na direção
+  deles) e no mapa, com uma **seta em volta do herói** e a linha
+  "Nome · N tiles a sudeste" no HUD.
+- **Minimapa com zoom** (botões + e −: 50, 110, 220 ou 440 tiles).
+- **Mapa em tela cheia**: arrastar para andar, + / − (e a roda do mouse) para
+  o zoom, VOCÊ para voltar ao herói.
+
+### Coletores com arte própria
+- Lenhador (xadrez, machado), pedreiro (avental, picareta), colhedora (vestido,
+  foice), mineiro (capacete com lanterna) e garimpeiro de cristal (túnica,
+  martelinho). Cada ofício tem a sua pilha na sede; eles trabalham nela e
+  levam a carga até o Armazém.
+- Dá para **vender direto da mochila** quando há mercador por perto.
 
 ### Mercadores e ouro (`src/systems/Market.ts`, `src/ui/MarketPanel.ts`, tecla V)
 - Um **mercador na praça de cada cidade**. Compra material da coleta (madeira

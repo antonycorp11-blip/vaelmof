@@ -240,6 +240,16 @@ const ICONS = [
     t.rect(8, 2, 6, 4, '#a8a8a8');
     t.rect(8, 2, 6, 1, '#e6e6e0');
   },
+  // 26 montaria: cabeça de cavalo com rédea
+  (t) => {
+    t.rect(4, 6, 6, 8, '#8a5a32');
+    t.rect(8, 3, 4, 7, '#8a5a32');
+    t.rect(11, 4, 3, 4, '#8a5a32');
+    t.rect(9, 1, 2, 3, '#8a5a32');
+    t.rect(5, 3, 3, 9, '#3a2414');
+    t.set(12, 5, '#0b0d14');
+    t.rect(10, 7, 4, 1, '#d8c070');
+  },
 ];
 
 /** Brasões dos clãs: emblemas 12×12 em branco (o escudo leva a cor do clã). */

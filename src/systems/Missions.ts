@@ -221,7 +221,10 @@ export class Missions extends Phaser.Events.EventEmitter {
           points: 6 + k * 6,
           rank: k * 2,
           loot: rollGear(k),
-          onKill: () => this.progress(m, 1),
+          onKill: () => {
+            if (k >= 3) s.events.emit('rare-mount-roll', 0.15);
+            this.progress(m, 1);
+          },
         }, (u) => {
           group.push(u);
           // capangas: alguns bandidos com armas e trajes variados, perto do chefe

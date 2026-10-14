@@ -14,6 +14,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { drawBuildings, drawCityTiles, drawEdges, drawRankIcons } from './world-art.mjs';
 import { drawUiKit } from './ui-art.mjs';
+import { drawMounts } from './mount-art.mjs';
+import { drawWorkers } from './worker-art.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'public');
@@ -2494,6 +2496,14 @@ quad('assets/sprites/deer.png', 4, (t, f) => {
 drawBuildings({ Img, rng, save, composite, PAL }, ROOT);
 drawRankIcons({ Img, save });
 drawUiKit({ Img, save, composite });
+drawWorkers({ Img, save, composite });
+{
+  const mounts = drawMounts({ Img, save, composite });
+  writeFileSync(
+    new URL('../src/data/mountsGen.ts', import.meta.url),
+    `// Gerado por scripts/mount-art.mjs — não editar à mão.\n/** Montarias na ordem da folha mounts.png (linha = índice), com a altura da sela (px). */\nexport const MOUNT_ART = ${JSON.stringify(mounts)} as const;\n`,
+  );
+}
 
 
 // ================================================================ ÍCONES PWA

@@ -55,6 +55,11 @@ export class BootScene extends Phaser.Scene {
     this.load.spritesheet('ui-menu', 'assets/ui/icons.png', { frameWidth: 16, frameHeight: 16 });
     // brasões dos clãs: escudo tingível e emblemas 12×12
     this.load.image('crest-shield', 'assets/ui/crest-shield.png');
+    // montarias: 21 × (4 direções × 4 quadros), 48×40
+    this.load.spritesheet('mounts', 'assets/sprites/mounts.png', { frameWidth: 48, frameHeight: 40 });
+    // coletores da sede (5 ofícios × 18 quadros) e as pilhas de cada ofício
+    this.load.spritesheet('workers', 'assets/sprites/workers.png', { frameWidth: 20, frameHeight: 28 });
+    this.load.spritesheet('workers-props', 'assets/sprites/workers-props.png', { frameWidth: 32, frameHeight: 24 });
     this.load.spritesheet('crests', 'assets/ui/crests.png', { frameWidth: 12, frameHeight: 12 });
     for (const k of ['pixel', 'raindrop', 'shadow', 'glow', 'fog']) this.load.image(k, `${S}${k}.png`);
     // construções das cidades (variantes × janelas apagadas/acesas), torres, fonte e barracas

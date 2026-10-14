@@ -460,29 +460,49 @@ export class HQ extends Phaser.Events.EventEmitter {
     return '';
   }
 
-  /** Coletores andando pela sede (só enfeite: a coleta é contada no tempo). */
-  private walkers: { s: Phaser.GameObjects.Sprite; tx: number; ty: number; t: number; dir: number }[] = [];
+  /**
+   * Coletores na sede: cada ofício tem a sua pilha (toras, pedras, fibra,
+   * carrinho de minério, cristais). Eles trabalham na pilha e levam a carga
+   * até o Armazém (a coleta em si é contada no tempo, em update).
+   */
+  private walkers: { s: Phaser.GameObjects.Sprite; job: number; state: 'pile' | 'work' | 'store'; t: number; anim: number; tx: number; ty: number }[] = [];
+  private piles: Phaser.GameObjects.Image[] = [];
+  private static PILE: [number, number][] = [
+    [4, 14],
+    [25, 14],
+    [8, 16],
+    [22, 16],
+    [10, 7],
+  ];
+  private pileAt(job: number) {
+    const [x, y] = HQ.PILE[job];
+    return { x: (this.st.ox + x) * TILE + 8, y: (this.st.oy + y) * TILE + 8 };
+  }
+  private storeAt() {
+    const o = this.st;
+    const [x, y] = o.lv.warehouse > 0 ? [21, 20] : [15, 12];
+    return { x: (o.ox + x) * TILE + 8, y: (o.oy + y) * TILE + 8 };
+  }
   private makeWorkers() {
     for (const w of this.walkers) w.s.destroy();
+    for (const p of this.piles) p.destroy();
     this.walkers = [];
+    this.piles = [];
     if (!this.founded) return;
     const s = this.scene;
-    const n = Math.min(10, this.workerCount);
-    const outfits = ['leather', 'hunter'];
-    s.army.prepare(() => {
-      for (let i = 0; i < n; i++) {
-        const key = s.army.textureFor(outfits[i % 2], i % 3 === 0 ? 'staff' : 'sword');
-        const p = this.yardPoint();
-        const spr = s.add.sprite(p.x, p.y, key, 0).setOrigin(0.5, 77 / 96).setScale(s.army.scale);
-        this.walkers.push({ s: spr, tx: p.x, ty: p.y, t: Math.random() * 8, dir: 0 });
+    MATERIALS.forEach((m, job) => {
+      const n = this.st.workers[m];
+      if (!n) return;
+      const p = this.pileAt(job);
+      this.piles.push(s.add.image(p.x, p.y + 6, 'workers-props', job).setOrigin(0.5, 1).setDepth(DEPTH.entities + p.y + 6));
+      for (let i = 0; i < Math.min(3, n); i++) {
+        const spr = s.add.sprite(p.x + (i - 1) * 14, p.y + 10, 'workers', job * 18).setOrigin(0.5, 27 / 28);
+        this.walkers.push({ s: spr, job, state: 'work', t: Math.random() * 3000, anim: 0, tx: p.x, ty: p.y });
       }
     });
   }
 
-  private yardPoint() {
-    const o = this.st;
-    return { x: (o.ox + 3 + Math.random() * (HQ_W - 6)) * TILE, y: (o.oy + 4 + Math.random() * (HQ_H - 8)) * TILE };
-  }
+
 
   // ------------------------------------------------------------ baú
   /** Passa a pilha do espaço `i` da mochila para o baú (ou do baú para a mochila). */
@@ -838,7 +858,9 @@ export class HQ extends Phaser.Events.EventEmitter {
     s.progress.penalize(0.5, 0.25);
     this.clear();
     for (const w of this.walkers) w.s.destroy();
+    for (const p of this.piles) p.destroy();
     this.walkers = [];
+    this.piles = [];
     const gold = this.st.gold;
     this.st = fresh();
     this.st.gold = Math.floor(gold * 0.3);
@@ -873,27 +895,50 @@ export class HQ extends Phaser.Events.EventEmitter {
       if (w) this.st.stock[m] = Math.min(cap, (this.st.stock[m] ?? 0) + (w * WORK_RATE[m] * delta) / 60000);
     }
     for (const w of this.walkers) {
+      w.anim += delta;
+      if (w.state === 'work') {
+        // golpes na pilha (quadros de trabalho, virado para ela)
+        w.t -= delta;
+        w.s.setFrame(w.job * 18 + 16 + (Math.floor(w.anim / 260) % 2)).setFlipX(w.s.x > this.pileAt(w.job).x);
+        if (w.t <= 0) {
+          w.state = 'store';
+          const st = this.storeAt();
+          w.tx = st.x + (Math.random() - 0.5) * 20;
+          w.ty = st.y + (Math.random() - 0.5) * 10;
+        }
+        w.s.setDepth(DEPTH.entities + w.s.y);
+        continue;
+      }
       const dx = w.tx - w.s.x;
       const dy = w.ty - w.s.y;
       const d = Math.hypot(dx, dy);
       if (d < 3) {
-        const p = this.yardPoint();
-        w.tx = p.x;
-        w.ty = p.y;
+        if (w.state === 'store') {
+          w.state = 'pile';
+          const p = this.pileAt(w.job);
+          w.tx = p.x + (Math.random() - 0.5) * 24;
+          w.ty = p.y + 8 + Math.random() * 6;
+        } else {
+          w.state = 'work';
+          w.t = 2500 + Math.random() * 2500;
+        }
         continue;
       }
-      const v = (22 * delta) / 1000;
-      if (s.collision.solid(Math.floor((w.s.x + (dx / d) * 6) / TILE), Math.floor((w.s.y + (dy / d) * 6) / TILE))) {
-        const p = this.yardPoint();
-        w.tx = p.x;
-        w.ty = p.y;
-        continue;
+      const v = (24 * delta) / 1000;
+      // contorna o que estiver no caminho de um jeito simples: tenta de lado
+      let ux = dx / d;
+      let uy = dy / d;
+      if (s.collision.solid(Math.floor((w.s.x + ux * 6) / TILE), Math.floor((w.s.y + uy * 6) / TILE))) {
+        [ux, uy] = Math.abs(ux) > Math.abs(uy) ? [0, Math.sign(dy) || 1] : [Math.sign(dx) || 1, 0];
+        if (s.collision.solid(Math.floor((w.s.x + ux * 6) / TILE), Math.floor((w.s.y + uy * 6) / TILE))) {
+          w.s.setPosition(w.tx, w.ty);
+          continue;
+        }
       }
-      w.s.x += (dx / d) * v;
-      w.s.y += (dy / d) * v;
-      w.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : dy < 0 ? 3 : 0;
-      w.t = (w.t + (delta / 1000) * 8) % 8;
-      w.s.setFrame(w.dir * 15 + 1 + Math.floor(w.t)).setDepth(DEPTH.entities + w.s.y);
+      w.s.x += ux * v;
+      w.s.y += uy * v;
+      const dir = Math.abs(ux) > Math.abs(uy) ? (ux < 0 ? 1 : 2) : uy < 0 ? 3 : 0;
+      w.s.setFlipX(false).setFrame(w.job * 18 + dir * 4 + (Math.floor(w.anim / 140) % 4)).setDepth(DEPTH.entities + w.s.y);
     }
     // torres
     const foes = s.army.war ? s.army.soldiers : null;

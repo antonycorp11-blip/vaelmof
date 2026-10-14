@@ -34,8 +34,11 @@ import { Loot } from '../systems/Loot';
 import { Missions } from '../systems/Missions';
 import { HQ } from '../systems/HQ';
 import { Market } from '../systems/Market';
+import { Stable } from '../systems/Stable';
+import { CHAMPION_MOUNT, RARE_MOUNTS } from '../data/mounts';
 import { rollGear } from '../data/gear';
 import { Champions } from '../systems/Champions';
+import { CHAMPIONS, RANKS, type ChampionId } from '../systems/Ranks';
 import type { Hittable } from '../entities/Hittable';
 import { Streamer } from '../systems/Streamer';
 import { TileWindow } from '../systems/TileWindow';
@@ -80,6 +83,8 @@ export class WorldScene extends Phaser.Scene {
   bands!: Bands;
   /** Mercadores das cidades. */
   market!: Market;
+  /** Montarias do herói. */
+  stable!: Stable;
   animals: Animal[] = [];
   flames: Flame[] = [];
   dayNight!: DayNightSystem;
@@ -151,6 +156,13 @@ export class WorldScene extends Phaser.Scene {
     this.bands = new Bands(this);
     this.market = new Market(this);
     this.market.placeMerchants();
+    this.stable = new Stable(this);
+    if (this.stable.riding && this.stable.mount) this.player.setMount(this.stable.mount);
+    // campeões de duelo deixam montaria; líderes e procurados fortes, às vezes uma rara
+    this.events.on('champion-defeated', (id: string) => CHAMPION_MOUNT[id] && this.stable.give(CHAMPION_MOUNT[id]));
+    this.events.on('rare-mount-roll', (chance: number) => {
+      if (Math.random() < chance) this.stable.give(RARE_MOUNTS[Math.floor(Math.random() * RARE_MOUNTS.length)]);
+    });
     this.setupClans();
     this.rankIcon = this.add.image(0, 0, 'rank-icons', this.progress.rankIdx).setDepth(DEPTH.fx - 50);
     this.progress.on('change', () => this.rankIcon.setFrame(this.progress.rankIdx));
@@ -367,11 +379,60 @@ export class WorldScene extends Phaser.Scene {
     for (let i = 0; i < m.collision.length; i++) this.projBlock[i] = m.collision[i] && m.water[i] < 0 ? 1 : 0;
   }
 
+  /**
+   * Alvos para o jogador ir direto: procurados e duelos das missões, o
+   * campeão do duelo da próxima patente e os bandos das missões de guerra.
+   */
+  objectives(): { x: number; y: number; name: string; color: number }[] {
+    const out: { x: number; y: number; name: string; color: number }[] = [];
+    const champ = (id: ChampionId) => {
+      const c = this.champions.list.find((l) => l.id === id);
+      if (c && !this.progress.duels.has(id) && !out.some((o) => o.name === CHAMPIONS[id].name)) out.push({ x: c.x, y: c.y, name: CHAMPIONS[id].name, color: 0xff5a5a });
+    };
+    for (const m of this.missions.active) {
+      if (m.target) out.push({ x: m.target.x, y: m.target.y, name: m.target.name, color: 0xff3a3a });
+      if (m.champ) champ(m.champ);
+      if (m.clan) {
+        const b = this.bands.byClan(m.clan);
+        const c = this.clans.byId(m.clan);
+        if (b && c && b.n > 0) out.push({ x: b.x, y: b.y, name: c.name, color: c.color });
+      }
+    }
+    const next = RANKS[this.progress.rankIdx + 1];
+    if (next?.duel) champ(next.duel);
+    return out;
+  }
+
   private drawAim(time: number) {
     const g = this.aimGfx;
     g.clear();
     const p = this.player;
     if (p.dead) return;
+    // seta em volta do herói apontando o alvo mais perto (missão, duelo)
+    {
+      let best: { x: number; y: number; color: number } | null = null;
+      let bd = Infinity;
+      for (const o of this.objectives()) {
+        const d = Math.hypot(o.x - p.x, o.y - p.y);
+        if (d < bd) {
+          bd = d;
+          best = o;
+        }
+      }
+      if (best && bd > 90) {
+        const a = Math.atan2(best.y - p.y, best.x - p.x);
+        const cx = p.x + Math.cos(a) * 26;
+        const cy = p.y - 8 + Math.sin(a) * 18;
+        const pulse = 0.65 + 0.35 * Math.sin(time / 180);
+        const tri = (r: number) => [
+          { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r },
+          { x: cx + Math.cos(a + 2.5) * r * 0.7, y: cy + Math.sin(a + 2.5) * r * 0.7 },
+          { x: cx + Math.cos(a - 2.5) * r * 0.7, y: cy + Math.sin(a - 2.5) * r * 0.7 },
+        ];
+        g.fillStyle(0x0b0d14, 0.8 * pulse).fillPoints(tri(7), true);
+        g.fillStyle(best.color, pulse).fillPoints(tri(5), true);
+      }
+    }
     const ox = p.fx;
     const oy = p.fy - 8;
     if (inputState.aim.active) {

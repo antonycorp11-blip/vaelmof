@@ -251,6 +251,7 @@ export class Bands extends Phaser.Events.EventEmitter {
           loot: c.gear,
           onKill: () => {
             this.leader = undefined;
+            s.events.emit('rare-mount-roll', 0.1);
             s.events.emit('toast', `${c.leader}, líder do ${c.name}, caiu!`);
           },
         },

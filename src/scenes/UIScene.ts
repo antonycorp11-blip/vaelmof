@@ -10,6 +10,7 @@ import { ClanCreate } from '../ui/ClanCreate';
 import { ClansPanel } from '../ui/ClansPanel';
 import { HQPanel } from '../ui/HQPanel';
 import { MarketPanel } from '../ui/MarketPanel';
+import { StablePanel } from '../ui/StablePanel';
 import { MissionsPanel } from '../ui/MissionsPanel';
 import type { Mission } from '../systems/Missions';
 import type { Clan } from '../systems/Clans';
@@ -23,7 +24,7 @@ import { MapPanel } from '../ui/MapPanel';
 import { Minimap } from '../ui/Minimap';
 import type { WorldScene } from './WorldScene';
 
-type PanelId = 'bag' | 'attrs' | 'army' | 'hq' | 'market' | 'missions' | 'clans' | 'map' | 'debug';
+type PanelId = 'bag' | 'attrs' | 'army' | 'hq' | 'market' | 'stable' | 'missions' | 'clans' | 'map' | 'debug';
 
 /**
  * HUD: à esquerda a insígnia da patente, a vida, a Glória e as ordens do
@@ -43,11 +44,15 @@ export class UIScene extends Phaser.Scene {
   private clansPanel!: ClansPanel;
   private hqPanel!: HQPanel;
   private marketPanel!: MarketPanel;
+  private stablePanel!: StablePanel;
+  private rideBtn!: Button;
   private goldIcon!: Phaser.GameObjects.Image;
   private goldText!: Phaser.GameObjects.Text;
   private clanCreate!: ClanCreate;
   private crest!: Crest;
   private missionText!: Phaser.GameObjects.Text;
+  private objText!: Phaser.GameObjects.Text;
+  private objAt = 0;
   private news!: Phaser.GameObjects.Text;
   private minimap!: Minimap;
   // HUD
@@ -103,6 +108,7 @@ export class UIScene extends Phaser.Scene {
     this.goldText = label(this, '', 11, COLOR.gold).setOrigin(0, 0.5).setDepth(1401);
     this.armyText = label(this, '', 10, COLOR.text).setOrigin(0, 0.5).setDepth(1401);
     this.missionText = label(this, '', 9, COLOR.text, 1, false).setDepth(1401).setLineSpacing(2);
+    this.objText = label(this, '', 9, COLOR.gold).setDepth(1401);
     const army = world.army;
     const orderDefs: [ArmyMode | 'camp', number][] = [
       ['follow', 7],
@@ -126,6 +132,18 @@ export class UIScene extends Phaser.Scene {
       this.orders.push({ mode, b });
     }
 
+    // montar / desmontar (sempre à mão)
+    this.rideBtn = new Button(this, {
+      icon: 26,
+      color: 'dark',
+      onTap: () => {
+        const why = world.stable.toggle();
+        if (why) this.showToast(why, 3000);
+        this.updateHud();
+      },
+    }).setDepth(1400);
+    world.stable.on('change', () => this.updateHud());
+
     // --- direita: minimapa, relógio e menu
     this.minimap = new Minimap(this, world);
     this.minimap.onTap = () => this.togglePanel('map');
@@ -136,6 +154,7 @@ export class UIScene extends Phaser.Scene {
       ['army', 2, 'dark'],
       ['hq', 23, 'dark'],
       ['market', 22, 'dark'],
+      ['stable', 26, 'dark'],
       ['missions', 18, 'dark'],
       ['clans', 19, 'dark'],
       ['map', 3, 'dark'],
@@ -157,6 +176,7 @@ export class UIScene extends Phaser.Scene {
 
     // --- painéis
     this.bag = new InventoryPanel(this, world.inventory);
+    this.bag.market = world.market;
     this.attrs = new AttributesPanel(this, world);
     this.armyPanel = new ArmyPanel(this, world);
     this.mapPanel = new MapPanel(this, world);
@@ -170,15 +190,16 @@ export class UIScene extends Phaser.Scene {
     this.clansPanel.onMap = () => this.togglePanel('map');
     this.hqPanel = new HQPanel(this, world);
     this.marketPanel = new MarketPanel(this, world);
+    this.stablePanel = new StablePanel(this, world);
     this.clanCreate = new ClanCreate(this, world);
     this.armyPanel.onClans = () => this.togglePanel('clans');
-    this.panels = { bag: this.bag, attrs: this.attrs, army: this.armyPanel, hq: this.hqPanel, market: this.marketPanel, missions: this.missionsPanel, clans: this.clansPanel, map: this.mapPanel, debug: this.debug };
+    this.panels = { bag: this.bag, attrs: this.attrs, army: this.armyPanel, hq: this.hqPanel, market: this.marketPanel, stable: this.stablePanel, missions: this.missionsPanel, clans: this.clansPanel, map: this.mapPanel, debug: this.debug };
     this.controls.blocker = (x, y) =>
       this.clanCreate.open ||
       Object.values(this.panels).some((p) => p.open && p.contains(x, y)) ||
       this.minimap.contains(x, y) ||
       this.menuBar.getBounds().contains(x, y) ||
-      [...this.menu.map((m) => m.b), ...this.orders.map((o) => o.b)].some((b) => b.contains(x, y));
+      [...this.menu.map((m) => m.b), ...this.orders.map((o) => o.b), this.rideBtn].some((b) => b.contains(x, y));
 
     // --- eventos do mundo
     army.on('mode', () => this.updateHud());
@@ -237,6 +258,7 @@ export class UIScene extends Phaser.Scene {
     kb?.addKey(K.T).on('down', () => this.togglePanel('missions'));
     kb?.addKey(K.H).on('down', () => this.togglePanel('hq'));
     kb?.addKey(K.V).on('down', () => this.togglePanel('market'));
+    kb?.addKey(K.X).on('down', () => this.rideBtn.bg.emit('pointerdown', null, 0, 0, null));
     kb?.addKey(K.R).on('down', () => this.togglePanel('clans'));
     kb?.addKey(K.ONE).on('down', () => army.setMode('follow'));
     kb?.addKey(K.TWO).on('down', () => army.setMode('attack'));
@@ -307,12 +329,15 @@ export class UIScene extends Phaser.Scene {
     fit(this.rankText, 10, u).setPosition(this.hpX, row2 + 15 * u);
     const oy = m + this.badge.displayHeight + 8 * u;
     fit(this.armyText, 10, u).setPosition(m, oy + 8 * u);
-    let ox = m;
+    // montar fica sempre no começo da fileira; as ordens do exército vêm depois
+    this.rideBtn.place(m, oy + 18 * u, u, 34 * u, 30 * u);
+    let ox = m + 38 * u;
     for (const o of this.orders) {
       o.b.place(ox, oy + 18 * u, u, 34 * u, 30 * u);
       ox += o.b.w + 4 * u;
     }
     fit(this.missionText, 9, u).setPosition(m, oy + 54 * u);
+    fit(this.objText, 9, u).setPosition(m, oy + 54 * u);
     // --- direita
     // barra de menu no alto, numa moldura só; o minimapa logo abaixo
     const ms = 28 * u;
@@ -349,6 +374,7 @@ export class UIScene extends Phaser.Scene {
     this.clansPanel.layout(u);
     this.hqPanel.layout(u);
     this.marketPanel.layout(u);
+    this.stablePanel.layout(u);
     this.clanCreate.layout(u);
     fit(this.news, 9, u).setPosition(width / 2, 26 * u).setWordWrapWidth(width * 0.5);
     this.controls.hudBottom = this.hudBottom - 20 * u;
@@ -363,6 +389,7 @@ export class UIScene extends Phaser.Scene {
     const P = w.progress;
     const a = w.army;
     this.insignia.setFrame(P.rankIdx);
+    this.rideBtn.setColor(w.stable.riding ? 'gold' : 'dark');
     const clan = w.clans.player;
     this.crest.set(clan.crest, clan.color);
     const ms = w.missions.active;
@@ -438,6 +465,20 @@ export class UIScene extends Phaser.Scene {
     this.clansPanel.update(now);
     this.hqPanel.update(now);
     this.marketPanel.update(now);
+    // alvo mais perto: nome, distância e direção (vai embaixo das missões)
+    if (now - this.objAt > 500) {
+      this.objAt = now;
+      const p = this.world.player;
+      const objs = this.world.objectives().map((o) => ({ ...o, d: Math.hypot(o.x - p.x, o.y - p.y) })).sort((a, b) => a.d - b.d);
+      const o = objs[0];
+      if (o) {
+        const a = Math.atan2(o.y - p.y, o.x - p.x);
+        const dirs = ['leste', 'sudeste', 'sul', 'sudoeste', 'oeste', 'noroeste', 'norte', 'nordeste'];
+        const dir = dirs[(Math.round(a / (Math.PI / 4)) + 8) % 8];
+        this.objText.setText(`* ${o.name} · ${Math.round(o.d / 16)} tiles a ${dir}`).setVisible(true);
+      } else this.objText.setVisible(false);
+      this.objText.setY(this.missionText.y + (this.missionText.text ? this.missionText.height + 2 * this.u : 0));
+    }
     this.mapPanel.update(now);
     if (now - this.lastHud > 500) {
       this.lastHud = now;

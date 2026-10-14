@@ -2,12 +2,12 @@ import Phaser from 'phaser';
 import { TILE } from '../config';
 import type { WorldScene } from '../scenes/WorldScene';
 import { BIOMES } from '../systems/WorldGenerator';
-import { COLOR, fit, frame, label, pxOf, sizeFrame } from './kit';
+import { Button, COLOR, fit, frame, label, pxOf, sizeFrame } from './kit';
 
 /** Tiles do mundo por pixel da textura 'worldmap'. */
 const MAP_TILES_PER_PX = 2;
-/** Quantos tiles o minimapa mostra de largura. */
-const VIEW_TILES = 110;
+/** Zoom: quantos tiles o minimapa mostra de largura (toque em + / −). */
+const ZOOMS = [50, 110, 220, 440];
 
 /**
  * Minimapa no canto: o mapa do mundo recortado em volta do herói, com as
@@ -29,6 +29,13 @@ export class Minimap {
   private u = 1;
   private lastDraw = 0;
   onTap?: () => void;
+  private zoom = 1;
+  private zin: Button;
+  private zout: Button;
+  private bx = 0;
+  private by = 0;
+  private bw = 10;
+  private bh = 10;
 
   constructor(
     scene: Phaser.Scene,
@@ -44,25 +51,41 @@ export class Minimap {
     this.img.setMask(this.maskG.createGeometryMask());
     this.marks = scene.add.graphics().setDepth(1402);
     this.area = label(scene, '', 10, COLOR.gold).setOrigin(0.5, 0).setDepth(1403);
+    this.zin = new Button(scene, { label: '+', color: 'dark', size: 12, onTap: () => this.setZoom(this.zoom - 1) }).setDepth(1404);
+    this.zout = new Button(scene, { label: '-', color: 'dark', size: 12, onTap: () => this.setZoom(this.zoom + 1) }).setDepth(1404);
+  }
+
+  private setZoom(z: number) {
+    this.zoom = Math.max(0, Math.min(ZOOMS.length - 1, z));
+    this.layout(this.u, this.bx, this.by, this.bw, this.bh);
   }
 
   contains(x: number, y: number) {
+    if (this.zin.contains(x, y) || this.zout.contains(x, y)) return true;
     return x >= this.box.x && y >= this.box.y && x <= this.box.x + this.box.displayWidth && y <= this.box.y + this.box.displayHeight;
   }
 
   /** Caixa do minimapa em (x, y), w × h px de tela. */
   layout(u: number, x: number, y: number, w: number, h: number) {
     this.u = u;
+    this.bx = x;
+    this.by = y;
+    this.bw = w;
+    this.bh = h;
     sizeFrame(this.box, x, y, w, h, u);
     const b = pxOf(u) * 4;
     this.ix = x + b;
     this.iy = y + b;
     this.iw = this.box.displayWidth - b * 2;
     this.ih = this.box.displayHeight - b * 2;
-    this.s = this.iw / (VIEW_TILES / MAP_TILES_PER_PX);
+    this.s = this.iw / (ZOOMS[this.zoom] / MAP_TILES_PER_PX);
     this.img.setScale(this.s);
     this.maskG.clear().fillStyle(0xffffff).fillRect(this.ix, this.iy, this.iw, this.ih);
     fit(this.area, 10, u).setPosition(x + this.box.displayWidth / 2, y + this.box.displayHeight + 2 * u);
+    // zoom: dois botões no canto de baixo à esquerda, por fora da caixa
+    const zs = 22 * u;
+    this.zin.place(x - zs - 3 * u, y + this.box.displayHeight - zs * 2 - 3 * u, u, zs, zs);
+    this.zout.place(x - zs - 3 * u, y + this.box.displayHeight - zs, u, zs, zs);
     this.lastDraw = 0;
   }
 
@@ -145,6 +168,24 @@ export class Minimap {
       const r = (b.n > 60 ? 4 : 3) * u;
       g.fillStyle(danger && blink ? 0xff3a3a : 0x0b0d14, 1).fillRect(pt[0] - r - u, pt[1] - r - u, r * 2 + 2 * u, r * 2 + 2 * u);
       g.fillStyle(c.color, 1).fillRect(pt[0] - r, pt[1] - r, r * 2, r * 2);
+    }
+    // alvos (missão, duelo da próxima patente): estrela pulsando, presa na borda se longe
+    const pulse = 1 + 0.25 * Math.sin(time / 160);
+    for (const o of w.objectives()) {
+      const pt = this.toScreen(o.x, o.y) ?? this.edge(o.x, o.y);
+      const r = 4.5 * u * pulse;
+      const star = (rr: number) => {
+        const pts = [];
+        for (let k = 0; k < 10; k++) {
+          const a = -Math.PI / 2 + (k * Math.PI) / 5;
+          const q = k % 2 ? rr * 0.45 : rr;
+          pts.push({ x: pt[0] + Math.cos(a) * q, y: pt[1] + Math.sin(a) * q });
+        }
+        return pts;
+      };
+      g.fillStyle(0x0b0d14, 1).fillPoints(star(r + 1.5 * u), true);
+      g.fillStyle(0xffd34a, 1).fillPoints(star(r), true);
+      g.fillStyle(o.color, 1).fillCircle(pt[0], pt[1], 1.3 * u);
     }
     // procurados das missões: alvo vermelho
     for (const m of w.missions.active) {
