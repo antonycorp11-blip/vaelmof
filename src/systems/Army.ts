@@ -27,20 +27,20 @@ interface SoldierDef {
 }
 
 export const SOLDIERS: Record<SoldierType, SoldierDef> = {
-  sword: { name: 'Espadachim', hp: 14, damage: 2, range: 15, cooldown: 850, speed: 50, cost: 1 },
-  greatsword: { name: 'Montante', hp: 20, damage: 3.5, range: 19, cooldown: 1250, speed: 44, cost: 2 },
-  bow: { name: 'Arqueiro', hp: 10, damage: 2, range: 150, cooldown: 1400, speed: 50, cost: 1, ranged: 'arrow' },
-  staff: { name: 'Mago', hp: 9, damage: 3, range: 125, cooldown: 1900, speed: 46, cost: 3, ranged: 'bolt', aoe: 20 },
+  sword: { name: 'Lâmina do Vale', hp: 14, damage: 2, range: 15, cooldown: 850, speed: 50, cost: 1 },
+  greatsword: { name: 'Quebra-Escudos', hp: 20, damage: 3.5, range: 19, cooldown: 1250, speed: 44, cost: 2 },
+  bow: { name: 'Flecha Cinzenta', hp: 10, damage: 2, range: 150, cooldown: 1400, speed: 50, cost: 1, ranged: 'arrow' },
+  staff: { name: 'Arcanista', hp: 9, damage: 3, range: 125, cooldown: 1900, speed: 46, cost: 3, ranged: 'bolt', aoe: 20 },
 };
 
 /** Patentes dos soldados: sobem com abates; multiplicam vida e dano. */
 // os nomes (e os ícones sobre a cabeça) são os quatro primeiros da escada do herói
 export const SOLDIER_RANKS = [
-  { name: 'Recruta', kills: 0, mul: 1 },
-  { name: 'Soldado', kills: 2, mul: 1.25 },
-  { name: 'Cabo', kills: 5, mul: 1.6 },
-  { name: 'Sargento', kills: 10, mul: 2.1 },
-];
+  { name: 'Miliciano', kills: 0, mul: 1 },
+  { name: 'Escudeiro', kills: 2, mul: 1.25 },
+  { name: 'Lâmina Jurada', kills: 5, mul: 1.6 },
+  { name: 'Guardião de Ferro', kills: 10, mul: 2.1 },
+]
 const rankOf = (kills: number) => SOLDIER_RANKS.reduce((r, R, i) => (kills >= R.kills ? i : r), 0);
 
 /** Trajes de cada lado (o herói usa o mesmo sistema de camadas). */
@@ -67,6 +67,14 @@ const HIT_STEP = 3;
 const STEP_MS = 80;
 
 export type ArmyMode = 'follow' | 'attack' | 'hold';
+
+/** Cura dos soldados fora de combate (fração da vida por segundo): no campo e dentro de uma cidade. */
+const HEAL_FIELD = 0.04;
+const HEAL_CITY = 0.15;
+/** Sem levar dano por este tempo (ms), o soldado começa a se curar. */
+const HEAL_DELAY = 4000;
+/** Raio (tiles) do campo de fluxo em volta do herói. */
+const FLOW_R = 40;
 
 const SAVE_KEY = 'vaelmor.army.v1';
 
@@ -96,6 +104,12 @@ export class Soldier implements Hittable {
   lastBy: Soldier | null = null;
   /** Cor da casa (exércitos inimigos); -1 = sem tom. */
   baseTint = -1;
+  /** Último dano levado (a cura espera um pouco). */
+  lastHurt = -99999;
+  /** O caminho reto até o herói está bloqueado: segue o campo de fluxo. */
+  useFlow = false;
+  /** Está dentro de uma cidade (cura mais rápido). */
+  inCity = false;
   readonly sprite: Phaser.GameObjects.Sprite;
   readonly ring: Phaser.GameObjects.Image;
   /** Insígnia da patente sobre a cabeça (azul aliado, vermelho inimigo). */
@@ -148,6 +162,7 @@ export class Soldier implements Hittable {
   takeDamage(amount: number, fromX: number, fromY: number, knockback = 60) {
     if (this.dead) return;
     this.hp -= amount;
+    this.lastHurt = this.army.scene.time.now;
     this.flashUntil = this.army.scene.time.now + 70;
     const a = Math.atan2(this.y - fromY, this.x - fromX);
     const k = Math.min(140, knockback) * 0.5;
@@ -231,6 +246,15 @@ export class Army extends Phaser.Events.EventEmitter {
   private heroT: Hittable;
   /** Soldados salvos esperando as folhas ficarem prontas. */
   private pending: { t: SoldierType; k: number }[] = [];
+  /** Aquartelados em Brumavale (fora do campo; voltam com Convocar, curados). */
+  garrison: { t: SoldierType; k: number }[] = [];
+  /** Campo de fluxo (distância em passos até o herói) para contornar obstáculos. */
+  private flow = new Uint16Array((FLOW_R * 2 + 1) ** 2);
+  private flowOX = 0;
+  private flowOY = 0;
+  private flowTile = -1;
+  private flowAt = 0;
+  private flowQ = new Int32Array((FLOW_R * 2 + 1) ** 2);
 
   constructor(readonly scene: WorldScene) {
     super();
@@ -272,7 +296,7 @@ export class Army extends Phaser.Events.EventEmitter {
 
   /** Soldados aliados vivos (inclui os que ainda vão aparecer). */
   get size(): number {
-    let n = this.pending.length;
+    let n = this.pending.length + this.garrison.length;
     for (const s of this.soldiers) if (s.team === 0 && !s.dead) n++;
     return n;
   }
@@ -527,6 +551,45 @@ export class Army extends Phaser.Events.EventEmitter {
     this.emit('mode', m);
   }
 
+  /** Manda o exército para o quartel de Brumavale: o herói anda sozinho. */
+  quarter(): boolean {
+    if (this.war) return false;
+    const sc = this.scene;
+    for (const s of this.soldiers) {
+      if (s.team !== 0 || s.dead) continue;
+      this.garrison.push({ t: s.type, k: s.kills });
+      s.dead = true;
+      sc.fx.burst(s.x, s.y - 10, 0xbfe0ff, 3);
+      sc.tweens.add({ targets: [s.sprite, s.ring, s.icon], alpha: 0, duration: 400, onComplete: () => s.destroy() });
+    }
+    this.save();
+    this.emit('change');
+    return this.garrison.length > 0;
+  }
+
+  /** Chama o exército aquartelado: chegam marchando por trás do herói, curados. */
+  summon(): number {
+    if (!this.garrison.length) return 0;
+    const p = this.scene.player;
+    const n = this.garrison.length;
+    const bx = p.x - this.faceX * 140;
+    const by = p.y - this.faceY * 140;
+    for (const g of this.garrison.splice(0)) {
+      const s = this.addAlly(g.t, bx + Phaser.Math.Between(-30, 30), by + Phaser.Math.Between(-20, 20), g.k, false);
+      // se nasceu dentro de algo, nasce junto do herói
+      if (this.solidAt(s.x, s.y)) {
+        s.x = p.x;
+        s.y = p.y;
+      }
+      s.sprite.setAlpha(0);
+      this.scene.tweens.add({ targets: [s.sprite, s.ring, s.icon], alpha: 1, duration: 500 });
+    }
+    this.regroup(false);
+    this.save();
+    this.emit('change');
+    return n;
+  }
+
   /** Traz os aliados para perto do herói (teleporte, renascimento). */
   regroup(all = true) {
     const p = this.scene.player;
@@ -563,6 +626,87 @@ export class Army extends Phaser.Events.EventEmitter {
   // ------------------------------------------------------------------ simulação
   private solidAt(x: number, y: number) {
     return this.scene.collision.solid(Math.floor(x / TILE), Math.floor(y / TILE));
+  }
+
+  /** Caminho reto livre entre dois pontos (amostrado a cada 6 px)? */
+  private los(x0: number, y0: number, x1: number, y1: number): boolean {
+    const d = Math.hypot(x1 - x0, y1 - y0);
+    const n = Math.ceil(d / 6);
+    for (let i = 1; i < n; i++) if (this.solidAt(x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n)) return false;
+    return true;
+  }
+
+  /**
+   * Campo de fluxo: BFS a partir do tile do herói (raio de 40 tiles). Cada tile
+   * guarda quantos passos faltam até ele; quem está com o caminho reto
+   * bloqueado desce esse gradiente e contorna árvores, muros e rios.
+   */
+  private buildFlow(time: number) {
+    const p = this.scene.player;
+    const htx = Math.floor(p.x / TILE);
+    const hty = Math.floor(p.y / TILE);
+    const key = hty * 65536 + htx;
+    if (key === this.flowTile && time - this.flowAt < 1500) return;
+    if (time - this.flowAt < 200) return;
+    this.flowTile = key;
+    this.flowAt = time;
+    const S = FLOW_R * 2 + 1;
+    this.flowOX = htx - FLOW_R;
+    this.flowOY = hty - FLOW_R;
+    const f = this.flow;
+    f.fill(65535);
+    const q = this.flowQ;
+    let head = 0;
+    let tail = 0;
+    const col = this.scene.collision;
+    const start = FLOW_R * S + FLOW_R;
+    f[start] = 0;
+    q[tail++] = start;
+    while (head < tail) {
+      const c = q[head++];
+      const cx = c % S;
+      const cy = (c - cx) / S;
+      const d = f[c] + 1;
+      for (let k = 0; k < 4; k++) {
+        const nx = cx + (k === 0 ? 1 : k === 1 ? -1 : 0);
+        const ny = cy + (k === 2 ? 1 : k === 3 ? -1 : 0);
+        if (nx < 0 || ny < 0 || nx >= S || ny >= S) continue;
+        const ni = ny * S + nx;
+        if (f[ni] <= d || col.solid(this.flowOX + nx, this.flowOY + ny)) continue;
+        f[ni] = d;
+        q[tail++] = ni;
+      }
+    }
+  }
+
+  /** Direção (unitária) para descer o campo de fluxo a partir de (x, y); null fora dele. */
+  private flowDir(x: number, y: number): [number, number] | null {
+    const S = FLOW_R * 2 + 1;
+    const cx = Math.floor(x / TILE) - this.flowOX;
+    const cy = Math.floor(y / TILE) - this.flowOY;
+    if (cx < 1 || cy < 1 || cx >= S - 1 || cy >= S - 1) return null;
+    const f = this.flow;
+    let best = f[cy * S + cx];
+    let bx = 0;
+    let by = 0;
+    for (let oy = -1; oy <= 1; oy++)
+      for (let ox = -1; ox <= 1; ox++) {
+        if (!ox && !oy) continue;
+        // diagonal só se as duas laterais estiverem livres (não corta quina)
+        if (ox && oy && (f[cy * S + cx + ox] === 65535 || f[(cy + oy) * S + cx] === 65535)) continue;
+        const v = f[(cy + oy) * S + cx + ox];
+        if (v < best) {
+          best = v;
+          bx = ox;
+          by = oy;
+        }
+      }
+    if (!bx && !by) return null;
+    // mira o centro do tile vizinho
+    const tx = (this.flowOX + cx + bx) * TILE + 8 - x;
+    const ty = (this.flowOY + cy + by) * TILE + 8 - y;
+    const l = Math.hypot(tx, ty) || 1;
+    return [tx / l, ty / l];
   }
 
   private nearest(s: Soldier, range: number): Hittable | null {
@@ -618,6 +762,7 @@ export class Army extends Phaser.Events.EventEmitter {
       list.push(s);
     }
     const view = this.scene.cameras.main.worldView;
+    this.buildFlow(time);
     let slot = 0;
     for (const s of this.soldiers) {
       if (s.dead) continue;
@@ -630,6 +775,9 @@ export class Army extends Phaser.Events.EventEmitter {
         else if (s.team === 1) s.target = this.nearest(s, 520);
         else if (this.mode === 'attack') s.target = this.nearest(s, 260);
         else s.target = this.nearest(s, this.mode === 'hold' ? 90 : 70);
+        // caminho reto até o herói bloqueado? então contorna pelo campo de fluxo
+        s.useFlow = !s.target && Math.hypot(s.x - p.x, s.y - p.y) > 30 && !this.los(s.x, s.y, p.x, p.y);
+        s.inCity = s.team === 0 && this.scene.map.cities.some((c) => s.x > c.x0 * TILE && s.x < c.x1 * TILE && s.y > c.y0 * TILE && s.y < c.y1 * TILE);
         // longe demais do herói: alcança a formação
         if (s.team === 0 && Math.hypot(s.x - p.x, s.y - p.y) > 520) {
           const [x, y] = this.slotPos(s.slot, p.x, p.y);
@@ -663,6 +811,14 @@ export class Army extends Phaser.Events.EventEmitter {
         gx = p.x;
         gy = p.y;
       }
+      // contornando obstáculo: segue o gradiente do campo de fluxo até o herói
+      if (s.useFlow && !s.target && !s.fleeing && !(s.team === 0 && this.mode === 'hold')) {
+        const fd = this.flowDir(s.x, s.y);
+        if (fd) {
+          gx = s.x + fd[0] * 24;
+          gy = s.y + fd[1] * 24;
+        }
+      }
       // ataque
       const stunned = time < s.stunUntil;
       if (wantAttack && s.attackAt < 0 && time >= s.cdUntil && !stunned) {
@@ -687,8 +843,24 @@ export class Army extends Phaser.Events.EventEmitter {
       const dd = Math.hypot(ddx, ddy);
       if (dd > 3 && s.attackAt < 0 && !stunned) {
         const k = Math.min(1, dd / 18);
-        tx = (ddx / dd) * speed * k;
-        ty = (ddy / dd) * speed * k;
+        let ux = ddx / dd;
+        let uy = ddy / dd;
+        // desvio local: se a frente está bloqueada, tenta girar para os lados
+        if (this.solidAt(s.x + ux * 8, s.y + uy * 8)) {
+          for (const a of [0.7, -0.7, 1.4, -1.4]) {
+            const c = Math.cos(a);
+            const sn = Math.sin(a);
+            const rx = ux * c - uy * sn;
+            const ry = ux * sn + uy * c;
+            if (!this.solidAt(s.x + rx * 8, s.y + ry * 8)) {
+              ux = rx;
+              uy = ry;
+              break;
+            }
+          }
+        }
+        tx = ux * speed * k;
+        ty = uy * speed * k;
       }
       // separação dos vizinhos
       const cx = Math.floor(s.x / G);
@@ -720,6 +892,11 @@ export class Army extends Phaser.Events.EventEmitter {
       else s.vy = 0;
       const moving = s.vx * s.vx + s.vy * s.vy > 30;
       if (moving && !s.target) s.dir = Math.abs(s.vx) > Math.abs(s.vy) ? (s.vx < 0 ? 1 : 2) : s.vy < 0 ? 3 : 0;
+      // cura fora de combate (mais rápida dentro das cidades)
+      if (s.team === 0 && s.hp < s.maxHp && time - s.lastHurt > HEAL_DELAY) {
+        s.hp = Math.min(s.maxHp, s.hp + s.maxHp * (s.inCity ? HEAL_CITY : HEAL_FIELD) * dt);
+        if (Math.random() < dt * 1.2) this.scene.fx.burst(s.x, s.y - 14, 0x7dff8a, 2);
+      }
       // quadro
       let col = 0;
       if (s.attackAt >= 0) col = 9 + Math.min(5, Math.floor((time - s.attackAt) / STEP_MS));
@@ -866,7 +1043,7 @@ export class Army extends Phaser.Events.EventEmitter {
   save() {
     try {
       const roster = this.soldiers.filter((s) => s.team === 0 && !s.dead).map((s) => ({ t: s.type, k: s.kills }));
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ roster: [...roster, ...this.pending], pool: this.pool }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ roster: [...roster, ...this.pending], garrison: this.garrison, pool: this.pool }));
     } catch {
       /* sem armazenamento */
     }
@@ -879,6 +1056,7 @@ export class Army extends Phaser.Events.EventEmitter {
       const d = JSON.parse(raw);
       if (typeof d.pool === 'number') this.pool = Phaser.Math.Clamp(d.pool, 0, this.poolMax);
       if (Array.isArray(d.roster)) for (const r of d.roster) if (SOLDIER_TYPES.includes(r.t)) this.pending.push({ t: r.t, k: Number(r.k) || 0 });
+      if (Array.isArray(d.garrison)) for (const r of d.garrison) if (SOLDIER_TYPES.includes(r.t)) this.garrison.push({ t: r.t, k: Number(r.k) || 0 });
     } catch {
       /* sem save */
     }
@@ -889,6 +1067,7 @@ export class Army extends Phaser.Events.EventEmitter {
     for (const s of this.soldiers) s.destroy();
     this.soldiers.length = 0;
     this.pending.length = 0;
+    this.garrison.length = 0;
     this.war = null;
     this.save();
     this.emit('change');

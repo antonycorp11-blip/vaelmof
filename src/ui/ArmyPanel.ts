@@ -1,110 +1,104 @@
 import Phaser from 'phaser';
 import type { WorldScene } from '../scenes/WorldScene';
 import { SOLDIER_RANKS, SOLDIER_TYPES, SOLDIERS, type SoldierType } from '../systems/Army';
-import { CHAMPIONS, RANKS } from '../systems/Ranks';
+import { Button, COLOR, drawBar, fit, frame, label, sizeFrame, Window } from './kit';
 
 type Txt = Phaser.GameObjects.Text;
 
-interface TypeRow {
+interface Card {
   type: SoldierType;
+  box: Phaser.GameObjects.NineSlice;
+  portrait: Phaser.GameObjects.Image;
   name: Txt;
+  stats: Txt;
   count: Txt;
-  plus1: Txt;
-  plus5: Txt;
+  plus1: Button;
+  plus5: Button;
 }
 
+const ROLE: Record<SoldierType, string> = {
+  sword: 'linha de frente',
+  greatsword: 'tropa de choque',
+  bow: 'atiradores',
+  staff: 'magia em área',
+};
+
 /**
- * Painel EXÉRCITO: recrutar soldados no quartel de Brumavale (cada tipo gasta
- * recrutas, que renovam com o tempo), ver a escada de patentes de Teren e
- * declarar guerra a uma casa rival (teste da batalha entre exércitos).
+ * Quartel de Brumavale: cartas dos quatro tipos de soldado (retrato, números,
+ * custo em recrutas e +1 / +5), a reserva de recrutas, como o exército se
+ * cura e as ordens de aquartelar/convocar e declarar guerra.
  */
 export class ArmyPanel {
-  private root: Phaser.GameObjects.Container;
-  private bg: Phaser.GameObjects.Rectangle;
-  private head: Phaser.GameObjects.Rectangle;
-  private title: Txt;
-  private sub: Txt;
-  private pool: Txt;
+  private win: Window;
+  private poolBar: Phaser.GameObjects.Graphics;
+  private poolText: Txt;
+  private where: Txt;
   private status: Txt;
-  private close: Txt;
-  private warBtn: Txt;
-  private ladderTitle: Txt;
-  private ladder: Txt[] = [];
-  private rows: TypeRow[] = [];
-  open = false;
+  private infoBox: Phaser.GameObjects.NineSlice;
+  private info: Txt;
+  private campBtn: Button;
+  private warBtn: Button;
+  private cards: Card[] = [];
   private u = 1;
   private lastTick = 0;
+  private bar = { x: 0, y: 0, w: 10, h: 10 };
 
   constructor(
     private scene: Phaser.Scene,
     private world: WorldScene,
   ) {
-    const style = { fontFamily: 'monospace', fontSize: '11px', color: '#ffffff', fontStyle: 'bold' };
-    this.root = scene.add.container(0, 0).setDepth(2200).setVisible(false);
-    this.bg = scene.add.rectangle(0, 0, 10, 10, 0x0c0e14, 0.95).setOrigin(0).setStrokeStyle(2, 0x6a8ec4, 0.9).setInteractive();
-    this.head = scene.add.rectangle(0, 0, 10, 10, 0x1c2a44, 1).setOrigin(0);
-    this.title = scene.add.text(0, 0, 'EXÉRCITO', { ...style, color: '#bfe0ff' });
-    this.sub = scene.add.text(0, 0, '', { ...style, color: '#c8d4e8' });
-    this.pool = scene.add.text(0, 0, '', { ...style, color: '#9cff8a' });
-    this.status = scene.add.text(0, 0, '', { ...style, color: '#ffb080' });
-    this.close = scene.add.text(0, 0, ' X ', { ...style, backgroundColor: '#7a1f2a' }).setInteractive({ useHandCursor: true });
-    this.close.on('pointerdown', () => this.setOpen(false));
-    this.warBtn = scene.add.text(0, 0, 'DECLARAR GUERRA', { ...style, backgroundColor: '#7a1f2a' }).setInteractive({ useHandCursor: true });
-    this.warBtn.on('pointerdown', () => {
-      const a = world.army;
-      if (a.war) return;
-      a.prepare(() => {
-        a.declareWar(Math.max(10, a.size));
-        this.setOpen(false);
-      });
-    });
-    this.ladderTitle = scene.add.text(0, 0, 'PATENTES (atributos ≥ · glória · duelo · soldados)', { ...style, color: '#bfe0ff' });
-    this.root.add([this.bg, this.head, this.title, this.sub, this.pool, this.status, this.close, this.warBtn, this.ladderTitle]);
+    this.win = new Window(scene, 'QUARTEL DE BRUMAVALE', 2, () => this.setOpen(false));
+    this.poolBar = scene.add.graphics();
+    this.poolText = label(scene, '', 10, COLOR.text).setOrigin(0.5);
+    this.where = label(scene, '', 10, COLOR.dim, 1, false);
+    this.status = label(scene, '', 10, COLOR.red).setOrigin(0.5, 0);
+    this.infoBox = frame(scene, 'frame-inner');
+    this.info = label(scene, '', 9, COLOR.text, 1, false).setLineSpacing(3);
+    this.campBtn = new Button(scene, { label: 'AQUARTELAR', icon: 10, color: 'gold', size: 11, onTap: () => this.camp() });
+    this.warBtn = new Button(scene, { label: 'DECLARAR GUERRA', icon: 5, color: 'red', size: 11, onTap: () => this.war() });
+    this.win.add(this.poolBar, this.poolText, this.where, this.status, this.infoBox, this.info);
+    this.campBtn.addTo(this.win.root);
+    this.warBtn.addTo(this.win.root);
     for (const type of SOLDIER_TYPES) {
-      const btn = (label: string, n: number) => {
-        const b = scene.add.text(0, 0, label, { ...style, backgroundColor: '#2a3f66', color: '#bfe0ff' }).setInteractive({ useHandCursor: true });
-        b.on('pointerdown', () => {
-          const a = world.army;
-          const why = a.recruitBlock(type, 1);
-          if (why) {
-            this.status.setText(why);
-            return;
-          }
-          a.prepare(() => {
-            a.recruit(type, n);
-            this.refresh();
-          });
-        });
-        return b;
-      };
-      const r: TypeRow = {
+      const c: Card = {
         type,
-        name: scene.add.text(0, 0, '', style),
-        count: scene.add.text(0, 0, '', { ...style, color: '#c8d4e8' }),
-        plus1: btn(' +1 ', 1),
-        plus5: btn(' +5 ', 5),
+        box: frame(scene, 'frame-inner'),
+        portrait: scene.add.image(0, 0, 'ui-menu', 2),
+        name: label(scene, SOLDIERS[type].name, 11, COLOR.gold).setOrigin(0.5, 0),
+        stats: label(scene, '', 8, COLOR.dim, 1, false).setOrigin(0.5, 0).setAlign('center').setLineSpacing(2),
+        count: label(scene, '', 9, COLOR.blue).setOrigin(0.5, 0),
+        plus1: new Button(scene, { label: '+1', color: 'blue', size: 11, onTap: () => this.recruit(type, 1) }),
+        plus5: new Button(scene, { label: '+5', color: 'blue', size: 11, onTap: () => this.recruit(type, 5) }),
       };
-      this.root.add([r.name, r.count, r.plus1, r.plus5]);
-      this.rows.push(r);
-    }
-    for (let i = 0; i < RANKS.length; i++) {
-      const t = scene.add.text(0, 0, '', { ...style, fontSize: '10px' });
-      this.ladder.push(t);
-      this.root.add(t);
+      this.win.add(c.box, c.portrait, c.name, c.stats, c.count);
+      c.plus1.addTo(this.win.root);
+      c.plus5.addTo(this.win.root);
+      this.cards.push(c);
     }
     world.army.on('change', () => this.refresh());
+    world.army.on('war', () => this.refresh());
+    world.army.on('war-end', () => this.refresh());
     world.progress.on('change', () => this.refresh());
   }
 
+  get open() {
+    return this.win.open;
+  }
+
   contains(x: number, y: number): boolean {
-    return this.open && this.bg.getBounds().contains(x, y);
+    return this.win.contains(x, y);
   }
 
   setOpen(on: boolean) {
-    this.open = on;
-    this.root.setVisible(on);
+    this.win.setOpen(on);
     this.status.setText('');
-    if (on) this.layout(this.u);
+    if (!on) return;
+    this.layout(this.u);
+    // os retratos são as folhas dos soldados, fundidas na primeira vez
+    this.world.army.prepare(() => {
+      for (const c of this.cards) c.portrait.setTexture(`sold-0-${c.type}`, 0);
+      this.layout(this.u);
+    });
   }
 
   toggle() {
@@ -117,72 +111,128 @@ export class ArmyPanel {
     this.refresh();
   }
 
+  private say(msg: string, color = COLOR.red) {
+    this.status.setText(msg).setColor(color);
+  }
+
+  private recruit(type: SoldierType, n: number) {
+    const a = this.world.army;
+    const why = a.recruitBlock(type, 1);
+    if (why) return this.say(why);
+    a.prepare(() => {
+      const k = a.recruit(type, n);
+      this.say(`${k} ${SOLDIERS[type].name} ${k > 1 ? 'entraram' : 'entrou'} no exército`, COLOR.green);
+      this.refresh();
+    });
+  }
+
+  private camp() {
+    const a = this.world.army;
+    if (a.garrison.length) this.say(`${a.summon()} soldados convocados: chegam marchando, curados`, COLOR.green);
+    else if (a.war) this.say('Não dá para aquartelar no meio de uma guerra');
+    else if (a.quarter()) this.say('Exército aquartelado · você segue sozinho', COLOR.gold);
+    else this.say('Não há soldados para aquartelar');
+    this.refresh();
+  }
+
+  private war() {
+    const a = this.world.army;
+    if (a.war) return;
+    if (!a.allies.length) return this.say('Recrute ou convoque soldados antes de declarar guerra');
+    a.prepare(() => {
+      a.declareWar(Math.max(10, a.size - a.garrison.length));
+      this.setOpen(false);
+    });
+  }
+
   refresh(force = false) {
     if (!this.open && !force) return;
     const w = this.world;
     const a = w.army;
     const P = w.progress;
-    const allies = a.allies;
-    this.sub.setText(`Patente ${P.rank.name} · ${a.size}/${P.armyCap} soldados · ordem: ${a.mode === 'follow' ? 'seguir' : a.mode === 'attack' ? 'atacar' : 'segurar'}`);
-    this.pool.setText(`Recrutas em Brumavale: ${a.pool}/${a.poolMax} (+1 a cada 3 s)${a.inCapital ? '' : ' · vá ao quartel de Brumavale para recrutar'}`);
-    for (const r of this.rows) {
-      const D = SOLDIERS[r.type];
-      const mine = allies.filter((s) => s.type === r.type);
+    const u = this.u;
+    const field = a.allies.length;
+    const order = a.mode === 'follow' ? 'seguir' : a.mode === 'attack' ? 'atacar' : 'segurar';
+    this.win.sub.setText(`${P.rank.name} · ${a.size}/${P.armyCap} soldados · ordem: ${order}`);
+    // reserva de recrutas
+    const g = this.poolBar;
+    g.clear();
+    drawBar(g, this.bar.x, this.bar.y, this.bar.w, this.bar.h, a.pool / a.poolMax, 0x5aa0ff, u);
+    this.poolText.setText(`Recrutas ${a.pool}/${a.poolMax} · +1 a cada 3 s`);
+    this.where.setText(a.inCapital ? 'Você está em Brumavale: pode recrutar' : 'Volte a Brumavale (cidade dourada no mapa) para recrutar').setColor(a.inCapital ? COLOR.green : COLOR.dim);
+    for (const c of this.cards) {
+      const D = SOLDIERS[c.type];
+      const mine = a.allies.filter((s) => s.type === c.type);
+      const kept = a.garrison.filter((s) => s.t === c.type).length;
       const vets = mine.filter((s) => s.rank >= 2).length;
-      r.name.setText(`${D.name} (${D.cost} recruta${D.cost > 1 ? 's' : ''})`);
-      r.count.setText(`${mine.length}${vets ? ` · ${vets} ${SOLDIER_RANKS[2].name.toLowerCase()}+` : ''}`);
-      const ok = !a.recruitBlock(r.type, 1);
-      r.plus1.setAlpha(ok ? 1 : 0.4);
-      r.plus5.setAlpha(ok ? 1 : 0.4);
+      const role = D.ranged ? `${ROLE[c.type]} · alcance ${D.range}` : ROLE[c.type];
+      c.stats.setText(`vida ${D.hp} · dano ${D.damage}\n${role}\ncusto: ${D.cost} recruta${D.cost > 1 ? 's' : ''}`);
+      c.count.setText(`${mine.length} no campo${kept ? ` · ${kept} no quartel` : ''}${vets ? ` · ${vets} vet.` : ''}`);
+      const ok = !a.recruitBlock(c.type, 1);
+      c.plus1.setEnabled(ok);
+      c.plus5.setEnabled(ok);
+      c.portrait.setAlpha(ok || mine.length ? 1 : 0.6);
     }
-    const cur = P.rankIdx;
-    RANKS.forEach((R, i) => {
-      const done = i <= cur;
-      const duel = R.duel ? ` · vencer ${CHAMPIONS[R.duel].name.split(',')[0]}${P.duels.has(R.duel) ? ' ✓' : ''}` : '';
-      this.ladder[i].setText(`${done ? '✓' : ' '} ${R.name.padEnd(9)} ${String(R.min).padStart(4)} · glória ${R.glory.toLocaleString('pt-BR')}${duel} · ${R.army}`).setColor(i === cur ? '#ffd34a' : done ? '#7f8aa0' : i === cur + 1 ? '#ffffff' : '#a8b4c8');
-    });
-    this.warBtn.setText(a.war ? `GUERRA EM CURSO: ${a.war.house}` : `DECLARAR GUERRA (${Math.max(10, a.size)} inimigos)`).setAlpha(a.war ? 0.6 : 1);
+    this.campBtn.setLabel(a.garrison.length ? `CONVOCAR (${a.garrison.length})` : 'AQUARTELAR').setIcon(a.garrison.length ? 11 : 10);
+    this.campBtn.setEnabled(!!a.garrison.length || (field > 0 && !a.war));
+    this.warBtn.setLabel(a.war ? `EM GUERRA: ${a.war.house}` : `DECLARAR GUERRA (${Math.max(10, field)})`).setEnabled(!a.war && field > 0);
+    this.info.setText(
+      [
+        'CURA · fora de combate por 4 s, os soldados recuperam 4% da vida por segundo no campo e 15% dentro de cidades (brilho verde).',
+        'QUARTEL · aquartelar manda o exército para cá e você anda sozinho; convocar traz todos de volta, curados, marchando atrás de você.',
+        `VETERANOS · ${SOLDIER_RANKS.map((r) => `${r.name} ${r.kills}+`).join(' · ')} abates`,
+      ].join('\n\n'),
+    );
   }
 
   layout(u: number) {
     this.u = u;
-    this.refresh(true);
     const { width, height } = this.scene.scale;
-    const W = Math.round(Math.min(width * 0.94, 720 * u));
-    const pad = 12 * u;
-    const fs = (n: number) => Math.round(n * u);
-    this.title.setFontSize(fs(15)).setPosition(pad, pad);
-    this.close.setFontSize(fs(13)).setPadding(fs(8), fs(5), fs(8), fs(5));
-    this.close.setPosition(W - pad - this.close.width, pad - 4 * u);
-    this.sub.setFontSize(fs(10)).setPosition(pad, pad + 20 * u);
-    const headH = pad + 38 * u;
-    this.head.setSize(W, headH);
-    const colW = Math.round((W - pad * 3) * 0.48);
-    this.pool.setFontSize(fs(10)).setWordWrapWidth(colW).setPosition(pad, headH + 10 * u);
-    let y = this.pool.y + this.pool.height + 12 * u;
-    for (const r of this.rows) {
-      r.name.setFontSize(fs(11)).setPosition(pad, y);
-      r.count.setFontSize(fs(10)).setPosition(pad, y + 15 * u);
-      r.plus5.setFontSize(fs(11)).setPadding(fs(5), fs(6), fs(5), fs(6));
-      r.plus1.setFontSize(fs(11)).setPadding(fs(5), fs(6), fs(5), fs(6));
-      r.plus5.setPosition(pad + colW - r.plus5.width, y + 2 * u);
-      r.plus1.setPosition(r.plus5.x - 6 * u - r.plus1.width, y + 2 * u);
-      y += 38 * u;
-    }
-    this.status.setFontSize(fs(10)).setWordWrapWidth(colW).setPosition(pad, y);
-    y += 18 * u;
-    this.warBtn.setFontSize(fs(11)).setPadding(fs(8), fs(6), fs(8), fs(6)).setPosition(pad, y);
-    const leftBottom = y + this.warBtn.height;
-    // escada de patentes à direita
-    const rx = pad * 2 + colW;
-    this.ladderTitle.setFontSize(fs(11)).setPosition(rx, headH + 10 * u);
-    let ly = this.ladderTitle.y + 20 * u;
-    for (const t of this.ladder) {
-      t.setFontSize(fs(9.5)).setWordWrapWidth(W - rx - pad).setPosition(rx, ly);
-      ly += t.height + 5 * u;
-    }
-    const H = Math.max(leftBottom, ly) + pad;
-    this.bg.setSize(W, H);
-    this.root.setPosition(Math.round((width - W) / 2), Math.round(Math.max(4 * u, (height - H) / 2)));
+    const W = Math.min(width * 0.96, 800 * u);
+    const H = Math.min(height * 0.94, 380 * u);
+    const win = this.win;
+    win.place(u, W, H);
+    const pad = win.pad;
+    const top = win.head + pad / 2;
+    // --- cartas dos soldados
+    const gap = 8 * u;
+    const cw = (win.W - pad * 2 - gap * 3) / 4;
+    const ch = Math.min(176 * u, win.H * 0.52);
+    this.cards.forEach((c, i) => {
+      const x = pad + i * (cw + gap);
+      sizeFrame(c.box, x, top, cw, ch, u);
+      const cx = x + cw / 2;
+      fit(c.name, 11, u).setPosition(cx, top + 7 * u);
+      // retrato: a folha tem quadros de 96 px com o soldado ocupando ~64
+      const ph = ch * 0.36;
+      const isSheet = c.portrait.texture.key.startsWith('sold-');
+      const sc = Math.max(1, Math.round(isSheet ? ph / 52 : ph / 16));
+      c.portrait.setScale(sc).setPosition(cx, top + 22 * u + ph / 2 + (isSheet ? 6 * sc : 0));
+      const sy = top + 30 * u + ph;
+      fit(c.stats, 8, u).setPosition(cx, sy);
+      fit(c.count, 9, u).setPosition(cx, sy + c.stats.height + 2 * u);
+      const bh = 24 * u;
+      const bw = (cw - 24 * u) / 2;
+      c.plus1.place(x + 8 * u, top + ch - bh - 8 * u, u, bw, bh);
+      c.plus5.place(x + cw - 8 * u - bw, top + ch - bh - 8 * u, u, bw, bh);
+    });
+    // --- recrutas
+    let y = top + ch + 10 * u;
+    const lw = (win.W - pad * 3) * 0.5;
+    this.bar = { x: pad + 2 * u, y, w: lw - 4 * u, h: 14 * u };
+    fit(this.poolText, 10, u).setPosition(this.bar.x + this.bar.w / 2, y + this.bar.h / 2);
+    fit(this.where, 9, u).setPosition(pad, y + this.bar.h + 6 * u).setWordWrapWidth(lw);
+    // --- ordens
+    y = this.where.y + this.where.height + 8 * u;
+    const bh = 28 * u;
+    this.campBtn.place(pad, y, u, lw * 0.44, bh);
+    this.warBtn.place(pad + lw * 0.44 + 6 * u, y, u, lw * 0.56 - 6 * u, bh);
+    fit(this.status, 9, u).setPosition(pad + lw / 2, y + bh + 6 * u).setWordWrapWidth(lw);
+    // --- como funciona
+    const ix = pad * 2 + lw;
+    const iy = top + ch + 6 * u;
+    sizeFrame(this.infoBox, ix, iy, win.W - ix - pad, win.H - iy - pad, u);
+    fit(this.info, 8, u).setPosition(ix + 10 * u, iy + 8 * u).setWordWrapWidth(this.infoBox.displayWidth - 20 * u);
+    this.refresh(true);
   }
 }

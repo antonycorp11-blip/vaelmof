@@ -40,11 +40,13 @@ preciso rodar se você alterar `scripts/generate-assets.mjs`).
 | Habilidades da arma (3) | três botões em arco em volta do golpe (mudam com a arma; saem ao soltar) | L · U · I |
 | Coletar recurso | botão **COLETAR** (aparece perto de árvore, pedra, cristal…; segurar repete) | E |
 | Mirar (arco, cajado, habilidades) | automático no inimigo mais próximo; **segure e arraste** o botão para mirar à mão (linha pontilhada) — a habilidade sai ao soltar | mouse (mira para onde ele aponta) |
-| Trocar de arma / armadura | na **MOCHILA** (botão de classe ou MOCHILA na barra do topo): toque no item → EQUIPAR | Q (próxima arma) |
-| Mochila | botão **MOCHILA** na barra do topo | B |
-| Atributos (estilo MU) | botão **ATRIBUTOS** na barra do topo (mostra +N quando há pontos) | C |
-| Exército (recrutar, patentes, guerra) | botão **EXÉRCITO** na barra do topo | G |
-| Ordens do exército | botões **SEGUIR / ATACAR / SEGURAR** sob a vida | 1 / 2 / 3 |
+| Trocar de arma / armadura | na **MOCHILA**: toque no item → EQUIPAR | Q (próxima arma) |
+| Mochila | ícone da **bolsa** (sob o minimapa) | B |
+| Teren: atributos e patentes | ícone do **escudo** (selo dourado +N quando há pontos) | C |
+| Quartel (recrutar, aquartelar, guerra) | ícone do **estandarte** | G |
+| Mapa do mundo | ícone do **mapa** ou tocar no **minimapa** | M |
+| Ordens do exército | botões **seguir / atacar / segurar** sob a vida | 1 / 2 / 3 |
+| Aquartelar / convocar (andar sozinho) | botão da **tenda** (vira corneta com o exército no quartel) | 4 |
 
 Os botões aparecem em aparelhos com toque (ou ao primeiro toque na tela).
 Em desktop sem toque, use `?touch=1` para exibi-los.
@@ -142,7 +144,25 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   48 espaços, pilhas de 999, peso total (máx. 300 kg; acima disso Teren fica
   mais lento).
 
-### Debug (botão **DEBUG** na barra do topo, ao centro)
+### Interface (`src/ui/`)
+- **Kit visual** (`src/ui/kit.ts`, arte em `scripts/ui-art.mjs`): molduras
+  9-slice em pixel art (painel, painel interno, destaque), botões em 5 cores
+  com bisel que afunda ao tocar, barras e 18 ícones; fonte **Pixelify Sans**
+  embutida (`public/fonts`). Todas as telas usam as mesmas peças.
+- **HUD:** à esquerda a insígnia da patente, vida, Glória, nome da patente,
+  tamanho do exército e as 4 ordens; à direita o **minimapa**, o relógio e os
+  ícones de menu.
+- **Minimapa** (`Minimap.ts`): 110 tiles em volta do herói com cidades
+  (quadrados; Brumavale dourada), **spots de up** (anéis dourados), campeões
+  (losangos vermelhos), soldados (azul aliado / vermelho inimigo) e o herói
+  (seta). Tocar abre o **mapa completo** (`MapPanel.ts`) com nomes das
+  cidades e legenda.
+- Telas: **Teren** (atributos com barra até 1000 e marca do mínimo da próxima
+  patente + escada de patentes com insígnias), **Quartel de Brumavale**
+  (cartas com retrato de cada soldado, recrutas, cura explicada, aquartelar e
+  guerra), **Mochila** e **Debug**.
+
+### Debug (ícone da engrenagem, vermelho)
 - Teleporte para o coração de cada bioma (Vale, Greenland, Snowland,
   Blockland, Blackland, Dustland).
 - **MAPA**: o mundo inteiro (1 px por tile) com a posição do herói; **tocar
@@ -172,37 +192,46 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 
   | Patente | Cada atributo ≥ | Glória ≥ | Duelo | Exército |
   |---|---|---|---|---|
-  | Recruta | 10 | 0 | — | 5 |
-  | Soldado | 20 | 150 | — | 10 |
-  | Cabo | 40 | 600 | — | 20 |
-  | Sargento | 70 | 1.500 | Brakk, o Saqueador (sul de Brumavale) | 35 |
-  | Tenente | 110 | 3.000 | — | 50 |
-  | Capitão | 170 | 5.000 | Ysra da Lâmina Fria (sul de Pedrafria) | 80 |
-  | Major | 250 | 8.000 | — | 120 |
-  | Coronel | 380 | 12.000 | Ulgar de Rochedo (sul de Rochedo) | 180 |
-  | General | 600 | 20.000 | — | 250 |
-  | Marechal | 1000 | 30.000 | Morvath, o Arauto (sul de Umbravale) | 300 |
+  | Andarilho | 10 | 0 | — | 5 |
+  | Escudeiro | 20 | 150 | — | 10 |
+  | Lâmina Jurada | 40 | 600 | — | 20 |
+  | Guardião de Ferro | 70 | 1.500 | Brakk, o Saqueador (sul de Brumavale) | 35 |
+  | Cavaleiro Rúnico | 110 | 3.000 | — | 50 |
+  | Paladino das Marcas | 170 | 5.000 | Ysra da Lâmina Fria (sul de Pedrafria) | 80 |
+  | Senhor da Guerra | 250 | 8.000 | — | 120 |
+  | Lorde Estandarte | 380 | 12.000 | Ulgar de Rochedo (sul de Rochedo) | 180 |
+  | Grão-Senhor | 600 | 20.000 | — | 250 |
+  | Soberano de Vaelmor | 1000 | 30.000 | Morvath, o Arauto (sul de Umbravale) | 300 |
 
 - **Insígnia sobre a cabeça** de todo mundo, sempre visível: escudo **azul**
   para o herói e os aliados, **vermelho** para inimigos, com a insígnia da
   patente (ponto, divisas, barras, estrelas, coroa). Os soldados usam as quatro
-  primeiras patentes (Recruta → Soldado → Cabo → Sargento, por abates); os
-  campeões mostram a sua (Brakk Sargento, Ysra Capitã, Ulgar Coronel, Morvath
-  Marechal).
+  primeiras patentes (Miliciano → Escudeiro → Lâmina Jurada → Guardião de
+  Ferro, por abates); os campeões mostram a sua.
 - Campeões (`src/systems/Champions.ts`): bandidos nomeados, maiores e muito
   mais fortes, que esperam fora dos muros da cidade; derrotados, não voltam.
-- A patente aparece no painel de ATRIBUTOS (com o que falta para a próxima) e
-  a escada inteira no painel EXÉRCITO; subir de patente mostra um aviso.
+- A tela **Teren** mostra os atributos e a escada inteira, com o que falta
+  para a próxima; subir de patente mostra um aviso.
 
 ### Exércitos e guerra (`src/systems/Army.ts`, `src/ui/ArmyPanel.ts`)
-- **Recrutamento** no quartel de **Brumavale** (dentro dos muros): Espadachim
-  (1 recruta), Montante (2), Arqueiro (1) e Mago (3). Os recrutas da cidade
+- **Recrutamento** no quartel de **Brumavale** (dentro dos muros): Lâmina do
+  Vale (linha de frente, 1 recruta), Quebra-Escudos (choque, 2), Flecha
+  Cinzenta (atiradores, 1) e Arcanista (magia em área, 3). Os recrutas da cidade
   renovam 1 a cada 3 s (até 60); o limite é o da patente. O exército fica
   salvo no aparelho.
 - **Ordens:** SEGUIR (formação atrás do herói), ATACAR (cada soldado busca o
   inimigo mais próximo), SEGURAR (fica onde o herói estava).
-- Os soldados **sobem de patente** com abates (Recruta → Soldado → Cabo →
-  Sargento), ganhando vida e dano. Quem morre se perde (e custa Glória).
+- Os soldados **sobem de patente** com abates (Miliciano → Escudeiro →
+  Lâmina Jurada → Guardião de Ferro), ganhando vida e dano. Quem morre se
+  perde (e custa Glória).
+- **Cura:** após 4 s sem levar dano, cada soldado recupera 4% da vida por
+  segundo no campo e 15% dentro de cidades (partículas verdes).
+- **Aquartelar / convocar:** o botão da tenda manda o exército para o
+  quartel e Teren anda sozinho; a corneta convoca todos de volta, curados,
+  marchando por trás do herói (não funciona no meio de uma guerra).
+- **Desvio de obstáculos:** quando não enxergam o herói (árvore, muro,
+  casa), os soldados seguem um campo de fluxo (BFS de 40 tiles em volta do
+  herói) e, de perto, sondas que giram em volta do obstáculo.
 - **Guerra:** DECLARAR GUERRA traz o exército de uma casa rival (cada casa
   tem sua cor) do mesmo tamanho e composição do seu. Ao perder 70% do
   exército, o inimigo foge: **vitória**, com Glória. Se Teren cai, é

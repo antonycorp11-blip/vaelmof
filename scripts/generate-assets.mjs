@@ -13,6 +13,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { drawBuildings, drawCityTiles, drawEdges, drawRankIcons } from './world-art.mjs';
+import { drawUiKit } from './ui-art.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'public');
@@ -2492,6 +2493,7 @@ quad('assets/sprites/deer.png', 4, (t, f) => {
 // construções das cidades (por bioma), torres, fonte e barracas
 drawBuildings({ Img, rng, save, composite, PAL }, ROOT);
 drawRankIcons({ Img, save });
+drawUiKit({ Img, save, composite });
 
 
 // ================================================================ ÍCONES PWA

@@ -1,44 +1,65 @@
 import Phaser from 'phaser';
 import { DEBUG, FORCE_TOUCH } from '../config';
-import { inputState } from '../input/InputState';
-import { VirtualControls } from '../input/VirtualControls';
-import { DebugPanel } from '../ui/DebugPanel';
-import { ArmyPanel } from '../ui/ArmyPanel';
-import { AttributesPanel } from '../ui/AttributesPanel';
-import type { ArmyMode, War } from '../systems/Army';
-import type { Rank } from '../systems/Ranks';
-import { InventoryPanel } from '../ui/InventoryPanel';
 import type { WeaponDef } from '../data/weapons';
 import { OUTFITS, type OutfitId } from '../entities/heroSheets';
+import { inputState } from '../input/InputState';
+import { VirtualControls } from '../input/VirtualControls';
+import type { ArmyMode, War } from '../systems/Army';
+import type { Rank } from '../systems/Ranks';
+import { ArmyPanel } from '../ui/ArmyPanel';
+import { AttributesPanel } from '../ui/AttributesPanel';
+import { DebugPanel } from '../ui/DebugPanel';
+import { InventoryPanel } from '../ui/InventoryPanel';
+import { Button, COLOR, drawBar, FONT, fit, frame, label, sizeFrame } from '../ui/kit';
+import { MapPanel } from '../ui/MapPanel';
+import { Minimap } from '../ui/Minimap';
 import type { WorldScene } from './WorldScene';
 
-/** HUD (vida, relógio, clima, nome da área) + controles virtuais. */
+type PanelId = 'bag' | 'attrs' | 'army' | 'map' | 'debug';
+
+/**
+ * HUD: à esquerda a insígnia da patente, a vida, a Glória e as ordens do
+ * exército; à direita o minimapa, o relógio e o menu (mochila, patentes,
+ * exército, mapa, debug). No centro, nomes de lugares e avisos.
+ */
 export class UIScene extends Phaser.Scene {
   private controls!: VirtualControls;
-  private debug!: DebugPanel;
+  private world!: WorldScene;
+  private panels!: Record<PanelId, { open: boolean; setOpen: (on: boolean) => void; toggle: () => void; contains: (x: number, y: number) => boolean }>;
   private bag!: InventoryPanel;
-  private weaponBtn!: Phaser.GameObjects.Text;
-  private bagBtn!: Phaser.GameObjects.Text;
-  private attrBtn!: Phaser.GameObjects.Text;
   private attrs!: AttributesPanel;
   private armyPanel!: ArmyPanel;
-  private armyBtn!: Phaser.GameObjects.Text;
-  private armyInfo!: Phaser.GameObjects.Text;
-  private modeBtns: { mode: ArmyMode; t: Phaser.GameObjects.Text }[] = [];
-  private hpText!: Phaser.GameObjects.Text;
-  private areaSub!: Phaser.GameObjects.Text;
-  private lastFree = -1;
+  private mapPanel!: MapPanel;
+  private debug!: DebugPanel;
+  private minimap!: Minimap;
+  // HUD
+  private badge!: Phaser.GameObjects.NineSlice;
+  private insignia!: Phaser.GameObjects.Image;
   private hpBar!: Phaser.GameObjects.Graphics;
   private heart!: Phaser.GameObjects.Image;
-  private info!: Phaser.GameObjects.Text;
+  private hpText!: Phaser.GameObjects.Text;
+  private gloryIcon!: Phaser.GameObjects.Image;
+  private gloryText!: Phaser.GameObjects.Text;
+  private rankText!: Phaser.GameObjects.Text;
+  private armyText!: Phaser.GameObjects.Text;
+  private orders: { mode: ArmyMode | 'camp'; b: Button }[] = [];
+  private menu: { id: PanelId; b: Button }[] = [];
+  private pointsBadge!: Phaser.GameObjects.Text;
+  private clock!: Phaser.GameObjects.Text;
   private areaText!: Phaser.GameObjects.Text;
+  private areaSub!: Phaser.GameObjects.Text;
   private toast!: Phaser.GameObjects.Text;
   private fps?: Phaser.GameObjects.Text;
   private version!: Phaser.GameObjects.Text;
   private u = 1;
+  private hpX = 0;
+  private hpY = 0;
+  private hpW = 0;
+  private hpH = 0;
   private lastHp = -1;
   private lastMax = -1;
-  private lastArmyHud = 0;
+  private lastHud = 0;
+  private hudBottom = 0;
 
   constructor() {
     super('UI');
@@ -46,126 +67,134 @@ export class UIScene extends Phaser.Scene {
 
   create() {
     const touch = this.sys.game.device.input.touch || FORCE_TOUCH;
-    this.hpBar = this.add.graphics();
-    this.heart = this.add.image(0, 0, 'ui-icons', 3).setOrigin(0, 0.5);
-    const style = { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff', fontStyle: 'bold', stroke: '#1e1a24', strokeThickness: 3 };
-    this.info = this.add.text(0, 0, '', style).setOrigin(1, 0);
-    this.areaText = this.add.text(0, 0, '', { ...style, fontSize: '20px', color: '#ffe9a8' }).setOrigin(0.5).setAlpha(0);
-    this.areaSub = this.add.text(0, 0, '', { ...style, fontSize: '11px', color: '#ffd34a' }).setOrigin(0.5).setAlpha(0);
-    this.hpText = this.add.text(0, 0, '', { ...style, fontSize: '10px' }).setOrigin(0.5);
-    this.toast = this.add.text(0, 0, '', { ...style, fontSize: '14px' }).setOrigin(0.5).setAlpha(0);
-    if (DEBUG) this.fps = this.add.text(0, 0, '', { ...style, fontSize: '10px' });
-    // versão (commit) — confere se o PWA pegou a atualização
-    this.version = this.add.text(0, 0, `v ${__BUILD_ID__}`, { ...style, fontSize: '9px', color: '#d8d8d8' }).setOrigin(0.5, 0).setAlpha(0.7);
+    const world = (this.world = this.scene.get('World') as WorldScene);
     this.controls = new VirtualControls(this, touch);
-    const world0 = this.scene.get('World') as WorldScene;
-    this.debug = new DebugPanel(this, world0);
-    this.bag = new InventoryPanel(this, world0.inventory);
-    this.attrs = new AttributesPanel(this, world0);
-    this.armyPanel = new ArmyPanel(this, world0);
-    // barra do topo (centro da tela: longe do notch e dos cantos arredondados do iPhone)
-    const btn = { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff', fontStyle: 'bold', backgroundColor: '#2a2234' };
-    this.weaponBtn = this.add.text(0, 0, '', btn).setDepth(2000).setInteractive({ useHandCursor: true });
-    this.weaponBtn.on('pointerdown', () => this.bag.toggle());
-    this.bagBtn = this.add.text(0, 0, 'MOCHILA', { ...btn, backgroundColor: '#5a3a20' }).setDepth(2000).setInteractive({ useHandCursor: true });
-    this.bagBtn.on('pointerdown', () => this.togglePanel('bag'));
-    this.weaponBtn.off('pointerdown').on('pointerdown', () => this.togglePanel('bag'));
-    this.attrBtn = this.add.text(0, 0, 'ATRIBUTOS', { ...btn, backgroundColor: '#3a2414', color: '#ffd77a' }).setDepth(2000).setInteractive({ useHandCursor: true });
-    this.attrBtn.on('pointerdown', () => this.togglePanel('attrs'));
-    this.armyBtn = this.add.text(0, 0, 'EXÉRCITO', { ...btn, backgroundColor: '#1c2a44', color: '#bfe0ff' }).setDepth(2000).setInteractive({ useHandCursor: true });
-    this.armyBtn.on('pointerdown', () => this.togglePanel('army'));
-    // ordens do exército (esquerda, sob a vida)
-    this.armyInfo = this.add.text(0, 0, '', { ...style, fontSize: '10px', color: '#bfe0ff' }).setDepth(1500);
-    for (const [mode, label] of [['follow', 'SEGUIR'], ['attack', 'ATACAR'], ['hold', 'SEGURAR']] as const) {
-      const t = this.add.text(0, 0, label, { ...btn, fontSize: '10px', backgroundColor: '#1c2a44' }).setDepth(1500).setInteractive({ useHandCursor: true });
-      t.on('pointerdown', () => world0.army.setMode(mode));
-      this.modeBtns.push({ mode, t });
+
+    // --- esquerda: insígnia, vida, glória, patente, exército
+    this.badge = frame(this, 'frame').setDepth(1400);
+    this.insignia = this.add.image(0, 0, 'rank-icons', 0).setDepth(1401);
+    this.hpBar = this.add.graphics().setDepth(1400);
+    this.heart = this.add.image(0, 0, 'ui-menu', 14).setDepth(1402);
+    this.hpText = label(this, '', 10).setOrigin(0.5).setDepth(1402);
+    this.gloryIcon = this.add.image(0, 0, 'ui-menu', 6).setDepth(1401);
+    this.gloryText = label(this, '', 11, COLOR.gold).setOrigin(0, 0.5).setDepth(1401);
+    this.rankText = label(this, '', 10, COLOR.blue).setOrigin(0, 0.5).setDepth(1401);
+    this.armyText = label(this, '', 10, COLOR.text).setOrigin(0, 0.5).setDepth(1401);
+    const army = world.army;
+    const orderDefs: [ArmyMode | 'camp', number][] = [
+      ['follow', 7],
+      ['attack', 8],
+      ['hold', 9],
+      ['camp', 10],
+    ];
+    for (const [mode, icon] of orderDefs) {
+      const b = new Button(this, {
+        icon,
+        color: 'dark',
+        onTap: () => {
+          if (mode !== 'camp') return army.setMode(mode);
+          // aquartelar (andar sozinho) / convocar o exército
+          if (army.garrison.length) this.showToast(`${army.summon()} soldados convocados: chegam marchando`);
+          else if (army.war) this.showToast('Não dá para aquartelar no meio de uma guerra');
+          else if (army.quarter()) this.showToast('Exército aquartelado em Brumavale · você segue sozinho');
+          this.updateHud();
+        },
+      }).setDepth(1400);
+      this.orders.push({ mode, b });
     }
-    const topUi = [this.weaponBtn, this.bagBtn, this.attrBtn, this.armyBtn, ...this.modeBtns.map((m) => m.t)];
+
+    // --- direita: minimapa, relógio e menu
+    this.minimap = new Minimap(this, world);
+    this.minimap.onTap = () => this.togglePanel('map');
+    this.clock = label(this, '', 10, COLOR.text).setOrigin(1, 0).setDepth(1401);
+    const menuDefs: [PanelId, number, 'dark' | 'red'][] = [
+      ['bag', 0, 'dark'],
+      ['attrs', 1, 'dark'],
+      ['army', 2, 'dark'],
+      ['map', 3, 'dark'],
+      ['debug', 4, 'red'],
+    ];
+    for (const [id, icon, color] of menuDefs) this.menu.push({ id, b: new Button(this, { icon, color, onTap: () => this.togglePanel(id) }).setDepth(1400) });
+    this.pointsBadge = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '9px', fontStyle: 'bold', color: COLOR.ink }).setOrigin(0.5).setDepth(1405).setBackgroundColor('#ffd77a');
+
+    // --- centro
+    this.areaText = label(this, '', 22, COLOR.gold).setOrigin(0.5).setAlpha(0).setDepth(1500);
+    this.areaSub = label(this, '', 12, COLOR.text).setOrigin(0.5).setAlpha(0).setDepth(1500);
+    this.toast = label(this, '', 13, COLOR.text).setOrigin(0.5).setAlpha(0).setDepth(1500);
+    // versão (commit) — confere se o PWA pegou a atualização
+    this.version = label(this, `v ${__BUILD_ID__}`, 8, COLOR.dim, 1, false).setOrigin(0.5, 0).setAlpha(0.6);
+    if (DEBUG) this.fps = label(this, '', 9, COLOR.dim, 1, false).setOrigin(0.5, 0);
+
+    // --- painéis
+    this.bag = new InventoryPanel(this, world.inventory);
+    this.attrs = new AttributesPanel(this, world);
+    this.armyPanel = new ArmyPanel(this, world);
+    this.mapPanel = new MapPanel(this, world);
+    this.debug = new DebugPanel(this, world);
+    this.debug.onMap = () => {
+      this.closePanels();
+      this.mapPanel.setOpen(true, true);
+    };
+    this.panels = { bag: this.bag, attrs: this.attrs, army: this.armyPanel, map: this.mapPanel, debug: this.debug };
     this.controls.blocker = (x, y) =>
-      this.debug.contains(x, y) || this.bag.contains(x, y) || this.attrs.contains(x, y) || this.armyPanel.contains(x, y) || topUi.some((b) => b.visible && b.getBounds().contains(x, y));
-    const army = world0.army;
-    army.on('mode', () => this.updateArmyHud());
-    army.on('change', () => this.updateArmyHud());
+      Object.values(this.panels).some((p) => p.open && p.contains(x, y)) ||
+      this.minimap.contains(x, y) ||
+      [...this.menu.map((m) => m.b), ...this.orders.map((o) => o.b)].some((b) => b.contains(x, y));
+
+    // --- eventos do mundo
+    army.on('mode', () => this.updateHud());
+    army.on('change', () => this.updateHud());
     army.on('war', (w: War) => this.showArea('GUERRA!', `${w.house} marcha com ${w.start} soldados`));
     army.on('war-end', (w: War & { won: boolean; glory: number }) => {
       if (w.won) this.showArea('VITÓRIA', `${w.killed} inimigos derrotados · ${w.lost} baixas · +${w.glory} de glória`);
       else this.showArea('DERROTA', `${w.house} venceu · ${w.lost} baixas · ${w.glory} de glória`);
-      this.updateArmyHud();
+      this.updateHud();
     });
-    world0.progress.on('rank', (r: Rank) => this.showArea(`Patente: ${r.name}`, `agora você comanda até ${r.army} soldados`));
-    // teclado: C atributos (como no MU), B mochila
-    const kb = this.input.keyboard;
-    kb?.addKey(Phaser.Input.Keyboard.KeyCodes.C).on('down', () => this.togglePanel('attrs'));
-    kb?.addKey(Phaser.Input.Keyboard.KeyCodes.B).on('down', () => this.togglePanel('bag'));
-    // G exército · 1 seguir · 2 atacar · 3 segurar
-    kb?.addKey(Phaser.Input.Keyboard.KeyCodes.G).on('down', () => this.togglePanel('army'));
-    kb?.addKey(Phaser.Input.Keyboard.KeyCodes.ONE).on('down', () => world0.army.setMode('follow'));
-    kb?.addKey(Phaser.Input.Keyboard.KeyCodes.TWO).on('down', () => world0.army.setMode('attack'));
-    kb?.addKey(Phaser.Input.Keyboard.KeyCodes.THREE).on('down', () => world0.army.setMode('hold'));
-    world0.events.on('toast', (msg: string) => this.showToast(msg));
-    world0.progress.on('change', () => {
-      this.updateAttrBtn();
-      this.updateArmyHud();
-    });
+    world.progress.on('rank', (r: Rank) => this.showArea(r.name, `nova patente · você comanda até ${r.army} soldados`));
+    world.progress.on('change', () => this.updateHud());
+    world.events.on('toast', (msg: string) => this.showToast(msg));
+    world.events.on('area', (name: string, sub?: string) => this.showArea(name, sub));
+    world.events.on('player-died', () => this.showToast('Teren caiu... retornando a Brumavale'));
     const onWeapon = (w: WeaponDef) => {
-      this.weaponBtn.setText(w.className);
       this.controls.setButton('attack', w.attackLabel, w.attackIcon);
       (['flame', 'skill2', 'skill3'] as const).forEach((id, i) => this.controls.setButton(id, w.skills[i].label, w.skills[i].icon));
-      this.layout();
     };
-    world0.events.on('weapon', (w: WeaponDef) => {
+    world.events.on('weapon', (w: WeaponDef) => {
       onWeapon(w);
       this.showToast(`Agora você é ${w.className} (${w.name})`);
     });
-    onWeapon(world0.player.weapon);
-    world0.events.on('outfit', (id: OutfitId) => this.showToast(`Vestiu: ${OUTFITS[id].name}`));
+    onWeapon(world.player.weapon);
+    world.events.on('outfit', (id: OutfitId) => this.showToast(`Vestiu: ${OUTFITS[id].name}`));
+
+    // --- teclado: B mochila · C patentes · G exército · M mapa · 1/2/3/4 ordens
+    const kb = this.input.keyboard;
+    const K = Phaser.Input.Keyboard.KeyCodes;
+    kb?.addKey(K.B).on('down', () => this.togglePanel('bag'));
+    kb?.addKey(K.C).on('down', () => this.togglePanel('attrs'));
+    kb?.addKey(K.G).on('down', () => this.togglePanel('army'));
+    kb?.addKey(K.M).on('down', () => this.togglePanel('map'));
+    kb?.addKey(K.ONE).on('down', () => army.setMode('follow'));
+    kb?.addKey(K.TWO).on('down', () => army.setMode('attack'));
+    kb?.addKey(K.THREE).on('down', () => army.setMode('hold'));
+    kb?.addKey(K.FOUR).on('down', () => this.orders[3].b.bg.emit('pointerdown', null, 0, 0, null));
 
     this.layout();
     this.scale.on('resize', this.layout, this);
     this.events.once('shutdown', () => this.scale.off('resize', this.layout, this));
-
-    const world = this.scene.get('World') as WorldScene;
-    world.events.on('area', (name: string, sub?: string) => this.showArea(name, sub));
-    world.events.on('player-died', () => this.showToast('Teren caiu... retornando a Brumavale'));
-    this.time.delayedCall(600, () => this.showArea('Brumavale'));
-    if (!touch) this.time.delayedCall(2600, () => this.showToast('WASD mover · J golpe · K esquiva · L/U/I habilidades · C atributos · G exército · 1/2/3 ordens', 4600));
-    this.updateAttrBtn();
+    this.time.delayedCall(600, () => this.showArea('Brumavale', 'Capital de Greenland'));
+    if (!touch) this.time.delayedCall(2600, () => this.showToast('WASD mover · J golpe · K esquiva · L/U/I habilidades · B C G M menus · 1–4 ordens', 4600));
   }
 
-  /** Um painel por vez (mochila, atributos, exército). */
-  private togglePanel(which: 'bag' | 'attrs' | 'army') {
-    const panels = { bag: this.bag, attrs: this.attrs, army: this.armyPanel };
-    for (const [k, p] of Object.entries(panels)) if (k !== which && p.open) p.setOpen(false);
-    panels[which].toggle();
+  /** Um painel por vez. */
+  private togglePanel(which: PanelId) {
+    const p = this.panels[which];
+    const was = p.open;
+    this.closePanels();
+    if (!was) p.setOpen(true);
   }
 
-  /** Contador do exército e a ordem ativa. */
-  private updateArmyHud() {
-    const w = this.scene.get('World') as WorldScene;
-    const a = w.army;
-    const show = a.size > 0;
-    const P = w.progress;
-    // Glória sempre visível; o exército quando houver
-    this.armyInfo
-      .setVisible(true)
-      .setText(`${P.rank.name} · Glória ${Math.round(P.glory).toLocaleString('pt-BR')}${show ? `\nExército ${a.size}/${P.armyCap}${a.war ? ` · inimigos ${a.foes.length}` : ''}` : ''}`);
-    for (const m of this.modeBtns) m.t.setVisible(show).setBackgroundColor(m.mode === a.mode ? '#3a6ab8' : '#1c2a44');
-  }
-
-  /** Botão ATRIBUTOS mostra quantos pontos há para distribuir. */
-  private updateAttrBtn() {
-    const free = (this.scene.get('World') as WorldScene).progress.free;
-    if (free === this.lastFree) return;
-    const grew = free > this.lastFree && this.lastFree >= 0;
-    this.lastFree = free;
-    this.attrBtn.setText(free > 0 ? `ATRIBUTOS +${free}` : 'ATRIBUTOS').setBackgroundColor(free > 0 ? '#6a4a10' : '#3a2414');
-    this.layout();
-    if (grew) {
-      this.tweens.killTweensOf(this.attrBtn);
-      this.attrBtn.setScale(1);
-      this.tweens.add({ targets: this.attrBtn, scale: 1.12, yoyo: true, duration: 140, repeat: 1 });
-    }
+  private closePanels() {
+    for (const p of Object.values(this.panels)) if (p.open) p.setOpen(false);
   }
 
   /** Fator px do jogo / px CSS, definido em main.ts. */
@@ -177,45 +206,83 @@ export class UIScene extends Phaser.Scene {
     const { width, height } = this.scale;
     this.cameras.main.setSize(width, height);
     const u = (this.u = this.uiScale);
-    const safeLeft = 12 * u;
-    this.heart.setPosition(safeLeft, 22 * u).setScale(1.6 * u);
-    this.info.setPosition(width - 14 * u, 10 * u).setFontSize(Math.round(12 * u)).setStroke('#1e1a24', 3 * u);
-    this.areaText.setPosition(width / 2, height * 0.24).setFontSize(Math.round(20 * u)).setStroke('#1e1a24', 4 * u);
-    this.toast.setPosition(width / 2, height * 0.36).setFontSize(Math.round(13 * u)).setStroke('#1e1a24', 3 * u);
-    this.fps?.setPosition(width - 14 * u, 30 * u).setOrigin(1, 0).setFontSize(Math.round(10 * u));
-    // barra do topo: [classe · arma] [MOCHILA] [DEBUG], centralizada
-    const pad = Math.round(10 * u);
-    const py = Math.round(9 * u);
-    for (const b of [this.weaponBtn, this.bagBtn, this.attrBtn, this.armyBtn]) b.setFontSize(Math.round(12 * u)).setPadding(pad, py, pad, py);
-    const gap = 8 * u;
-    const total = this.weaponBtn.width + this.bagBtn.width + this.attrBtn.width + this.armyBtn.width + this.debug.toggleWidth + gap * 4;
-    let x = Math.round((width - total) / 2);
-    const y = 20 * u;
-    this.weaponBtn.setPosition(x, y);
-    x += this.weaponBtn.width + gap;
-    this.bagBtn.setPosition(x, y);
-    x += this.bagBtn.width + gap;
-    this.attrBtn.setPosition(x, y);
-    x += this.attrBtn.width + gap;
-    this.armyBtn.setPosition(x, y);
-    x += this.armyBtn.width + gap;
-    this.debug.layout(u, x, y);
+    const m = 10 * u;
+    // --- esquerda
+    const bs = 44 * u;
+    sizeFrame(this.badge, m, m, bs, bs, u);
+    this.insignia.setScale(Math.max(2, Math.round(2.6 * u))).setPosition(m + this.badge.displayWidth / 2, m + this.badge.displayHeight / 2);
+    this.hpX = m + this.badge.displayWidth + 12 * u;
+    this.hpY = m + 4 * u;
+    this.hpW = Math.min(170 * u, width * 0.24);
+    this.hpH = 12 * u;
+    this.heart.setScale(Math.max(1, Math.round(1.25 * u))).setPosition(this.hpX - 2 * u, this.hpY + this.hpH / 2);
+    fit(this.hpText, 10, u).setPosition(this.hpX + this.hpW / 2, this.hpY + this.hpH / 2);
+    const row2 = this.hpY + this.hpH + 13 * u;
+    this.gloryIcon.setScale(Math.max(1, Math.round(u))).setPosition(this.hpX + 6 * u, row2);
+    fit(this.gloryText, 11, u).setPosition(this.hpX + 16 * u, row2);
+    fit(this.rankText, 10, u).setPosition(this.hpX, row2 + 15 * u);
+    const oy = m + this.badge.displayHeight + 8 * u;
+    fit(this.armyText, 10, u).setPosition(m, oy + 8 * u);
+    let ox = m;
+    for (const o of this.orders) {
+      o.b.place(ox, oy + 18 * u, u, 34 * u, 30 * u);
+      ox += o.b.w + 4 * u;
+    }
+    // --- direita
+    const mw = Math.min(150 * u, width * 0.2);
+    const mh = Math.round(mw * 0.72);
+    const mx = width - m - mw;
+    this.minimap.layout(u, mx, m, mw, mh);
+    fit(this.clock, 10, u).setPosition(width - m, this.minimap.bottom + 2 * u);
+    let bx = width - m;
+    const by = this.clock.y + this.clock.height + 4 * u;
+    for (const it of [...this.menu].reverse()) {
+      it.b.place(bx - 34 * u, by, u, 34 * u, 30 * u);
+      bx -= 34 * u + 4 * u;
+    }
+    this.pointsBadge.setFontSize(Math.round(10 * u)).setPadding(Math.round(3 * u), Math.round(1 * u), Math.round(3 * u), Math.round(1 * u));
+    this.hudBottom = by + 30 * u;
+    // --- centro
+    fit(this.areaText, 22, u).setPosition(width / 2, height * 0.22);
+    fit(this.areaSub, 12, u).setPosition(width / 2, height * 0.22 + 22 * u);
+    fit(this.toast, 13, u).setPosition(width / 2, height * 0.34);
+    fit(this.version, 8, u).setPosition(width / 2, 3 * u);
+    this.fps && fit(this.fps, 9, u).setPosition(width / 2, 14 * u);
+    // --- painéis e controles
     this.bag.layout(u);
     this.attrs.layout(u);
     this.armyPanel.layout(u);
-    // ordens do exército sob a barra de vida
-    this.armyInfo.setFontSize(Math.round(10 * u)).setStroke('#1e1a24', 3 * u).setPosition(12 * u, 38 * u);
-    let mx = 12 * u;
-    for (const m of this.modeBtns) {
-      m.t.setFontSize(Math.round(11 * u)).setPadding(Math.round(9 * u), Math.round(7 * u), Math.round(9 * u), Math.round(7 * u)).setPosition(mx, 68 * u);
-      mx += m.t.width + 6 * u;
-    }
-    this.updateArmyHud();
-    this.areaSub.setPosition(width / 2, height * 0.24 + 22 * u).setFontSize(Math.round(11 * u)).setStroke('#1e1a24', 3 * u);
-    this.version.setPosition(width / 2, 6 * u).setFontSize(Math.round(9 * u)).setStroke('#1e1a24', 2 * u);
-    this.controls.hudBottom = 44 * u;
+    if (this.mapPanel.open) this.mapPanel.layout(u);
+    else this.mapPanel.layout(u);
+    this.debug.layout(u);
+    this.controls.hudBottom = this.hudBottom - 20 * u;
     this.controls.layout(width, height, u);
     this.lastHp = -1;
+    this.updateHud();
+  }
+
+  /** Patente, Glória, exército e ordens. */
+  private updateHud() {
+    const w = this.world;
+    const P = w.progress;
+    const a = w.army;
+    this.insignia.setFrame(P.rankIdx);
+    this.gloryText.setText(`${Math.round(P.glory).toLocaleString('pt-BR')}`);
+    this.rankText.setText(P.rank.name);
+    const field = a.size - a.garrison.length;
+    const show = a.size > 0;
+    this.armyText.setVisible(show).setText(
+      a.garrison.length && !field ? `Exército aquartelado (${a.garrison.length})` : `Exército ${field}/${P.armyCap}${a.war ? ` · inimigos ${a.foes.length}` : ''}`,
+    );
+    for (const o of this.orders) {
+      o.b.setVisible(show);
+      if (o.mode === 'camp') o.b.setIcon(a.garrison.length ? 11 : 10).setColor(a.garrison.length ? 'gold' : 'dark');
+      else o.b.setColor(o.mode === a.mode && field > 0 ? 'blue' : 'dark').setEnabled(field > 0);
+    }
+    // pontos de atributo para distribuir: selo dourado no botão de patentes
+    const free = P.free;
+    const pb = this.menu.find((m) => m.id === 'attrs')!.b;
+    this.pointsBadge.setVisible(free > 0).setText(`+${free}`).setPosition(pb.x + pb.w - 2 * this.u, pb.y + 2 * this.u);
   }
 
   private showArea(name: string, sub = '') {
@@ -226,19 +293,19 @@ export class UIScene extends Phaser.Scene {
       targets: [this.areaText, this.areaSub],
       tweens: [
         { alpha: 1, duration: 500 },
-        { alpha: 1, duration: 1600 },
+        { alpha: 1, duration: 1700 },
         { alpha: 0, duration: 700 },
       ],
     });
   }
 
-  private showToast(msg: string, hold = 1800) {
+  private showToast(msg: string, hold = 2000) {
     this.toast.setText(msg).setAlpha(0);
     this.tweens.killTweensOf(this.toast);
     this.tweens.chain({
       targets: this.toast,
       tweens: [
-        { alpha: 1, duration: 300 },
+        { alpha: 1, duration: 250 },
         { alpha: 1, duration: hold },
         { alpha: 0, duration: 600 },
       ],
@@ -246,26 +313,11 @@ export class UIScene extends Phaser.Scene {
   }
 
   private drawHp() {
-    const u = this.u;
+    const k = inputState.hp / Math.max(1, inputState.maxHp);
     const g = this.hpBar;
-    const x = 12 * u + 30 * u;
-    const y = 16 * u;
-    const w = 130 * u;
-    const h = 12 * u;
-    const k = inputState.hp / inputState.maxHp;
     g.clear();
-    g.fillStyle(0x1e1a24, 0.85).fillRoundedRect(x - 3 * u, y - 3 * u, w + 6 * u, h + 6 * u, 4 * u);
-    g.fillStyle(0x7a1f2a, 1).fillRect(x, y, w, h);
-    g.fillStyle(k > 0.3 ? 0xe04848 : 0xff7a3a, 1).fillRect(x, y, w * k, h);
-    g.fillStyle(0xffffff, 0.25).fillRect(x, y, w * k, 3 * u);
-    // divisões por ponto de vida (só enquanto a vida é pequena; depois, o número basta)
-    g.fillStyle(0x1e1a24, 0.6);
-    if (inputState.maxHp <= 20) for (let i = 1; i < inputState.maxHp; i++) g.fillRect(x + (w * i) / inputState.maxHp - u / 2, y, Math.max(1, u), h);
-    this.hpText
-      .setText(`${inputState.hp}/${inputState.maxHp}`)
-      .setFontSize(Math.round(9 * u))
-      .setStroke('#1e1a24', 3 * u)
-      .setPosition(x + w / 2, y + h / 2);
+    drawBar(g, this.hpX, this.hpY, this.hpW, this.hpH, k, k > 0.3 ? 0xd83c3c : 0xff7a3a, this.u);
+    this.hpText.setText(`${inputState.hp}/${inputState.maxHp}`);
   }
 
   update() {
@@ -274,19 +326,21 @@ export class UIScene extends Phaser.Scene {
       this.lastMax = inputState.maxHp;
       this.drawHp();
     }
-    this.info.setText(`${this.registry.get('clock') ?? ''}  ${this.registry.get('weather') ?? ''}`);
+    const now = this.time.now;
+    this.clock.setText(`${this.registry.get('clock') ?? ''} · ${this.registry.get('weather') ?? ''}`);
+    this.minimap.update(now);
     this.controls.update();
     this.debug.update();
-    this.attrs.update(this.time.now);
-    this.armyPanel.update(this.time.now);
-    if (this.time.now - this.lastArmyHud > 500) {
-      this.lastArmyHud = this.time.now;
-      this.updateArmyHud();
+    this.attrs.update(now);
+    this.armyPanel.update(now);
+    this.mapPanel.update(now);
+    if (now - this.lastHud > 500) {
+      this.lastHud = now;
+      this.updateHud();
     }
     if (this.fps) {
-      const w = this.scene.get('World') as WorldScene;
-      const active = w.enemies.filter((e) => !e.dead).length;
-      this.fps.setText(`${Math.round(this.game.loop.actualFps)} fps · inimigos ${active} · objs ${w.children.length}`);
+      const w = this.world;
+      this.fps.setText(`${Math.round(this.game.loop.actualFps)} fps · inimigos ${w.enemies.filter((e) => !e.dead).length} · soldados ${w.army.soldiers.length} · objs ${w.children.length}`);
     }
   }
 }

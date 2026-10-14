@@ -76,7 +76,7 @@ export class VirtualControls {
       const img = scene.add.image(0, 0, 'ui-icons', icon).setDepth(depth + 1);
       const cd = scene.add.graphics().setDepth(depth + 3);
       const text = scene.add
-        .text(0, 0, label, { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff', fontStyle: 'bold' })
+        .text(0, 0, label, { fontFamily: '"Pixelify Sans", monospace', fontSize: '10px', color: '#ffffff', fontStyle: 'bold' })
         .setOrigin(0.5)
         .setDepth(depth + 4)
         .setAlpha(0.85);

@@ -61,7 +61,7 @@ export class Bandit extends Enemy {
   private showAlert() {
     if (this.alert) return;
     this.alert = this.scene.add
-      .text(this.x, this.y - 32, '!', { fontFamily: 'monospace', fontSize: '12px', color: '#ffdd55', fontStyle: 'bold' })
+      .text(this.x, this.y - 32, '!', { fontFamily: '"Pixelify Sans", monospace', fontSize: '12px', color: '#ffdd55', fontStyle: 'bold' })
       .setOrigin(0.5)
       .setResolution(4)
       .setDepth(this.depth + 1);

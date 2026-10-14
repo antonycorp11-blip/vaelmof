@@ -123,4 +123,9 @@ peça (CC-BY-SA: compartilhar pela mesma licença).
 
 ## Fontes tipográficas
 
-O HUD usa a fonte `monospace` do sistema; nenhuma fonte é distribuída.
+| Fonte | Onde | Autor | Licença |
+|---|---|---|---|
+| [Pixelify Sans](https://fonts.google.com/specimen/Pixelify+Sans) (subconjunto latino, variável 400–700) | `public/fonts/pixelify-sans-latin.woff2` — toda a interface | The Pixelify Sans Project Authors (Stefie Justprince) | SIL Open Font License 1.1 (`public/fonts/OFL.txt`) |
+
+As molduras, botões, barras e ícones da interface são originais, gerados por
+`scripts/ui-art.mjs`.

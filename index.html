@@ -16,7 +16,15 @@
     <link rel="manifest" href="./manifest.json" />
     <link rel="icon" type="image/png" href="./icons/favicon-32.png" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <link rel="preload" href="./fonts/pixelify-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
     <style>
+      /* fonte da interface (Pixelify Sans, SIL OFL), embutida para funcionar offline */
+      @font-face {
+        font-family: 'Pixelify Sans';
+        src: url('./fonts/pixelify-sans-latin.woff2') format('woff2');
+        font-weight: 400 700;
+        font-display: block;
+      }
       html,
       body {
         margin: 0;

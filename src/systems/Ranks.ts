@@ -28,16 +28,16 @@ export interface Rank {
 export const GLORY_PER_POINT = 10;
 
 export const RANKS: Rank[] = [
-  { id: 'recruta', name: 'Recruta', min: 10, glory: 0, army: 5 },
-  { id: 'soldado', name: 'Soldado', min: 20, glory: 150, army: 10 },
-  { id: 'cabo', name: 'Cabo', min: 40, glory: 600, army: 20 },
-  { id: 'sargento', name: 'Sargento', min: 70, glory: 1500, duel: 'brakk', army: 35 },
-  { id: 'tenente', name: 'Tenente', min: 110, glory: 3000, army: 50 },
-  { id: 'capitao', name: 'Capitão', min: 170, glory: 5000, duel: 'ysra', army: 80 },
-  { id: 'major', name: 'Major', min: 250, glory: 8000, army: 120 },
-  { id: 'coronel', name: 'Coronel', min: 380, glory: 12000, duel: 'ulgar', army: 180 },
-  { id: 'general', name: 'General', min: 600, glory: 20000, army: 250 },
-  { id: 'marechal', name: 'Marechal', min: 1000, glory: 30000, duel: 'morvath', army: 300 },
+  { id: 'recruta', name: 'Andarilho', min: 10, glory: 0, army: 5 },
+  { id: 'soldado', name: 'Escudeiro', min: 20, glory: 150, army: 10 },
+  { id: 'cabo', name: 'Lâmina Jurada', min: 40, glory: 600, army: 20 },
+  { id: 'sargento', name: 'Guardião de Ferro', min: 70, glory: 1500, duel: 'brakk', army: 35 },
+  { id: 'tenente', name: 'Cavaleiro Rúnico', min: 110, glory: 3000, army: 50 },
+  { id: 'capitao', name: 'Paladino das Marcas', min: 170, glory: 5000, duel: 'ysra', army: 80 },
+  { id: 'major', name: 'Senhor da Guerra', min: 250, glory: 8000, army: 120 },
+  { id: 'coronel', name: 'Lorde Estandarte', min: 380, glory: 12000, duel: 'ulgar', army: 180 },
+  { id: 'general', name: 'Grão-Senhor', min: 600, glory: 20000, army: 250 },
+  { id: 'marechal', name: 'Soberano de Vaelmor', min: 1000, glory: 30000, duel: 'morvath', army: 300 },
 ];
 
 export interface ChampionDef {

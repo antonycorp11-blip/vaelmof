@@ -49,6 +49,10 @@ export class BootScene extends Phaser.Scene {
     sheet('ui-icons', 'ui-icons.png');
     // insígnias de patente: 10 patentes × (aliado, inimigo)
     sheet('rank-icons', 'rank-icons.png', 11, 11);
+    // kit da interface: molduras 9-slice, botões (normal, pressionado), barra e ícones
+    for (const k of ['frame', 'frame-inner', 'frame-hl', 'bar']) this.load.image(`ui-${k}`, `assets/ui/${k}.png`);
+    for (const c of ['blue', 'red', 'gold', 'dark', 'green']) this.load.spritesheet(`ui-btn-${c}`, `assets/ui/btn-${c}.png`, { frameWidth: 24, frameHeight: 14 });
+    this.load.spritesheet('ui-menu', 'assets/ui/icons.png', { frameWidth: 16, frameHeight: 16 });
     for (const k of ['pixel', 'raindrop', 'shadow', 'glow', 'fog']) this.load.image(k, `${S}${k}.png`);
     // construções das cidades (variantes × janelas apagadas/acesas), torres, fonte e barracas
     for (const [k, B] of Object.entries(BUILDINGS)) this.load.spritesheet(`bld-${k}`, `assets/tiles/bld-${k}.png`, { frameWidth: B.w, frameHeight: B.h });
@@ -95,7 +99,15 @@ export class BootScene extends Phaser.Scene {
     a.create({ key: 'slash', frames: range('slash', 0, 2), frameRate: 24, repeat: 0 });
     a.create({ key: 'explosion', frames: range('explosion', 0, 4), frameRate: 16, repeat: 0 });
 
-    this.scene.start('World');
-    this.scene.launch('UI');
+    // a interface usa a fonte Pixelify Sans: espera ela carregar (no máximo 2 s)
+    const go = () => {
+      if (this.scene.isActive('World')) return;
+      this.scene.start('World');
+      this.scene.launch('UI');
+    };
+    const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+    if (fonts?.load) {
+      Promise.race([Promise.all([fonts.load('16px "Pixelify Sans"'), fonts.load('bold 16px "Pixelify Sans"')]), new Promise((r) => setTimeout(r, 2000))]).then(go, go);
+    } else go();
   }
 }

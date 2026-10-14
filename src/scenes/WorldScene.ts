@@ -436,7 +436,7 @@ export class WorldScene extends Phaser.Scene {
       damageText: (x, y, amount, color = '#ffffff') => {
         const t = this.add
           .text(x, y, String(amount), {
-            fontFamily: 'monospace',
+            fontFamily: '"Pixelify Sans", monospace',
             fontSize: '8px',
             fontStyle: 'bold',
             color,
@@ -450,7 +450,7 @@ export class WorldScene extends Phaser.Scene {
       },
       floatText: (x, y, text, color = '#ffffff') => {
         const t = this.add
-          .text(x, y, text, { fontFamily: 'monospace', fontSize: '7px', fontStyle: 'bold', color, stroke: '#1e1a24', strokeThickness: 2 })
+          .text(x, y, text, { fontFamily: '"Pixelify Sans", monospace', fontSize: '7px', fontStyle: 'bold', color, stroke: '#1e1a24', strokeThickness: 2 })
           .setOrigin(0.5)
           .setResolution(4)
           .setDepth(DEPTH.fx + 2);
