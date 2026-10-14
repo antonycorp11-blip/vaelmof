@@ -99,7 +99,7 @@ export class BootScene extends Phaser.Scene {
     a.create({ key: 'slash', frames: range('slash', 0, 2), frameRate: 24, repeat: 0 });
     a.create({ key: 'explosion', frames: range('explosion', 0, 4), frameRate: 16, repeat: 0 });
 
-    // a interface usa a fonte Pixelify Sans: espera ela carregar (no máximo 2 s)
+    // a interface usa a fonte Tiny5: espera ela carregar (no máximo 2 s)
     const go = () => {
       if (this.scene.isActive('World')) return;
       this.scene.start('World');
@@ -107,7 +107,7 @@ export class BootScene extends Phaser.Scene {
     };
     const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
     if (fonts?.load) {
-      Promise.race([Promise.all([fonts.load('16px "Pixelify Sans"'), fonts.load('bold 16px "Pixelify Sans"')]), new Promise((r) => setTimeout(r, 2000))]).then(go, go);
+      Promise.race([Promise.all([fonts.load('16px Tiny5'), fonts.load('bold 16px Tiny5')]), new Promise((r) => setTimeout(r, 2000))]).then(go, go);
     } else go();
   }
 }

@@ -56,7 +56,6 @@ export class Flame extends Phaser.GameObjects.Sprite {
     boom.play('explosion');
     boom.once('animationcomplete', () => boom.destroy());
     s.fx.burst(this.x, this.y, 0xff9a2a, 12);
-    s.cameras.main.shake(110, 0.004);
     const light = this.light;
     light.setScale(2.2).setAlpha(0.5 + s.dayNight.lightLevel * 0.5);
     s.tweens.add({ targets: light, alpha: 0, scale: 2.8, duration: 450, onComplete: () => light.destroy() });

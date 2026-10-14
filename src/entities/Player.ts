@@ -733,7 +733,6 @@ export class Player extends Creature {
     }
     const half = Phaser.Math.DegToRad(M.arcDeg / 2);
     const dmg = Math.max(1, Math.round(M.damage * this.dmgMul));
-    let hit = false;
     for (const e of s.hostiles) {
       if (e.dead) continue;
       const d = Phaser.Math.Distance.Between(cx, cy, e.fx, e.fy);
@@ -741,14 +740,10 @@ export class Player extends Creature {
       const diff = Math.abs(Phaser.Math.Angle.Wrap(Phaser.Math.Angle.Between(cx, cy, e.fx, e.fy) - angle));
       if (diff <= half || d < 10) {
         e.takeDamage(dmg, this.fx, this.fy, M.knockback);
+        // sem tremer a câmera nem congelar: o acerto aparece no alvo (faísca, flash e número)
+        s.fx.impact(e.fx, e.fy - 8);
         s.fx.burst((e.fx + cx) / 2 + (e.fx - cx) * 0.3, e.fy - 6, 0xffffff, 5);
-        hit = true;
       }
-    }
-    if (hit) {
-      const heavy = M.damage >= 3;
-      s.cameras.main.shake(heavy ? 120 : 70, heavy ? 0.005 : 0.0025);
-      s.hitStop(heavy ? 80 : 45);
     }
   }
 
@@ -762,7 +757,6 @@ export class Player extends Creature {
       this.ring(this.fx, this.fy - 6, 34, B.color, 380);
       s.fx.burst(this.x, this.y - 14, B.color, 16);
       s.fx.floatText(this.x, this.y - 30, `${B.name}!`, '#' + B.color.toString(16).padStart(6, '0'));
-      s.cameras.main.shake(90, 0.003);
       return;
     }
     let cx = this.fx;
@@ -792,15 +786,13 @@ export class Player extends Creature {
         this.areaHit(cx, cy, E.radius, E.damage * mul, E.knockback, E.stun);
         this.ring(cx, cy, E.radius, E.color, E.style === 'quake' ? 320 : 420);
         if (E.style === 'quake') {
-          s.cameras.main.shake(220, 0.009);
+          s.cameras.main.shake(140, 0.003);
           for (let k = 0; k < 10; k++) {
             const a = (k / 10) * Math.PI * 2;
             s.fx.burst(cx + Math.cos(a) * E.radius * 0.6, cy + Math.sin(a) * E.radius * 0.45, E.color, 2);
           }
           this.cracks(cx, cy, E.radius);
-          s.hitStop(70);
         } else {
-          s.cameras.main.shake(140, 0.005);
           s.fx.burst(cx, cy - 6, E.color, 22);
         }
       });
@@ -829,12 +821,14 @@ export class Player extends Creature {
   }
 
   private areaHit(x: number, y: number, r: number, dmg: number, kb: number, stun?: number) {
+    const s0 = this.scene;
     let hit = false;
     for (const e of this.scene.hostiles) {
       if (!e.targetable) continue;
       if (Phaser.Math.Distance.Between(x, y, e.fx, e.fy) > r) continue;
       e.takeDamage(Math.max(1, Math.round(dmg)), x, y, kb);
       if (stun) e.stun(stun);
+      s0.fx.impact(e.fx, e.fy - 8);
       hit = true;
     }
     return hit;
@@ -970,8 +964,7 @@ export class Player extends Creature {
     this.lastHurt = s.time.now;
     this.invulnUntil = s.time.now + PLAYER.hurtInvuln;
     s.fx.damageText(this.x, this.y - 24, dmg, '#ff6060');
-    s.cameras.main.shake(120, 0.006);
-    this.flash(0xff4040, 100);
+    this.flash(0xff4040, 120);
     const a = Phaser.Math.Angle.Between(fromX, fromY, this.fx, this.fy);
     this.body.setVelocity(Math.cos(a) * 150, Math.sin(a) * 150);
     this.gatherDone = undefined;

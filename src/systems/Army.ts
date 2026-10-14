@@ -163,7 +163,7 @@ export class Soldier implements Hittable {
     if (this.dead) return;
     this.hp -= amount;
     this.lastHurt = this.army.scene.time.now;
-    this.flashUntil = this.army.scene.time.now + 70;
+    this.flashUntil = this.army.scene.time.now + 120;
     const a = Math.atan2(this.y - fromY, this.x - fromX);
     const k = Math.min(140, knockback) * 0.5;
     this.vx += Math.cos(a) * k;

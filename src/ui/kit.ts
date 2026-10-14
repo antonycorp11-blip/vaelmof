@@ -5,7 +5,7 @@ import Phaser from 'phaser';
  * art (assets/ui, gerados por scripts/ui-art.mjs). Todas as telas usam estas
  * peças, para o jogo ter uma cara só.
  */
-export const FONT = '"Pixelify Sans", monospace';
+export const FONT = 'Tiny5, monospace';
 
 export const COLOR = {
   text: '#f3ead2',

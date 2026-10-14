@@ -171,7 +171,6 @@ export class Gathering {
     const cx = tx * TILE + 8;
     const cy = ty * TILE + 8;
     s.fx.burst(cx, cy, type.chips, 7);
-    s.cameras.main.shake(50, 0.0015);
     if (got > 0) s.fx.floatText(cx, cy - 10, `+${got} ${ITEMS[id].name}`, '#ffe9a8');
     else s.fx.floatText(cx, cy - 10, 'Mochila cheia', '#ff8080');
     st.charges--;

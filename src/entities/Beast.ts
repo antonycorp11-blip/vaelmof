@@ -155,7 +155,6 @@ export class Beast extends Enemy {
     const cx = this.fx + Math.cos(this.angle0) * 10;
     const cy = this.fy + Math.sin(this.angle0) * 8;
     s.fx.burst(cx, cy - 2, D.fx, 12);
-    s.cameras.main.shake(110, 0.004);
     const p = s.player;
     if (Phaser.Math.Distance.Between(cx, cy, p.fx, p.fy) < (D.radius ?? 20)) p.hurt(D.damage * this.dmgMul, this.fx, this.fy);
   }

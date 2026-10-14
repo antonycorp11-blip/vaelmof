@@ -66,6 +66,8 @@ export class WorldScene extends Phaser.Scene {
   weather!: WeatherSystem;
   fx!: {
     burst: (x: number, y: number, tint: number, count: number) => void;
+    /** Faísca de acerto no alvo (estrela branca + clarão), no lugar de tremer a câmera. */
+    impact: (x: number, y: number) => void;
     ember: (x: number, y: number) => void;
     damageText: (x: number, y: number, amount: number, color?: string) => void;
     floatText: (x: number, y: number, text: string, color?: string) => void;
@@ -427,16 +429,37 @@ export class WorldScene extends Phaser.Scene {
       maxAliveParticles: 40,
     });
     embers.setDepth(DEPTH.fx - 1);
+    // estrela de impacto 11×11 em pixel art (contorno escuro para ler em qualquer chão)
+    if (!this.textures.exists('impact-star')) {
+      const g = this.make.graphics({}, false);
+      g.fillStyle(0x0b0d14, 1).fillRect(4, 0, 3, 11).fillRect(0, 4, 11, 3);
+      g.fillStyle(0xffffff, 1).fillRect(5, 1, 1, 9).fillRect(1, 5, 9, 1).fillRect(4, 4, 3, 3);
+      g.fillStyle(0xfff1a8, 1).fillRect(5, 5, 1, 1);
+      g.generateTexture('impact-star', 11, 11);
+      g.destroy();
+    }
+    const stars: Phaser.GameObjects.Image[] = [];
+    const flashes: Phaser.GameObjects.Image[] = [];
+    const take = (pool: Phaser.GameObjects.Image[], make: () => Phaser.GameObjects.Image) => pool.find((i) => !i.visible) ?? (pool.length < 24 ? (pool.push(make()), pool[pool.length - 1]) : pool[0]);
     this.fx = {
       burst: (x, y, tint, count) => {
         burst.setParticleTint(tint);
         burst.explode(count, x, y);
       },
+      impact: (x, y) => {
+        const st = take(stars, () => this.add.image(0, 0, 'impact-star').setDepth(DEPTH.fx + 1).setVisible(false));
+        const fl = take(flashes, () => this.add.image(0, 0, 'glow').setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH.fx).setVisible(false));
+        this.tweens.killTweensOf([st, fl]);
+        st.setPosition(x, y).setVisible(true).setAlpha(1).setScale(0.6).setAngle(Math.random() < 0.5 ? 0 : 45);
+        fl.setPosition(x, y).setVisible(true).setAlpha(0.9).setScale(0.18);
+        this.tweens.add({ targets: st, scale: 1.3, alpha: 0, duration: 170, ease: 'Quad.easeOut', onComplete: () => st.setVisible(false) });
+        this.tweens.add({ targets: fl, scale: 0.45, alpha: 0, duration: 200, ease: 'Quad.easeOut', onComplete: () => fl.setVisible(false) });
+      },
       ember: (x, y) => embers.emitParticleAt(x, y, 1),
       damageText: (x, y, amount, color = '#ffffff') => {
         const t = this.add
           .text(x, y, String(amount), {
-            fontFamily: '"Pixelify Sans", monospace',
+            fontFamily: 'Tiny5, monospace',
             fontSize: '8px',
             fontStyle: 'bold',
             color,
@@ -450,7 +473,7 @@ export class WorldScene extends Phaser.Scene {
       },
       floatText: (x, y, text, color = '#ffffff') => {
         const t = this.add
-          .text(x, y, text, { fontFamily: '"Pixelify Sans", monospace', fontSize: '7px', fontStyle: 'bold', color, stroke: '#1e1a24', strokeThickness: 2 })
+          .text(x, y, text, { fontFamily: 'Tiny5, monospace', fontSize: '7px', fontStyle: 'bold', color, stroke: '#1e1a24', strokeThickness: 2 })
           .setOrigin(0.5)
           .setResolution(4)
           .setDepth(DEPTH.fx + 2);

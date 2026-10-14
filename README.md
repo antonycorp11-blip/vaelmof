@@ -147,7 +147,7 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 ### Interface (`src/ui/`)
 - **Kit visual** (`src/ui/kit.ts`, arte em `scripts/ui-art.mjs`): molduras
   9-slice em pixel art (painel, painel interno, destaque), botões em 5 cores
-  com bisel que afunda ao tocar, barras e 18 ícones; fonte **Pixelify Sans**
+  com bisel que afunda ao tocar, barras e 18 ícones; fonte **Tiny5** (números bem legíveis)
   embutida (`public/fonts`). Todas as telas usam as mesmas peças.
 - **HUD:** à esquerda a insígnia da patente, vida, Glória, nome da patente,
   tamanho do exército e as 4 ordens; à direita o **minimapa**, o relógio e os
@@ -285,6 +285,7 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   sombra no chão e sem colisão; ao sair do mapa reaparecem numa borda.
 
 ### Teren (`src/entities/Player.ts`)
+- **Acerto sem tremer a tela:** golpes, flechas e magias não sacodem a câmera nem congelam o jogo; o acerto aparece no alvo (estrela branca com clarão, flash branco e número de dano). Só o terremoto da marreta dá um tremor leve.
 - **Humano**, aventureiro de cabelo escuro bagunçado, olhos verdes, camisa
   branca, colete e ombreiras de couro, capa verde, botas e espada de aço.
 - Montado em **camadas LPC** (Liberated Pixel Cup — pixel art feita por

@@ -63,6 +63,7 @@ export class Projectile extends Phaser.GameObjects.Sprite {
         this.hitSet.add(e);
         e.takeDamage(Math.max(1, Math.round(this.def.damage * this.mul)), this.x - this.vx * 0.05, this.y - this.vy * 0.05, this.def.knockback);
         if (this.def.slow) e.slow(this.def.slow.ms);
+        this.scene.fx.impact(e.fx, e.fy - 8);
         this.scene.fx.burst(this.x, this.y, this.def.color, 5);
         if (!this.def.pierce) return this.end();
       }

@@ -82,7 +82,7 @@ export class Champions {
     e.setTint(D.tint).setScale(D.scale);
     c.enemy = e;
     c.label = s.add
-      .text(c.x, c.y - 38, D.name, { fontFamily: '"Pixelify Sans", monospace', fontSize: '7px', fontStyle: 'bold', color: '#ffd34a', stroke: '#1e1a24', strokeThickness: 2 })
+      .text(c.x, c.y - 38, D.name, { fontFamily: 'Tiny5, monospace', fontSize: '7px', fontStyle: 'bold', color: '#ffd34a', stroke: '#1e1a24', strokeThickness: 2 })
       .setOrigin(0.5)
       .setResolution(4)
       .setDepth(4250);

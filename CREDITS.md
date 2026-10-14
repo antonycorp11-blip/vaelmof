@@ -125,7 +125,7 @@ peça (CC-BY-SA: compartilhar pela mesma licença).
 
 | Fonte | Onde | Autor | Licença |
 |---|---|---|---|
-| [Pixelify Sans](https://fonts.google.com/specimen/Pixelify+Sans) (subconjunto latino, variável 400–700) | `public/fonts/pixelify-sans-latin.woff2` — toda a interface | The Pixelify Sans Project Authors (Stefie Justprince) | SIL Open Font License 1.1 (`public/fonts/OFL.txt`) |
+| [Tiny5](https://fonts.google.com/specimen/Tiny5) (subconjunto latino) | `public/fonts/tiny5-latin.woff2` — toda a interface | The Tiny5 Project Authors (Stefano Gissi) | SIL Open Font License 1.1 (`public/fonts/OFL-tiny5.txt`) |
 
 As molduras, botões, barras e ícones da interface são originais, gerados por
 `scripts/ui-art.mjs`.
