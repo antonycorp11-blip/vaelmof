@@ -268,3 +268,53 @@ export class Window {
     this.root.setPosition(Math.round((width - this.W) / 2), Math.round(Math.max(4 * u, (height - this.H) / 2)));
   }
 }
+
+/** Brasão de clã: escudo na cor do clã com o emblema por cima. */
+export class Crest {
+  readonly shield: Phaser.GameObjects.Image;
+  readonly emblem: Phaser.GameObjects.Image;
+
+  constructor(scene: Phaser.Scene, crest = 0, color = 0xffffff) {
+    this.shield = scene.add.image(0, 0, 'crest-shield').setTint(color);
+    this.emblem = scene.add.image(0, 0, 'crests', crest);
+  }
+
+  get parts(): Phaser.GameObjects.GameObject[] {
+    return [this.shield, this.emblem];
+  }
+
+  set(crest: number, color: number) {
+    this.shield.setTint(color);
+    this.emblem.setFrame(crest);
+    return this;
+  }
+
+  /** Centro em (x, y); `k` = escala inteira da arte (16×18). */
+  place(x: number, y: number, k: number) {
+    const s = Math.max(1, Math.round(k));
+    this.shield.setScale(s).setPosition(Math.round(x), Math.round(y));
+    this.emblem.setScale(s).setPosition(Math.round(x), Math.round(y - s));
+    return this;
+  }
+
+  setVisible(on: boolean) {
+    this.shield.setVisible(on);
+    this.emblem.setVisible(on);
+    return this;
+  }
+
+  setDepth(d: number) {
+    this.shield.setDepth(d);
+    this.emblem.setDepth(d + 1);
+    return this;
+  }
+
+  setAlpha(a: number) {
+    this.shield.setAlpha(a);
+    this.emblem.setAlpha(a);
+    return this;
+  }
+}
+
+/** Cor 0xRRGGBB → '#rrggbb'. */
+export const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');

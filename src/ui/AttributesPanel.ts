@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { ITEMS } from '../data/items';
 import { BUFFS } from '../data/weapons';
 import type { WorldScene } from '../scenes/WorldScene';
-import { ATTR_MAX, ATTRS, fmtPts, REQUIREMENTS, type Attr } from '../systems/Progress';
+import { ATTR_MAX, ATTRS, fmtPts, reqOf, type Attr } from '../systems/Progress';
 import { CHAMPIONS, RANKS } from '../systems/Ranks';
 import { Button, COLOR, drawBar, fit, frame, label, sizeFrame, Window } from './kit';
 
@@ -160,7 +160,7 @@ export class AttributesPanel {
     const locked = new Set<string>();
     for (const s of inv.slots) if (s && ITEMS[s.id].equip && inv.missing(s.id)) locked.add(s.id);
     const lines = [...locked].slice(0, 2).map((id) => {
-      const req = REQUIREMENTS[id] ?? {};
+      const req = reqOf(id);
       const need = ATTRS.filter((a) => (req[a.id] ?? 0) > A[a.id]).map((a) => `${a.short} ${req[a.id]}`);
       return `${ITEMS[id].name}: ${need.join(' ')}`;
     });

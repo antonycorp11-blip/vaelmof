@@ -53,6 +53,9 @@ export class BootScene extends Phaser.Scene {
     for (const k of ['frame', 'frame-inner', 'frame-hl', 'bar']) this.load.image(`ui-${k}`, `assets/ui/${k}.png`);
     for (const c of ['blue', 'red', 'gold', 'dark', 'green']) this.load.spritesheet(`ui-btn-${c}`, `assets/ui/btn-${c}.png`, { frameWidth: 24, frameHeight: 14 });
     this.load.spritesheet('ui-menu', 'assets/ui/icons.png', { frameWidth: 16, frameHeight: 16 });
+    // brasões dos clãs: escudo tingível e emblemas 12×12
+    this.load.image('crest-shield', 'assets/ui/crest-shield.png');
+    this.load.spritesheet('crests', 'assets/ui/crests.png', { frameWidth: 12, frameHeight: 12 });
     for (const k of ['pixel', 'raindrop', 'shadow', 'glow', 'fog']) this.load.image(k, `${S}${k}.png`);
     // construções das cidades (variantes × janelas apagadas/acesas), torres, fonte e barracas
     for (const [k, B] of Object.entries(BUILDINGS)) this.load.spritesheet(`bld-${k}`, `assets/tiles/bld-${k}.png`, { frameWidth: B.w, frameHeight: B.h });

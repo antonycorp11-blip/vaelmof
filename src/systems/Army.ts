@@ -48,7 +48,16 @@ const OUTFIT: Record<0 | 1, Record<SoldierType, string>> = {
   0: { sword: 'legion', greatsword: 'legion', bow: 'hunter', staff: 'arcane' },
   1: { sword: 'plate', greatsword: 'plate', bow: 'leather', staff: 'arcane' },
 };
-const TEAM_COLOR = [0x5aa0ff, 0xff5a5a];
+/** Cor do anel no chão: a do clã do jogador (muda ao fundar) e vermelho inimigo. */
+export const TEAM_COLOR = [0x5aa0ff, 0xff5a5a];
+/** Tom da arte dos aliados: a cor do clã clareada (para não escurecer demais). */
+export const allyTint = (c: number) => {
+  const k = 0.5;
+  const r = (c >> 16) & 255;
+  const g = (c >> 8) & 255;
+  const b = c & 255;
+  return (Math.round(r + (255 - r) * k) << 16) | (Math.round(g + (255 - g) * k) << 8) | Math.round(b + (255 - b) * k);
+};
 const BACK: Record<string, boolean> = { leather: true, plate: false, legion: false, arcane: true, hunter: true };
 
 /** Quadro do soldado: 96×96, pés em y = 77; 15 colunas (0 parado, 1–8 andar, 9–14 ataque) × 4 direções. */
@@ -75,6 +84,8 @@ const HEAL_CITY = 0.15;
 const HEAL_DELAY = 4000;
 /** Raio (tiles) do campo de fluxo em volta do herói. */
 const FLOW_R = 40;
+/** Célula da grade de alvos (px). */
+const TG = 64;
 
 const SAVE_KEY = 'vaelmor.army.v1';
 
@@ -100,6 +111,8 @@ export class Soldier implements Hittable {
   slowUntil = 0;
   fleeing = false;
   slot = 0;
+  /** Quadro (par/ímpar) em que atualiza quando está fora da tela. */
+  readonly parity = Math.random() < 0.5 ? 0 : 1;
   /** Soldado que deu o último golpe (para creditar o abate). */
   lastBy: Soldier | null = null;
   /** Cor da casa (exércitos inimigos); -1 = sem tom. */
@@ -128,11 +141,16 @@ export class Soldier implements Hittable {
     this.kills = kills;
     this.maxHp = this.hp = Math.round(SOLDIERS[type].hp * this.mul);
     const s = army.scene;
-    this.ring = s.add.image(x, y, 'soldier-ring').setTint(TEAM_COLOR[team]).setAlpha(0.7);
+    // anel no chão: profundidade fixa (abaixo de todos), não entra na reordenação por y
+    this.ring = s.add.image(x, y, 'soldier-ring').setTint(TEAM_COLOR[team]).setAlpha(0.7).setDepth(DEPTH.birdShadow - 0.5);
     this.sprite = s.add.sprite(x, y, `sold-${team}-${type}`, 0).setOrigin(0.5, FOOT / CELL);
     this.sprite.setScale(army.scale);
     this.ring.setScale(army.scale * 2);
     this.icon = s.add.image(x, y, 'rank-icons', this.iconFrame).setDepth(DEPTH.fx - 50).setScale(army.iconScale);
+    if (team === 0 && army.clanColor >= 0) {
+      this.baseTint = allyTint(army.clanColor);
+      this.sprite.setTint(this.baseTint);
+    }
   }
 
   get iconFrame() {
@@ -208,6 +226,12 @@ interface Shot {
 /** Guerra em andamento contra o exército de uma casa rival. */
 export interface War {
   house: string;
+  /** Clã rival (guerra de clãs) — o painel de Clãs acerta as contas no fim. */
+  clan?: string;
+  color: number;
+  /** De onde o inimigo veio (o líder aparece ali). */
+  x: number;
+  y: number;
   start: number;
   killed: number;
   lost: number;
@@ -229,6 +253,20 @@ export class Army extends Phaser.Events.EventEmitter {
   war: War | null = null;
   ready = false;
   scale: number = HERO.scale;
+  /** Cor do clã do jogador (-1 = ainda sem clã). */
+  clanColor = -1;
+
+  /** Pinta o exército do jogador com a cor do clã. */
+  setClanColor(c: number) {
+    this.clanColor = c;
+    TEAM_COLOR[0] = c;
+    for (const s of this.soldiers) {
+      if (s.team !== 0) continue;
+      s.baseTint = allyTint(c);
+      s.sprite.setTint(s.baseTint);
+      s.ring.setTint(c);
+    }
+  }
 
   /** Tamanho das insígnias (acompanha o ajuste de pixels do herói). */
   get iconScale(): number {
@@ -241,7 +279,10 @@ export class Army extends Phaser.Events.EventEmitter {
   private shots: Shot[] = [];
   private shotPool: Phaser.GameObjects.Image[] = [];
   private grid = new Map<number, Soldier[]>();
+  /** Grade grossa por lado (células de TG px) para achar o inimigo mais perto sem varrer todos. */
+  private tgrid: [Map<number, Soldier[]>, Map<number, Soldier[]>] = [new Map(), new Map()];
   private poolTimer = 0;
+  private frameN = 0;
   private warCheck = 0;
   private heroT: Hittable;
   /** Soldados salvos esperando as folhas ficarem prontas. */
@@ -392,9 +433,36 @@ export class Army extends Phaser.Events.EventEmitter {
           else if (!big) uni(wfg, row, col, cx, cy);
         }
         ctx.restore();
-        ct.add(d * COLS + c, 0, cx, cy, CELL, CELL);
       }
     }
+    // cada quadro recortado ao desenho: a GPU não pinta os ~70% transparentes da célula
+    const px = ctx.getImageData(0, 0, COLS * CELL, 4 * CELL).data;
+    const rowW = COLS * CELL * 4;
+    for (let d = 0; d < 4; d++)
+      for (let c = 0; c < COLS; c++) {
+        const cx = c * CELL;
+        const cy = d * CELL;
+        let x0 = CELL;
+        let y0 = CELL;
+        let x1 = -1;
+        let y1 = -1;
+        for (let y = 0; y < CELL; y++) {
+          const base = (cy + y) * rowW + cx * 4 + 3;
+          for (let x = 0; x < CELL; x++)
+            if (px[base + x * 4] > 0) {
+              if (x < x0) x0 = x;
+              if (x > x1) x1 = x;
+              if (y < y0) y0 = y;
+              if (y > y1) y1 = y;
+            }
+        }
+        if (x1 < 0) {
+          x0 = y0 = 0;
+          x1 = y1 = 0;
+        }
+        const f = ct.add(d * COLS + c, 0, cx + x0, cy + y0, x1 - x0 + 1, y1 - y0 + 1);
+        f?.setTrim(CELL, CELL, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+      }
     ct.refresh();
   }
 
@@ -443,7 +511,7 @@ export class Army extends Phaser.Events.EventEmitter {
 
   // ------------------------------------------------------------------ guerra
   /** Uma casa rival manda um exército de `n` soldados contra o herói. */
-  declareWar(n: number, house?: string) {
+  declareWar(n: number, house?: { name: string; color: number; clan?: string }) {
     if (this.war) return;
     const p = this.scene.player;
     // cada casa rival tem a sua cor (tingindo o exército inteiro)
@@ -454,7 +522,7 @@ export class Army extends Phaser.Events.EventEmitter {
       ['Casa das Dunas Negras', 0x9a8a70],
       ['Casa Morvane', 0x90c8a0],
     ];
-    const [name, color] = house ? [house, 0xe08a8a] : Phaser.Utils.Array.GetRandom(houses);
+    const [name, color] = house ? [house.name, allyTint(house.color)] : Phaser.Utils.Array.GetRandom(houses);
     // de onde vêm: o lado mais livre a ~300 px
     let ang = 0;
     let best = -1;
@@ -493,7 +561,7 @@ export class Army extends Phaser.Events.EventEmitter {
       s.sprite.setTint(color);
       this.soldiers.push(s);
     }
-    this.war = { house: name, start: n, killed: 0, lost: 0 };
+    this.war = { house: name, clan: house?.clan, color, x: cx, y: cy, start: n, killed: 0, lost: 0 };
     // o exército do herói parte para o ataque
     if (this.mode === 'follow') this.setMode('attack');
     this.emit('war', this.war);
@@ -722,7 +790,23 @@ export class Army extends Phaser.Events.EventEmitter {
         best = t;
       }
     };
-    for (const o of this.soldiers) if (o.team !== s.team) consider(o);
+    // anéis de células em volta, do mais perto para o mais longe; para quando o
+    // anel já está mais longe que o melhor achado
+    const grid = this.tgrid[s.team === 0 ? 1 : 0];
+    if (grid.size) {
+      const cx = Math.floor(s.x / TG);
+      const cy = Math.floor(s.y / TG);
+      const R = Math.ceil(range / TG);
+      for (let r = 0; r <= R; r++) {
+        if (best && (r - 1) * TG > Math.sqrt(bd)) break;
+        for (let oy = -r; oy <= r; oy++)
+          for (let ox = -r; ox <= r; ox++) {
+            if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+            const list = grid.get(((cx + ox) & 0xffff) | ((cy + oy) << 16));
+            if (list) for (const o of list) consider(o);
+          }
+      }
+    }
     if (s.team === 1) consider(this.heroT);
     // o exército do herói também enfrenta as criaturas do mapa — menos em guerra,
     // quando só um bicho colado nele tira o foco do exército inimigo
@@ -739,8 +823,10 @@ export class Army extends Phaser.Events.EventEmitter {
       this.regenPool(delta);
       return;
     }
-    const dt = Math.min(0.05, delta / 1000);
+    const dt0 = Math.min(0.05, delta / 1000);
+    const dt = dt0;
     const p = this.scene.player;
+    this.frameN++;
     this.regenPool(delta);
     // direção da formação acompanha o herói devagar
     if (p.body.velocity.lengthSq() > 100) {
@@ -751,6 +837,8 @@ export class Army extends Phaser.Events.EventEmitter {
       this.faceY /= l;
     }
     // grade espacial (separação entre vizinhos)
+    // células vazias de lugares por onde o exército já passou: limpa de vez em quando
+    if (this.grid.size > 3000) this.grid.clear();
     for (const list of this.grid.values()) list.length = 0;
     const G = 20;
     const cellKey = (x: number, y: number) => (Math.floor(x / G) & 0xffff) | (Math.floor(y / G) << 16);
@@ -761,6 +849,18 @@ export class Army extends Phaser.Events.EventEmitter {
       if (!list) this.grid.set(k, (list = []));
       list.push(s);
     }
+    for (const g of this.tgrid) {
+      if (g.size > 1500) g.clear();
+      for (const list of g.values()) list.length = 0;
+    }
+    for (const s of this.soldiers) {
+      if (s.dead) continue;
+      const g = this.tgrid[s.team];
+      const k = (Math.floor(s.x / TG) & 0xffff) | (Math.floor(s.y / TG) << 16);
+      let list = g.get(k);
+      if (!list) g.set(k, (list = []));
+      list.push(s);
+    }
     const view = this.scene.cameras.main.worldView;
     this.buildFlow(time);
     let slot = 0;
@@ -768,6 +868,10 @@ export class Army extends Phaser.Events.EventEmitter {
       if (s.dead) continue;
       const D = SOLDIERS[s.type];
       if (s.team === 0) s.slot = slot++;
+      // fora da tela: anda em quadros alternados, com passo dobrado (metade do custo)
+      const off = !s.sprite.visible;
+      if (off && ((this.frameN + s.parity) & 1)) continue;
+      const dt = off ? Math.min(0.1, dt0 * 2) : dt0;
       // decide o alvo de vez em quando (turnos alternados)
       if (time >= s.thinkAt) {
         s.thinkAt = time + 140 + Math.random() * 120;
@@ -895,7 +999,7 @@ export class Army extends Phaser.Events.EventEmitter {
       // cura fora de combate (mais rápida dentro das cidades)
       if (s.team === 0 && s.hp < s.maxHp && time - s.lastHurt > HEAL_DELAY) {
         s.hp = Math.min(s.maxHp, s.hp + s.maxHp * (s.inCity ? HEAL_CITY : HEAL_FIELD) * dt);
-        if (Math.random() < dt * 1.2) this.scene.fx.burst(s.x, s.y - 14, 0x7dff8a, 2);
+        if (!off && Math.random() < dt * 1.2) this.scene.fx.burst(s.x, s.y - 14, 0x7dff8a, 2);
       }
       // quadro
       let col = 0;
@@ -916,7 +1020,7 @@ export class Army extends Phaser.Events.EventEmitter {
         s.sprite.clearTint();
         if (s.baseTint >= 0) s.sprite.setTint(s.baseTint);
       }
-      s.ring.setPosition(s.x, s.y - 1).setDepth(DEPTH.entities + s.y - 3);
+      s.ring.setPosition(s.x, s.y - 1);
     }
     this.updateShots(time);
     // mortos saem da lista depois do fade

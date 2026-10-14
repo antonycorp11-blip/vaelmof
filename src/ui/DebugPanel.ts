@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { TILE } from '../config';
 import type { WorldScene } from '../scenes/WorldScene';
 import { BIOMES } from '../systems/WorldGenerator';
+import { rollGear } from '../data/gear';
 import { Button, COLOR, fit, frame, label, sizeFrame, type BtnColor } from './kit';
 
 /**
@@ -87,7 +88,11 @@ export class DebugPanel {
     add('Noite', () => (world.dayNight.time = 0.92));
     add('+50 pontos', () => world.progress.grant(50), 'gold');
     add('+500 glória', () => world.progress.addGlory(500), 'gold');
-    add('Zerar progresso', () => world.progress.reset(), 'red');
+    add('Zerar tudo (recomeça)', () => world.resetAll(), 'red');
+    add('Saque raro aqui', () => world.loot.drop(rollGear(1 + Math.floor(Math.random() * 4)), world.player.x + 24, world.player.y), 'gold');
+    add('Clãs: avançar mundo', () => {
+      for (let i = 0; i < 5; i++) world.clans.update(30000);
+    }, 'gold');
     add('Recrutas cheios', () => {
       world.army.pool = world.army.poolMax;
       world.army.emit('change');

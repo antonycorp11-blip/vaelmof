@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { GEAR, MAIN_ATTR, RARITY } from '../data/gear';
 import { GLORY_PER_POINT, RANKS, rankIndex, type ChampionId, type Rank } from './Ranks';
 
 /**
@@ -34,6 +35,16 @@ export const REQUIREMENTS: Record<string, Partial<Record<Attr, number>>> = {
   armor_arcane: { ene: 50 },
   armor_hunter: { agi: 40 },
 };
+
+/** Requisitos de um item, contando a raridade (o atributo principal da peça sobe). */
+export function reqOf(itemId: string): Partial<Record<Attr, number>> {
+  const g = GEAR[itemId];
+  if (!g) return REQUIREMENTS[itemId] ?? {};
+  const base = { ...(REQUIREMENTS[`${g.kind}_${g.base}`] ?? {}) };
+  const a = MAIN_ATTR[g.base];
+  base[a] = Math.max(base[a] ?? 0, RARITY[g.tier].req);
+  return base;
+}
 
 export class Progress extends Phaser.Events.EventEmitter {
   attrs: Record<Attr, number> = { str: BASE, agi: BASE, vit: BASE, ene: BASE };
@@ -144,7 +155,7 @@ export class Progress extends Phaser.Events.EventEmitter {
 
   /** Itens que faltam atributos: devolve o texto do que falta, ou '' se pode usar. */
   missing(itemId: string): string {
-    const req = REQUIREMENTS[itemId] ?? {};
+    const req = reqOf(itemId);
     const out: string[] = [];
     for (const a of ATTRS) {
       const need = req[a.id];

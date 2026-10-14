@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { RARITY } from '../data/gear';
 import { ITEMS, type ItemDef } from '../data/items';
 import { Inventory } from '../systems/Inventory';
 import { Button, COLOR, fit, frame, label, sizeFrame, Window } from './kit';
@@ -90,6 +91,8 @@ export class InventoryPanel {
     icon.setTexture(sheet, def.icon).setVisible(true);
     const h = sheet === 'armor-icons' ? 54 : 16;
     icon.setScale((size * (sheet === 'armor-icons' ? 0.8 : 0.56)) / h);
+    if (def.tint) icon.setTint(def.tint);
+    else icon.clearTint();
   }
 
   refresh() {
@@ -108,14 +111,19 @@ export class InventoryPanel {
       // itens que o herói ainda não pode usar ficam apagados, com borda vermelha
       const locked = !!ITEMS[s.id].equip && !!inv.missing(s.id);
       c.icon.setAlpha(locked ? 0.4 : 1);
+      // moldura na cor da raridade; vermelha se ainda não dá para usar
+      const tier = ITEMS[s.id].tier ?? 0;
       if (locked) c.box.setTint(0xff8080);
+      else if (tier) c.box.setTint(RARITY[tier].frame);
       else c.box.clearTint();
     });
-    const eqIds = [`weapon_${inv.equipped.weapon}`, `armor_${inv.equipped.armor}`];
+    const eqIds = [inv.gear.weapon, inv.gear.armor];
     this.eq.forEach((e, i) => {
       const def = ITEMS[eqIds[i]];
       this.setIcon(e.icon, def, this.cell * 1.6);
-      e.name.setText(def.name);
+      e.name.setText(def.name).setColor(RARITY[def.tier ?? 0].color);
+      if (def.tier) e.box.setTint(RARITY[def.tier].frame);
+      else e.box.clearTint();
     });
     const w = inv.weight;
     const over = w > inv.maxWeight;
@@ -126,7 +134,7 @@ export class InventoryPanel {
     if (s && d) {
       const extra = d.info ? ` · ${d.info}` : '';
       const req = need ? ` · ${need}` : '';
-      this.detail.setText(`${d.name}${s.qty > 1 ? ` · ${s.qty} un` : ''}${extra} · ${(d.weight * s.qty).toFixed(1)} kg${req}`).setColor(need ? COLOR.red : COLOR.text);
+      this.detail.setText(`${d.name}${s.qty > 1 ? ` · ${s.qty} un` : ''}${extra} · ${(d.weight * s.qty).toFixed(1)} kg${req}`).setColor(need ? COLOR.red : RARITY[d.tier ?? 0].color);
     } else
       this.detail
         .setText(over ? 'Carga acima do máximo: Teren fica mais lento.' : 'Toque num item para ver; armas e armaduras podem ser equipadas.')

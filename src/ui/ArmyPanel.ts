@@ -135,14 +135,12 @@ export class ArmyPanel {
     this.refresh();
   }
 
+  /** Abre o painel de Clãs (definido pela UIScene). */
+  onClans?: () => void;
+
   private war() {
-    const a = this.world.army;
-    if (a.war) return;
-    if (!a.allies.length) return this.say('Recrute ou convoque soldados antes de declarar guerra');
-    a.prepare(() => {
-      a.declareWar(Math.max(10, a.size - a.garrison.length));
-      this.setOpen(false);
-    });
+    if (this.world.army.war) return;
+    this.onClans?.();
   }
 
   refresh(force = false) {
@@ -175,7 +173,7 @@ export class ArmyPanel {
     }
     this.campBtn.setLabel(a.garrison.length ? `CONVOCAR (${a.garrison.length})` : 'AQUARTELAR').setIcon(a.garrison.length ? 11 : 10);
     this.campBtn.setEnabled(!!a.garrison.length || (field > 0 && !a.war));
-    this.warBtn.setLabel(a.war ? `EM GUERRA: ${a.war.house}` : `DECLARAR GUERRA (${Math.max(10, field)})`).setEnabled(!a.war && field > 0);
+    this.warBtn.setLabel(a.war ? `EM GUERRA: ${a.war.house}` : 'DESAFIAR UM CLÃ').setEnabled(!a.war);
     this.info.setText(
       [
         'CURA · fora de combate por 4 s, os soldados recuperam 4% da vida por segundo no campo e 15% dentro de cidades (brilho verde).',

@@ -45,6 +45,8 @@ preciso rodar se você alterar `scripts/generate-assets.mjs`).
 | Teren: atributos e patentes | ícone do **escudo** (selo dourado +N quando há pontos) | C |
 | Quartel (recrutar, aquartelar, guerra) | ícone do **estandarte** | G |
 | Mapa do mundo | ícone do **mapa** ou tocar no **minimapa** | M |
+| Missões do Lorde | ícone do **pergaminho** | T |
+| Ranking de Clãs | ícone da **coroa** | R |
 | Ordens do exército | botões **seguir / atacar / segurar** sob a vida | 1 / 2 / 3 |
 | Aquartelar / convocar (andar sozinho) | botão da **tenda** (vira corneta com o exército no quartel) | 4 |
 
@@ -175,6 +177,41 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   MAPA marca as cidades (retângulo branco com o nome) e os spots (círculo
   dourado).
 
+### Clãs, missões e saque — o loop do começo (`src/systems/Clans.ts`, `Missions.ts`, `Bosses.ts`, `Loot.ts`, `src/data/gear.ts`)
+- **Começo:** o jogo abre na tela **FUNDE O TEU CLÃ** (nome com o teclado do
+  celular, 12 brasões, 12 cores). A cor vai para os soldados (arte tingida e
+  anel no chão) e o brasão para o HUD. O mundo fica pausado até fundar.
+- **Objetivo:** fazer o clã subir Bando → Clã → Clã Juramentado → Clã de
+  Renome → Clã Lendário → **Casa** (Casa = 30.000 de Glória **e** a última
+  patente, Soberano de Vaelmor). A Glória do clã é a do herói.
+- **Clãs rivais (≈17 no começo):** cada um tem sede numa cidade, líder com
+  nome, brasão, cor, Glória, soldados e uma peça rara. Um motor do mundo
+  (a cada ~22 s) faz os clãs recrutarem, guerrearem entre si, subirem de
+  degrau, surgirem e se desfazerem; tudo vira **crônica** (linha no alto da
+  tela e lista no painel). De vez em quando um rival de força parecida
+  **desafia** o jogador: 3 min para aceitar, ou o clã perde Glória.
+- **Ranking de Clãs** (ícone da coroa, tecla R): lista por Glória com brasão,
+  degrau, cidade e soldados; ficha do clã; **DESAFIAR** traz o exército
+  inteiro do rival com o **líder** à frente (personagem nomeado). Vencer tira
+  Glória e soldados dele; o líder derrotado deixa cair a peça que carregava.
+  Cada rival descansa 2 min depois de uma batalha.
+- **Missões** (ícone do pergaminho, tecla T): o **Lorde** de cada cidade
+  oferece 3 missões (é preciso estar na cidade): **caçada** (N criaturas no
+  bioma), **procurado** (personagem nomeado marcado no minimapa e no mapa,
+  que deixa cair uma peça rara), **guerra** contra um clã e **duelo** de
+  campeão. Até 3 ativas, com progresso no HUD; cumpridas pagam na hora em
+  Glória e recrutas.
+- **Armas e armaduras raras:** 32 armas (4 por raridade para espada,
+  montante, arco e cajado) e 20 armaduras, em 4 raridades — **Temperada**
+  (×1,25 dano / +4% defesa), **Rúnica** (×1,6 / +8%, com brilho),
+  **Ancestral** (×2,1 / +12%) e **Lendária** (×2,8 / +17%). Cada uma tem nome,
+  tom e brilho próprios (contorno luminoso na arma e no corpo) e exige mais do
+  atributo principal. **Só se ganham derrotando personagens**: campeões,
+  líderes de clã, procurados e, raramente (5%), bandidos. Caem no chão com um
+  facho de luz na cor da raridade e são pegos ao passar por cima. A mochila
+  agora fica salva. Não há craft; a coleta vai servir para erguer a **sede do
+  clã** (próxima etapa).
+
 ### Patentes e Glória (`src/systems/Ranks.ts`, `src/systems/Progress.ts`)
 - Teren **não tem nível**: tem **patente**. Sobe quando **todos os 4
   atributos** chegam ao mínimo, quando tem a **Glória** exigida e, em algumas,
@@ -239,7 +276,13 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - **Motor:** um sprite por soldado (as camadas LPC do herói são fundidas numa
   folha de 96 px por tipo e lado), sem física do Phaser (grade espacial para
   se afastarem, colisão direto no mapa), IA em turnos alternados e flechas
-  num pool. Lógica medida: ~3 ms por quadro com 500 soldados num desktop.
+  num pool. Para 500 × 500: alvo achado numa grade grossa por lado (em vez de
+  varrer todos os soldados), soldados fora da tela atualizam em quadros
+  alternados, anel no chão sem reordenar profundidade, cada quadro da folha
+  recortado ao desenho (a GPU deixa de pintar ~70% de pixels transparentes) e
+  números de dano/avisos como BitmapText reaproveitado (antes, cada número era
+  um canvas novo — o que mais travava no iPhone). Lógica medida: ~24 ms → ~8 ms
+  por quadro com 1000 soldados.
 - Debug: **+500 glória**, **Recrutas cheios**, **Aliados +50** (ignora o limite), **Inimigos
   50 / 100 / 300** (teste de estresse), **Limpar exércitos** e **Campeão:
   próximo**.

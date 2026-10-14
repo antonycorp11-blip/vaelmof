@@ -1,9 +1,10 @@
 /**
  * Itens. Os recursos são **por região**: a madeira de um pinheiro do Snowland
  * não é a mesma de um carvalho de Greenland, e as receitas de craft vão pedir
- * o material específico. Ícones em items.png (16×16), na ordem de `icon`.
+ * o material específico (a coleta vai servir para erguer a sede do clã). Ícones em items.png (16×16), na ordem de `icon`.
  */
 import { HERO_SHEETS, OUTFITS, type OutfitId, type WeaponId } from '../entities/heroSheets';
+import { GEAR, RARITY } from './gear';
 
 export type Family = 'wood' | 'stone' | 'ore' | 'crystal' | 'fiber' | 'ice' | 'fruit' | 'weapon' | 'armor';
 export type Region = 'green' | 'snow' | 'block' | 'black' | 'dust';
@@ -22,6 +23,11 @@ export interface ItemDef {
   weight: number;
   family: Family;
   region?: Region;
+  /** Raridade (0 = comum). */
+  tier?: number;
+  /** Tom e brilho do equipamento raro. */
+  tint?: number;
+  glow?: number;
 }
 
 export const REGION_NAME: Record<Region, string> = {
@@ -71,4 +77,18 @@ for (const id of Object.keys(OUTFITS) as OutfitId[]) {
   if (o.speed !== 1) parts.push(`velocidade ${o.speed > 1 ? '+' : ''}${Math.round((o.speed - 1) * 100)}%`);
   if (o.bonus) parts.push(o.desc);
   ITEMS[`armor_${id}`] = { id: `armor_${id}`, name: o.name, icon: o.icon, sheet: 'armor-icons', weight: ARMOR_WEIGHT[id], family: 'armor', equip: { kind: 'armor', id }, info: parts.join(' · ') };
+}
+
+// equipamento raro (ver data/gear.ts): mesma arte e ícone da base, com tom e brilho
+const pct = (k: number) => `${Math.round(k * 100)}%`;
+for (const g of Object.values(GEAR)) {
+  const R = RARITY[g.tier];
+  if (g.kind === 'weapon') {
+    const b = ITEMS[`weapon_${g.base}`];
+    ITEMS[g.id] = { ...b, id: g.id, name: g.name, equip: { kind: 'weapon', id: g.base as WeaponId }, tier: g.tier, tint: g.tint, glow: g.glow, info: `${R.name} · dano ×${R.power.toFixed(2).replace('.', ',')} · ${HERO_SHEETS[g.base as WeaponId].class}` };
+  } else {
+    const b = ITEMS[`armor_${g.base}`];
+    const o = OUTFITS[g.base as OutfitId];
+    ITEMS[g.id] = { ...b, id: g.id, name: g.name, equip: { kind: 'armor', id: g.base as OutfitId }, tier: g.tier, tint: g.tint, glow: g.glow, info: `${R.name} · defesa ${pct(o.defense + R.guard)}${o.bonus ? ` · ${o.desc}` : ''}` };
+  }
 }

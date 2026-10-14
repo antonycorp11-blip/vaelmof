@@ -84,7 +84,7 @@ export class MapPanel {
     fit(this.title, 15, u).setPosition(x0 + pad, y0 + 9 * u);
     this.close.place(x0 + W - pad - 30 * u, y0 + 6 * u, u, 30 * u, 24 * u);
     fit(this.legend, 10, u)
-      .setText(`■ cidade   ◯ spot de up   ◆ campeão   ▲ você${this.teleport ? '   · toque para ir até lá' : ''}`)
+      .setText(`■ cidade   ◯ spot de up   ◆ campeão   ● procurado   ▲ você${this.teleport ? '   · toque para ir até lá' : ''}`)
       .setPosition(x0 + pad, y0 + head + side + 6 * u);
     const k = s / (TILE * 2);
     this.world.map.cities.forEach((c, i) => {
@@ -116,6 +116,13 @@ export class MapPanel {
       const [x, y] = at(c.x, c.y);
       const r = 4 * u;
       g.fillStyle(0xff5a5a, 1).fillPoints([{ x, y: y - r }, { x: x + r, y }, { x, y: y + r }, { x: x - r, y }], true);
+    }
+    for (const m of w.missions.active) {
+      if (!m.target) continue;
+      const [x, y] = at(m.target.x, m.target.y);
+      g.fillStyle(0x0b0d14, 1).fillCircle(x, y, 5 * u);
+      g.fillStyle(0xff3a3a, 1).fillCircle(x, y, 4 * u);
+      g.fillStyle(0xffffff, 1).fillRect(x - 0.5 * u, y - 2.5 * u, u, 3 * u).fillRect(x - 0.5 * u, y + 1.2 * u, u, u);
     }
     const p = w.player;
     const [px, py] = at(p.x, p.y);

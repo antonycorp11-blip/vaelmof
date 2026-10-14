@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { ITEMS } from '../data/items';
 import type { OutfitId, WeaponId } from '../entities/heroSheets';
 
+const SAVE_KEY = 'vaelmor.inv.v1';
+
 export interface ItemStack {
   id: string;
   qty: number;
@@ -19,6 +21,8 @@ export class Inventory extends Phaser.Events.EventEmitter {
   readonly slots: (ItemStack | null)[] = Array(Inventory.SLOTS).fill(null);
   /** Equipado (fora da mochila): uma arma e uma armadura completa. */
   equipped: { weapon: WeaponId; armor: OutfitId } = { weapon: 'sword', armor: 'leather' };
+  /** Item exato equipado (a peça rara, com raridade, tom e brilho). */
+  gear = { weapon: 'weapon_sword', armor: 'armor_leather' };
   /** Requisitos de atributo: devolve o que falta para usar o item ('' = pode). */
   missing: (id: string) => string = () => '';
   /** Carga extra (kg) dada pela Força. */
@@ -42,12 +46,14 @@ export class Inventory extends Phaser.Events.EventEmitter {
       return false;
     }
     const e = def.equip;
-    const old = e.kind === 'weapon' ? `weapon_${this.equipped.weapon}` : `armor_${this.equipped.armor}`;
+    const old = this.gear[e.kind];
     if (e.kind === 'weapon') this.equipped.weapon = e.id;
     else this.equipped.armor = e.id;
+    this.gear[e.kind] = def.id;
     this.slots[i] = { id: old, qty: 1 };
     this.emit('change');
-    this.emit('equip', e.kind, e.id);
+    this.emit('equip', e.kind, e.id, def.id);
+    this.save();
     return true;
   }
 
@@ -62,7 +68,7 @@ export class Inventory extends Phaser.Events.EventEmitter {
    */
   enforce() {
     const fix = (kind: 'weapon' | 'armor', base: string) => {
-      const cur = kind === 'weapon' ? `weapon_${this.equipped.weapon}` : `armor_${this.equipped.armor}`;
+      const cur = this.gear[kind];
       if (!this.missing(cur)) return;
       const i = this.slots.findIndex((s) => s?.id === `${kind}_${base}`);
       if (i >= 0) this.equipAt(i);
@@ -89,7 +95,10 @@ export class Inventory extends Phaser.Events.EventEmitter {
       this.slots[i] = { id, qty: k };
       left -= k;
     }
-    if (left !== qty) this.emit('change');
+    if (left !== qty) {
+      this.emit('change');
+      this.save();
+    }
     return qty - left;
   }
 
@@ -98,7 +107,7 @@ export class Inventory extends Phaser.Events.EventEmitter {
   }
 
   get weight(): number {
-    const eq = ITEMS[`weapon_${this.equipped.weapon}`].weight + ITEMS[`armor_${this.equipped.armor}`].weight;
+    const eq = ITEMS[this.gear.weapon].weight + ITEMS[this.gear.armor].weight;
     return eq + this.slots.reduce((w, s) => w + (s ? ITEMS[s.id].weight * s.qty : 0), 0);
   }
 
@@ -107,5 +116,73 @@ export class Inventory extends Phaser.Events.EventEmitter {
     const k = this.weight / this.maxWeight;
     if (k <= 1) return 1;
     return Math.max(0.4, 1 - (k - 1) * 1.2);
+  }
+
+  /** Tira `qty` do item (coleta gasta na sede, etc.). */
+  remove(id: string, qty: number): number {
+    let left = qty;
+    for (let i = this.slots.length - 1; i >= 0 && left > 0; i--) {
+      const s = this.slots[i];
+      if (!s || s.id !== id) continue;
+      const k = Math.min(left, s.qty);
+      s.qty -= k;
+      left -= k;
+      if (!s.qty) this.slots[i] = null;
+    }
+    if (left !== qty) {
+      this.emit('change');
+      this.save();
+    }
+    return qty - left;
+  }
+
+  // ---------------------------------------------------------------- salvar
+  private saveAt = 0;
+  save() {
+    // a coleta chama muito: grava no máximo a cada 1,5 s
+    const now = performance.now();
+    if (now - this.saveAt < 1500) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = setTimeout(() => this.save(), 1600);
+      return;
+    }
+    this.saveAt = now;
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ slots: this.slots, gear: this.gear }));
+    } catch {
+      /* sem espaço */
+    }
+  }
+  private saveTimer?: ReturnType<typeof setTimeout>;
+
+  /** Carrega a mochila salva; devolve false se não havia save. */
+  load(): boolean {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return false;
+      const d = JSON.parse(raw);
+      (d.slots as (ItemStack | null)[]).forEach((st, i) => {
+        if (i < Inventory.SLOTS) this.slots[i] = st && ITEMS[st.id] ? { id: st.id, qty: st.qty } : null;
+      });
+      for (const kind of ['weapon', 'armor'] as const) {
+        const id = d.gear?.[kind];
+        const def = id && ITEMS[id];
+        if (def?.equip?.kind !== kind) continue;
+        this.gear[kind] = id;
+        if (def.equip.kind === 'weapon') this.equipped.weapon = def.equip.id;
+        else this.equipped.armor = def.equip.id;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  reset() {
+    try {
+      localStorage.removeItem(SAVE_KEY);
+    } catch {
+      /* ignora */
+    }
   }
 }

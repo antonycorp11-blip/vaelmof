@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { PLAYER } from '../config';
 import { BUFFS, WEAPONS, type BuffId, type Effect, type Move, type WeaponDef } from '../data/weapons';
+import { ITEMS } from '../data/items';
+import { RARITY } from '../data/gear';
 import { consume, inputState } from '../input/InputState';
 import type { WorldScene } from '../scenes/WorldScene';
 import { Creature, DEPTH } from './Creature';
@@ -183,7 +185,7 @@ export class Player extends Creature {
     const P = this.scene.progress;
     const id = this.weapon.id;
     const base = id === 'bow' ? P.rangedMul : id === 'staff' ? P.magicMul : P.meleeMul;
-    let k = base;
+    let k = base * RARITY[ITEMS[this.scene.inventory.gear.weapon]?.tier ?? 0].power;
     for (const b of this.activeBuffs) k *= BUFFS[b].dmg;
     return k;
   }
@@ -197,7 +199,7 @@ export class Player extends Creature {
 
   /** Quanto do dano a armadura (e o grito de guerra) absorve. */
   get defense(): number {
-    let d = OUTFITS[this.outfit].defense;
+    let d = OUTFITS[this.outfit].defense + RARITY[ITEMS[this.scene.inventory.gear.armor]?.tier ?? 0].guard;
     for (const b of this.activeBuffs) d += BUFFS[b].defense;
     return Math.min(0.8, d);
   }
@@ -310,7 +312,35 @@ export class Player extends Creature {
   private flash(color: number, ms: number) {
     const all = [this, this.back, this.wBg, this.wFg];
     for (const s of all) s.setTintFill(color);
-    this.scene.time.delayedCall(ms, () => all.forEach((s) => s.clearTint()));
+    this.scene.time.delayedCall(ms, () => {
+      all.forEach((s) => s.clearTint());
+      this.applyLook();
+    });
+  }
+
+  /** Tom e brilho do equipamento raro (arma nas camadas da arma, armadura no corpo). */
+  applyLook() {
+    const inv = this.scene.inventory;
+    const w = ITEMS[inv.gear.weapon];
+    const a = ITEMS[inv.gear.armor];
+    for (const s of [this.wBg, this.wFg]) {
+      if (w?.tint) s.setTint(w.tint);
+      else s.clearTint();
+    }
+    for (const s of [this as Phaser.GameObjects.Sprite, this.back]) {
+      if (a?.tint) s.setTint(a.tint);
+      else s.clearTint();
+    }
+    // brilho (WebGL): contorno luminoso na arma e, nas armaduras raras, no corpo
+    const glow = (s: Phaser.GameObjects.Sprite, color?: number, k = 1) => {
+      const fx = s.preFX;
+      if (!fx) return;
+      fx.clear();
+      if (color) fx.addGlow(color, 3 * k, 0, false, 0.1, 6);
+    };
+    glow(this.wFg, w?.glow);
+    glow(this.wBg, w?.glow);
+    glow(this, a?.glow, 0.6);
   }
 
   // ---------------------------------------------------------------- equipamento

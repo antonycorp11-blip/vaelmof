@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { FloatTexts } from '../systems/FloatTexts';
 import { ACTIVE_RADIUS, DEBUG, TILE, VIEW_TILES_H, VIEW_TILES_W, WORLD_SEED } from '../config';
 import { Animal } from '../entities/Animal';
 import { Bandit } from '../entities/Bandit';
@@ -25,7 +26,12 @@ import { fmtPts, Progress } from '../systems/Progress';
 import { SpawnSpots, type Spot } from '../systems/SpawnSpots';
 import { Biome, BIOMES, generateWorld, type WorldData } from '../systems/WorldGenerator';
 import { TileCollision } from '../systems/TileCollision';
-import { Army } from '../systems/Army';
+import { allyTint, Army } from '../systems/Army';
+import { Bosses } from '../systems/Bosses';
+import { Clans, type Clan } from '../systems/Clans';
+import { Loot } from '../systems/Loot';
+import { Missions } from '../systems/Missions';
+import { rollGear } from '../data/gear';
 import { Champions } from '../systems/Champions';
 import type { Hittable } from '../entities/Hittable';
 import { Streamer } from '../systems/Streamer';
@@ -60,6 +66,11 @@ export class WorldScene extends Phaser.Scene {
   /** Insígnia da patente sobre a cabeça do herói. */
   private rankIcon!: Phaser.GameObjects.Image;
   champions!: Champions;
+  /** Clãs (o do jogador e os rivais), missões dos Lordes, personagens nomeados e saque. */
+  clans!: Clans;
+  missions!: Missions;
+  bosses!: Bosses;
+  loot!: Loot;
   animals: Animal[] = [];
   flames: Flame[] = [];
   dayNight!: DayNightSystem;
@@ -123,6 +134,11 @@ export class WorldScene extends Phaser.Scene {
     this.army = new Army(this);
     this.army.setScale(this.player.scaleX);
     this.champions = new Champions(this);
+    this.loot = new Loot(this);
+    this.bosses = new Bosses(this);
+    this.clans = new Clans(this);
+    this.missions = new Missions(this);
+    this.setupClans();
     this.rankIcon = this.add.image(0, 0, 'rank-icons', this.progress.rankIdx).setDepth(DEPTH.fx - 50);
     this.progress.on('change', () => this.rankIcon.setFrame(this.progress.rankIdx));
     this.events.on('player-died', () => this.time.delayedCall(2400, () => this.army.regroup()));
@@ -153,10 +169,19 @@ export class WorldScene extends Phaser.Scene {
     this.inventory.on('equip', (kind: 'weapon' | 'armor', id: string) => {
       if (kind === 'weapon') this.player.setWeapon(id as WeaponId);
       else this.player.setOutfit(id as OutfitId);
+      this.player.applyLook();
     });
-    // começa com a espada e o traje de couro equipados; o resto vai na mochila
-    for (const w of ['greatsword', 'staff', 'bow']) this.inventory.add(`weapon_${w}`, 1);
-    for (const a of ['plate', 'legion', 'arcane', 'hunter']) this.inventory.add(`armor_${a}`, 1);
+    // mochila salva; na primeira vez, a espada e o traje de couro equipados e o resto das bases na mochila
+    if (this.inventory.load()) {
+      const eq = this.inventory.equipped;
+      if (eq.weapon !== 'sword') this.player.setWeapon(eq.weapon);
+      if (eq.armor !== 'leather') this.player.setOutfit(eq.armor);
+      this.player.applyLook();
+      this.inventory.emit('change');
+    } else {
+      for (const w of ['greatsword', 'staff', 'bow']) this.inventory.add(`weapon_${w}`, 1);
+      for (const a of ['plate', 'legion', 'arcane', 'hunter']) this.inventory.add(`armor_${a}`, 1);
+    }
     this.inventory.on('denied', (msg: string) => this.events.emit('toast', msg));
     this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.Q).on('down', () => {
       const i = this.inventory.nextWeaponSlot();
@@ -257,6 +282,72 @@ export class WorldScene extends Phaser.Scene {
     // o número só aparece perto do herói (numa guerra grande seriam centenas)
     const p = this.player;
     if (Math.abs(x - p.x) < 170 && Math.abs(y - p.y) < 110) this.fx.floatText(x, y, `${v > 0 ? '+' : ''}${fmtPts(v)} glória`, v > 0 ? '#ffd34a' : '#ff7070');
+  }
+
+  /** Cor do clã nos soldados, guerras de clã e saque dos bandidos. */
+  private setupClans() {
+    const C = this.clans;
+    if (C.founded) this.army.setClanColor(C.player.color);
+    C.on('founded', (c: Clan) => this.army.setClanColor(c.color));
+    this.army.on('war-end', (w: { clan?: string; won: boolean; killed: number; glory: number }) => {
+      if (this.clanLeader) {
+        // o líder que sobrou foge com o exército
+        this.bosses.remove(this.clanLeader);
+        this.clanLeader = undefined;
+      }
+      const c = w.clan ? C.byId(w.clan) : undefined;
+      if (!c) return;
+      C.settle(c, w.won, w.killed, Math.abs(w.glory));
+      if (w.won) this.events.emit('clan-beaten', c.id);
+    });
+    // bandidos comuns: raramente uma peça Temperada
+    this.events.on('enemy-killed', (e: Enemy) => {
+      if (!e.transient && e instanceof Bandit && Math.random() < 0.05) this.loot.drop(rollGear(1), e.x, e.y);
+    });
+  }
+
+  private clanLeader?: Enemy;
+
+  /** Desafia um clã rival: o exército dele vem com o líder à frente. Devolve o motivo se não der. */
+  startClanWar(c: Clan): string {
+    const why = this.clans.challengeBlock(c);
+    if (why) return why;
+    const n = this.clans.armyOf(c);
+    this.army.prepare(() => {
+      this.army.declareWar(n, { name: c.name, color: c.color, clan: c.id });
+      const w = this.army.war;
+      if (!w) return;
+      const t = this.clans.tier(c);
+      this.clanLeader = this.bosses.spawn({
+        name: `${c.leader}`,
+        x: w.x,
+        y: w.y,
+        hp: Math.round(60 + this.clans.glory(c) / 18),
+        damage: 2.5 + t * 1.4,
+        tint: allyTint(c.color),
+        scale: 1.2,
+        points: 10 + t * 8,
+        rank: Math.min(9, t * 2 + 1),
+        loot: c.gear,
+        onKill: () => {
+          this.clanLeader = undefined;
+          this.events.emit('toast', `${c.leader}, líder do ${c.name}, caiu!`);
+        },
+      });
+      if (this.clans.challenge?.clan === c.id) this.clans.challenge = null;
+      this.clans.emit('change');
+    });
+    return '';
+  }
+
+  /** Apaga todo o progresso salvo e recomeça (debug). */
+  resetAll() {
+    try {
+      for (const k of Object.keys(localStorage)) if (k.startsWith('vaelmor.')) localStorage.removeItem(k);
+    } catch {
+      /* ignora */
+    }
+    location.reload();
   }
 
   /** Abates rendem Glória; atributos mudam vida, carga e requisitos. */
@@ -438,6 +529,7 @@ export class WorldScene extends Phaser.Scene {
       g.generateTexture('impact-star', 11, 11);
       g.destroy();
     }
+    const texts = new FloatTexts(this, DEPTH.fx + 2);
     const stars: Phaser.GameObjects.Image[] = [];
     const flashes: Phaser.GameObjects.Image[] = [];
     const take = (pool: Phaser.GameObjects.Image[], make: () => Phaser.GameObjects.Image) => pool.find((i) => !i.visible) ?? (pool.length < 24 ? (pool.push(make()), pool[pool.length - 1]) : pool[0]);
@@ -456,29 +548,8 @@ export class WorldScene extends Phaser.Scene {
         this.tweens.add({ targets: fl, scale: 0.45, alpha: 0, duration: 200, ease: 'Quad.easeOut', onComplete: () => fl.setVisible(false) });
       },
       ember: (x, y) => embers.emitParticleAt(x, y, 1),
-      damageText: (x, y, amount, color = '#ffffff') => {
-        const t = this.add
-          .text(x, y, String(amount), {
-            fontFamily: 'Tiny5, monospace',
-            fontSize: '8px',
-            fontStyle: 'bold',
-            color,
-            stroke: '#1e1a24',
-            strokeThickness: 2,
-          })
-          .setOrigin(0.5)
-          .setResolution(4)
-          .setDepth(DEPTH.fx + 2);
-        this.tweens.add({ targets: t, y: y - 12, alpha: 0, duration: 600, ease: 'Quad.easeOut', onComplete: () => t.destroy() });
-      },
-      floatText: (x, y, text, color = '#ffffff') => {
-        const t = this.add
-          .text(x, y, text, { fontFamily: 'Tiny5, monospace', fontSize: '7px', fontStyle: 'bold', color, stroke: '#1e1a24', strokeThickness: 2 })
-          .setOrigin(0.5)
-          .setResolution(4)
-          .setDepth(DEPTH.fx + 2);
-        this.tweens.add({ targets: t, y: y - 14, alpha: 0, delay: 350, duration: 900, ease: 'Quad.easeOut', onComplete: () => t.destroy() });
-      },
+      damageText: (x, y, amount, color = '#ffffff') => texts.show(x, y, String(amount), color, 8, 12, 0, 600),
+      floatText: (x, y, text, color = '#ffffff') => texts.show(x, y, text, color, 7, 14, 350, 900),
     };
   }
 
@@ -524,6 +595,10 @@ export class WorldScene extends Phaser.Scene {
     this.player.update(time);
     this.army.update(time, dt);
     this.champions.update(time);
+    this.bosses.update();
+    this.loot.update(time);
+    this.clans.update(dt);
+    this.missions.update(time);
     const pl = this.player;
     this.rankIcon
       .setPosition(Math.round(pl.x), Math.round(pl.y - 25))

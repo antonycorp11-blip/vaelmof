@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { TILE } from '../config';
 import type { Enemy } from '../entities/Enemy';
 import type { WorldScene } from '../scenes/WorldScene';
+import { rollGear } from '../data/gear';
 import { CHAMPIONS, RANKS, type ChampionId } from './Ranks';
 
 interface Live {
@@ -48,6 +49,9 @@ export class Champions {
       scene.gainGlory(CHAMPIONS[c.id].points * 16, e.x, e.y - 50);
       c.enemy = undefined;
       scene.progress.defeat(c.id);
+      scene.events.emit('champion-defeated', c.id);
+      // o campeão deixa cair uma peça rara (mais rara quanto mais alta a patente dele)
+      scene.loot.drop(rollGear(1 + Math.floor(CHAMPIONS[c.id].rank / 3)), e.x, e.y);
       const unlock = RANKS.find((r) => r.duel === c.id);
       scene.events.emit('toast', `Você derrotou ${CHAMPIONS[c.id].name}!${unlock ? ` Duelo da patente ${unlock.name} vencido.` : ''}`);
     });

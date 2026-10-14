@@ -80,6 +80,17 @@ export class Minimap {
     return [x, y];
   }
 
+  /** Ponto fora da caixa: preso na borda, na direção dele (o jogador sabe para onde ir). */
+  private edge(wx: number, wy: number): [number, number] {
+    const p = this.world.player;
+    const cx = this.ix + this.iw / 2;
+    const cy = this.iy + this.ih / 2;
+    const dx = wx - p.x;
+    const dy = wy - p.y;
+    const k = Math.min((this.iw / 2 - 5 * this.u) / Math.max(1e-6, Math.abs(dx)), (this.ih / 2 - 5 * this.u) / Math.max(1e-6, Math.abs(dy)));
+    return [cx + dx * k, cy + dy * k];
+  }
+
   update(time: number) {
     const w = this.world;
     const p = w.player;
@@ -114,6 +125,14 @@ export class Minimap {
       const r = 3.5 * u;
       g.fillStyle(0x0b0d14, 1).fillPoints([{ x: pt[0], y: pt[1] - r - u }, { x: pt[0] + r + u, y: pt[1] }, { x: pt[0], y: pt[1] + r + u }, { x: pt[0] - r - u, y: pt[1] }], true);
       g.fillStyle(0xff5a5a, 1).fillPoints([{ x: pt[0], y: pt[1] - r }, { x: pt[0] + r, y: pt[1] }, { x: pt[0], y: pt[1] + r }, { x: pt[0] - r, y: pt[1] }], true);
+    }
+    // procurados das missões: alvo vermelho
+    for (const m of w.missions.active) {
+      if (!m.target) continue;
+      const pt = this.toScreen(m.target.x, m.target.y) ?? this.edge(m.target.x, m.target.y);
+      g.fillStyle(0x0b0d14, 1).fillCircle(pt[0], pt[1], 4.5 * u);
+      g.fillStyle(0xff3a3a, 1).fillCircle(pt[0], pt[1], 3.5 * u);
+      g.fillStyle(0xffffff, 1).fillRect(pt[0] - 0.5 * u, pt[1] - 2.2 * u, u, 2.6 * u).fillRect(pt[0] - 0.5 * u, pt[1] + 1 * u, u, u);
     }
     // soldados
     for (const s of w.army.soldiers) {
