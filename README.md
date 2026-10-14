@@ -43,6 +43,8 @@ preciso rodar se você alterar `scripts/generate-assets.mjs`).
 | Trocar de arma / armadura | na **MOCHILA** (botão de classe ou MOCHILA na barra do topo): toque no item → EQUIPAR | Q (próxima arma) |
 | Mochila | botão **MOCHILA** na barra do topo | B |
 | Atributos (estilo MU) | botão **ATRIBUTOS** na barra do topo (mostra +N quando há pontos) | C |
+| Exército (recrutar, patentes, guerra) | botão **EXÉRCITO** na barra do topo | G |
+| Ordens do exército | botões **SEGUIR / ATACAR / SEGURAR** sob a vida | 1 / 2 / 3 |
 
 Os botões aparecem em aparelhos com toque (ou ao primeiro toque na tela).
 Em desktop sem toque, use `?touch=1` para exibi-los.
@@ -152,6 +154,51 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   **Cidade: próxima** (teleporta para cada spot / cidade, um por toque). O
   MAPA marca as cidades (retângulo branco com o nome) e os spots (círculo
   dourado).
+
+### Patentes (`src/systems/Ranks.ts`)
+- Teren **não tem nível**: tem **patente**. Sobe de patente quando **todos os
+  4 atributos** chegam ao mínimo dela; algumas pedem também **vencer um
+  campeão** em duelo. A patente define quantos soldados ele comanda.
+
+  | Patente | Cada atributo ≥ | Duelo | Exército |
+  |---|---|---|---|
+  | Recruta | 10 | — | 5 |
+  | Soldado | 20 | — | 10 |
+  | Cabo | 40 | — | 20 |
+  | Sargento | 70 | Brakk, o Saqueador (sul de Brumavale) | 35 |
+  | Tenente | 110 | — | 50 |
+  | Capitão | 170 | Ysra da Lâmina Fria (sul de Pedrafria) | 80 |
+  | Major | 250 | — | 120 |
+  | Coronel | 380 | Ulgar de Rochedo (sul de Rochedo) | 180 |
+  | General | 600 | — | 250 |
+  | Marechal | 1000 | Morvath, o Arauto (sul de Umbravale) | 300 |
+
+- Campeões (`src/systems/Champions.ts`): bandidos nomeados, maiores e muito
+  mais fortes, que esperam fora dos muros da cidade; derrotados, não voltam.
+- A patente aparece no painel de ATRIBUTOS (com o que falta para a próxima) e
+  a escada inteira no painel EXÉRCITO; subir de patente mostra um aviso.
+
+### Exércitos e guerra (`src/systems/Army.ts`, `src/ui/ArmyPanel.ts`)
+- **Recrutamento** no quartel de **Brumavale** (dentro dos muros): Espadachim
+  (1 recruta), Montante (2), Arqueiro (1) e Mago (3). Os recrutas da cidade
+  renovam 1 a cada 3 s (até 60); o limite é o da patente. O exército fica
+  salvo no aparelho.
+- **Ordens:** SEGUIR (formação atrás do herói), ATACAR (cada soldado busca o
+  inimigo mais próximo), SEGURAR (fica onde o herói estava).
+- Os soldados **sobem de patente** com abates (Recruta → Soldado → Veterano →
+  Elite), ganhando vida e dano. Quem morre se perde.
+- **Guerra:** DECLARAR GUERRA traz o exército de uma casa rival (cada casa
+  tem sua cor) do mesmo tamanho e composição do seu. Ao perder 70% do
+  exército, o inimigo foge: **vitória**, com pontos de atributo. Se Teren cai,
+  é **derrota**. Cada soldado inimigo derrubado (pelo herói ou pelo exército)
+  vale 0,5 ponto.
+- **Motor:** um sprite por soldado (as camadas LPC do herói são fundidas numa
+  folha de 96 px por tipo e lado), sem física do Phaser (grade espacial para
+  se afastarem, colisão direto no mapa), IA em turnos alternados e flechas
+  num pool. Lógica medida: ~3 ms por quadro com 500 soldados num desktop.
+- Debug: **Recrutas cheios**, **Aliados +50** (ignora o limite), **Inimigos
+  50 / 100 / 300** (teste de estresse), **Limpar exércitos** e **Campeão:
+  próximo**.
 
 ### Atributos e spots de up — estilo MU (`src/systems/Progress.ts`, `src/systems/SpawnSpots.ts`, `src/ui/AttributesPanel.ts`)
 - Cada abate rende **pontos de atributo**: **0,5 na criatura básica** (slime,

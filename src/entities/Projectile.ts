@@ -57,7 +57,7 @@ export class Projectile extends Phaser.GameObjects.Sprite {
     this.traveled += this.def.speed * dt;
     this.light?.setPosition(this.x, this.y).setAlpha(0.3 + this.scene.dayNight.lightLevel * 0.5);
     if (this.def.texture === 'bolt' && Math.random() < 0.4) this.scene.fx.burst(this.x, this.y, this.def.color, 1);
-    for (const e of this.scene.enemies) {
+    for (const e of this.scene.hostiles) {
       if (e.dead || this.hitSet.has(e)) continue;
       if (Phaser.Math.Distance.Between(this.x, this.y + 6, e.fx, e.fy) < 11) {
         this.hitSet.add(e);

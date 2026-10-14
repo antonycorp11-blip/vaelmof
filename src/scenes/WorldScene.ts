@@ -25,6 +25,9 @@ import { fmtPts, Progress } from '../systems/Progress';
 import { SpawnSpots, type Spot } from '../systems/SpawnSpots';
 import { Biome, BIOMES, generateWorld, type WorldData } from '../systems/WorldGenerator';
 import { TileCollision } from '../systems/TileCollision';
+import { Army } from '../systems/Army';
+import { Champions } from '../systems/Champions';
+import type { Hittable } from '../entities/Hittable';
 import { Streamer } from '../systems/Streamer';
 import { TileWindow } from '../systems/TileWindow';
 import { WeatherSystem } from '../systems/WeatherSystem';
@@ -51,6 +54,10 @@ export class WorldScene extends Phaser.Scene {
   biome: Biome = Biome.VALE;
   player!: Player;
   enemies: Enemy[] = [];
+  /** Tudo que o herói pode atingir neste quadro: criaturas e soldados inimigos. */
+  hostiles: Hittable[] = [];
+  army!: Army;
+  champions!: Champions;
   animals: Animal[] = [];
   flames: Flame[] = [];
   dayNight!: DayNightSystem;
@@ -109,6 +116,10 @@ export class WorldScene extends Phaser.Scene {
     this.collision.add(this.player.body);
     // criaturas, casas, tochas e luzes nascem por região, perto da câmera
     this.streamer = new Streamer(this, map);
+    this.army = new Army(this);
+    this.army.setScale(this.player.scaleX);
+    this.champions = new Champions(this);
+    this.events.on('player-died', () => this.time.delayedCall(2400, () => this.army.regroup()));
     this.spots = new SpawnSpots(this, map);
     this.setupProgress();
 
@@ -454,6 +465,7 @@ export class WorldScene extends Phaser.Scene {
     cam.setZoom(zoom);
     cam.setRoundPixels(false);
     this.player?.fitPixels(zoom);
+    if (this.player) this.army?.setScale(this.player.scaleX);
     if (this.player) cam.centerOn(this.player.x, this.player.y);
   }
 
@@ -465,7 +477,13 @@ export class WorldScene extends Phaser.Scene {
     const dt = Math.min(delta, 50);
     this.dayNight.update(dt);
     this.streamer.update(this.cameras.main.midPoint.x, this.cameras.main.midPoint.y, time);
+    const H = this.hostiles;
+    H.length = 0;
+    for (const e of this.enemies) H.push(e);
+    for (const s of this.army.soldiers) if (s.team === 1 && !s.dead) H.push(s);
     this.player.update(time);
+    this.army.update(time, dt);
+    this.champions.update(time);
     this.gathering.update(time);
     this.spots.update(time);
     this.drawAim(time);
@@ -516,6 +534,7 @@ export class WorldScene extends Phaser.Scene {
   private drawBars(view: Phaser.Geom.Rectangle) {
     const g = this.bars;
     g.clear();
+    this.army.drawBars(g, view);
     for (const e of this.enemies) {
       if (e.dead || e.hp >= e.maxHp || !view.contains(e.x, e.y)) continue;
       const w = 12;
@@ -591,6 +610,7 @@ export class WorldScene extends Phaser.Scene {
     this.cameras.main.centerOn(px, py);
     this.tiles.recenter(px, py);
     this.streamer.update(px, py, this.time.now, true);
+    this.army.regroup();
     // chega com o clima do destino já aplicado
     const b = this.biomeAt(px, py);
     this.biomeW = BIOMES.map((_, i) => (i === b ? 1 : 0));

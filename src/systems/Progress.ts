@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { RANKS, rankIndex, type ChampionId, type Rank } from './Ranks';
 
 /**
  * Atributos no estilo MU: cada criatura derrotada rende pontos (0,5 nas
@@ -39,12 +40,50 @@ export class Progress extends Phaser.Events.EventEmitter {
   /** Pontos a distribuir (pode ter fração: 0,5 por criatura básica). */
   points = 0;
   kills = 0;
-  /** Total de pontos já ganhos (o "nível" do herói). */
+  /** Total de pontos já ganhos. */
   earned = 0;
+  /** Campeões já derrotados em duelo. */
+  duels = new Set<ChampionId>();
+  private lastRank = 0;
 
   constructor() {
     super();
     this.load();
+    this.lastRank = this.rankIdx;
+  }
+
+  /** Patente atual (Teren não tem nível: tem patente). */
+  get rankIdx(): number {
+    return rankIndex(this.attrs, this.duels);
+  }
+
+  get rank(): Rank {
+    return RANKS[this.rankIdx];
+  }
+
+  get nextRank(): Rank | undefined {
+    return RANKS[this.rankIdx + 1];
+  }
+
+  /** Quantos soldados pode comandar. */
+  get armyCap(): number {
+    return this.rank.army;
+  }
+
+  /** Duelo vencido: registra o campeão. */
+  defeat(id: ChampionId) {
+    if (this.duels.has(id)) return;
+    this.duels.add(id);
+    this.changed();
+  }
+
+  /** Avisa a mudança e, se a patente subiu, emite 'rank'. */
+  private changed() {
+    const r = this.rankIdx;
+    this.emit('change');
+    if (r > this.lastRank) this.emit('rank', RANKS[r]);
+    this.lastRank = r;
+    this.save();
   }
 
   get free(): number {
@@ -56,8 +95,14 @@ export class Progress extends Phaser.Events.EventEmitter {
     this.kills++;
     this.points += points;
     this.earned += points;
-    this.emit('change');
-    this.save();
+    this.changed();
+  }
+
+  /** Pontos ganhos fora de abate (debug, vitórias de guerra). */
+  grant(points: number) {
+    this.points += points;
+    this.earned += points;
+    this.changed();
   }
 
   /** Distribui `n` pontos no atributo (até o limite). Devolve quanto entrou. */
@@ -66,8 +111,7 @@ export class Progress extends Phaser.Events.EventEmitter {
     if (!k) return 0;
     this.attrs[a] += k;
     this.points -= k;
-    this.emit('change');
-    this.save();
+    this.changed();
     return k;
   }
 
@@ -117,7 +161,7 @@ export class Progress extends Phaser.Events.EventEmitter {
   // ------------------------------------------------------------ salvar
   save() {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ attrs: this.attrs, points: this.points, kills: this.kills, earned: this.earned }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ attrs: this.attrs, points: this.points, kills: this.kills, earned: this.earned, duels: [...this.duels] }));
     } catch {
       /* armazenamento indisponível (aba privada): segue sem salvar */
     }
@@ -132,6 +176,7 @@ export class Progress extends Phaser.Events.EventEmitter {
       this.points = Number(d.points) || 0;
       this.kills = Number(d.kills) || 0;
       this.earned = Number(d.earned) || 0;
+      if (Array.isArray(d.duels)) for (const id of d.duels) this.duels.add(id);
     } catch {
       /* sem save */
     }
@@ -142,6 +187,8 @@ export class Progress extends Phaser.Events.EventEmitter {
     this.points = 0;
     this.kills = 0;
     this.earned = 0;
+    this.duels.clear();
+    this.lastRank = 0;
     this.emit('change');
     this.save();
   }

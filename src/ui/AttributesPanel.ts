@@ -3,6 +3,7 @@ import { ITEMS } from '../data/items';
 import { BUFFS } from '../data/weapons';
 import type { WorldScene } from '../scenes/WorldScene';
 import { ATTR_MAX, ATTRS, fmtPts, REQUIREMENTS, type Attr } from '../systems/Progress';
+import { CHAMPIONS } from '../systems/Ranks';
 
 type Txt = Phaser.GameObjects.Text;
 
@@ -112,7 +113,7 @@ export class AttributesPanel {
     const A = P.attrs;
     const free = P.free;
     const w = p.weapon;
-    this.sub.setText(`${w.className} · ${w.name}   Abates ${P.kills} · Pontos ganhos ${fmtPts(P.earned)}`);
+    this.sub.setText(`Patente ${P.rank.name} · ${w.className} · ${w.name}   Abates ${P.kills} · Pontos ganhos ${fmtPts(P.earned)}`);
     const frac = P.points - free;
     this.points.setText(`PONTOS: ${free}${frac > 0.001 ? `  (+${fmtPts(frac)})` : ''}`).setColor(free > 0 ? '#9cff8a' : '#a89880');
     const effects: Record<Attr, string> = {
@@ -152,7 +153,11 @@ export class AttributesPanel {
       const need = ATTRS.filter((a) => (req[a.id] ?? 0) > A[a.id]).map((a) => `${a.short} ${req[a.id]}`);
       return `${ITEMS[id].name}: ${need.join(' ')}`;
     });
-    this.reqs.setText(lines.length ? `Bloqueados: ${lines.join('  ·  ')}` : 'Todos os itens da mochila podem ser usados.');
+    const N = P.nextRank;
+    const nextLine = N
+      ? `Próxima patente: ${N.name} — todos os atributos ${N.min}${N.duel ? `${P.duels.has(N.duel) ? '' : ` e vencer ${CHAMPIONS[N.duel].name} (ao sul de ${CHAMPIONS[N.duel].city})`}` : ''} · exército ${N.army}`
+      : 'Patente máxima: Marechal.';
+    this.reqs.setText(`${nextLine}\n${lines.length ? `Bloqueados: ${lines.join('  ·  ')}` : 'Todos os itens da mochila podem ser usados.'}`);
   }
 
   layout(u: number) {

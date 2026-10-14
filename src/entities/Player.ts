@@ -406,8 +406,8 @@ export class Player extends Creature {
   nearestTarget(range: number) {
     let best: { x: number; y: number } | null = null;
     let bestScore = Infinity;
-    for (const e of this.scene.enemies) {
-      if (e.dead || !e.body.enable) continue;
+    for (const e of this.scene.hostiles) {
+      if (!e.targetable) continue;
       const dx = e.fx - this.fx;
       const dy = e.fy - this.fy;
       const d = Math.hypot(dx, dy);
@@ -734,7 +734,7 @@ export class Player extends Creature {
     const half = Phaser.Math.DegToRad(M.arcDeg / 2);
     const dmg = Math.max(1, Math.round(M.damage * this.dmgMul));
     let hit = false;
-    for (const e of s.enemies) {
+    for (const e of s.hostiles) {
       if (e.dead) continue;
       const d = Phaser.Math.Distance.Between(cx, cy, e.fx, e.fy);
       if (d > M.range + 6) continue;
@@ -811,8 +811,8 @@ export class Player extends Creature {
   private targetAlong(aim: Phaser.Math.Vector2, range: number) {
     let best = { x: this.fx + aim.x * 90, y: this.fy + aim.y * 90 };
     let bestScore = Infinity;
-    for (const e of this.scene.enemies) {
-      if (e.dead || !e.body.enable) continue;
+    for (const e of this.scene.hostiles) {
+      if (!e.targetable) continue;
       const dx = e.fx - this.fx;
       const dy = e.fy - this.fy;
       const d = Math.hypot(dx, dy);
@@ -830,8 +830,8 @@ export class Player extends Creature {
 
   private areaHit(x: number, y: number, r: number, dmg: number, kb: number, stun?: number) {
     let hit = false;
-    for (const e of this.scene.enemies) {
-      if (e.dead || !e.body.enable) continue;
+    for (const e of this.scene.hostiles) {
+      if (!e.targetable) continue;
       if (Phaser.Math.Distance.Between(x, y, e.fx, e.fy) > r) continue;
       e.takeDamage(Math.max(1, Math.round(dmg)), x, y, kb);
       if (stun) e.stun(stun);

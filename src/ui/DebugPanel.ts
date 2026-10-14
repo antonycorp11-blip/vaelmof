@@ -29,6 +29,8 @@ export class DebugPanel {
   private spotIdx = -1;
   private cityBtn!: Btn;
   private cityIdx = -1;
+  private champBtn!: Btn;
+  private champIdx = -1;
   private spotMarks: Phaser.GameObjects.GameObject[] = [];
   private godBtn!: Btn;
 
@@ -76,10 +78,7 @@ export class DebugPanel {
     // progressão (estilo MU)
     add('+50 pontos', () => {
       const P = world.progress;
-      P.points += 50;
-      P.earned += 50;
-      P.emit('change');
-      P.save();
+      P.grant(50);
     }, '#6a4a10');
     add('Zerar atributos', () => world.progress.reset(), '#5a2a2a');
     this.spotBtn = add('Spot: próximo', () => {
@@ -90,6 +89,33 @@ export class DebugPanel {
       world.teleport(sp.x, sp.y + sp.r + 24);
       this.refresh();
     }, '#3a2414');
+    // exércitos (teste de recrutamento, guerra e desempenho)
+    add('Recrutas cheios', () => {
+      world.army.pool = world.army.poolMax;
+      world.army.emit('change');
+    }, '#1c2a44');
+    add('Aliados +50 (teste)', () => {
+      const a = world.army;
+      a.prepare(() => {
+        for (let i = 0; i < 50; i++) a.recruit((['sword', 'sword', 'greatsword', 'bow', 'staff'] as const)[i % 5], 1, true);
+      });
+    }, '#1c2a44');
+    for (const n of [50, 100, 300]) add(`Inimigos ${n}`, () => {
+      const a = world.army;
+      a.prepare(() => {
+        if (a.war) a.clearFoes();
+        a.declareWar(n);
+      });
+      this.setOpen(false);
+    }, '#5a2a2a');
+    add('Limpar exércitos', () => world.army.disband(), '#2a2234');
+    this.champBtn = add('Campeão: próximo', () => {
+      const list = world.champions.list;
+      this.champIdx = (this.champIdx + 1) % list.length;
+      const c = list[this.champIdx];
+      world.teleport(c.x, c.y + 120);
+      this.refresh();
+    }, '#6a4a10');
     this.cityBtn = add('Cidade: próxima', () => {
       const list = world.map.cities;
       this.cityIdx = (this.cityIdx + 1) % list.length;
@@ -142,6 +168,8 @@ export class DebugPanel {
     this.spotBtn?.setText(sp ? `Spot: ${sp.name}` : 'Spot: próximo');
     const city = this.world.map?.cities[this.cityIdx];
     this.cityBtn?.setText(city ? `Cidade: ${city.name}` : 'Cidade: próxima');
+    const ch = this.world.champions?.list[this.champIdx];
+    this.champBtn?.setText(ch ? `Campeão: ${ch.id}` : 'Campeão: próximo');
     this.flyBtn.setText(`Voo: ${this.world.flying ? 'SIM' : 'não'}`).setStyle({ backgroundColor: this.world.flying ? '#2e7a3a' : '#2a2234' });
     this.godBtn.setText(`Invencível: ${this.world.player?.god ? 'SIM' : 'não'}`).setStyle({ backgroundColor: this.world.player?.god ? '#2e7a3a' : '#2a2234' });
   }
@@ -158,16 +186,17 @@ export class DebugPanel {
     const pad = { x: Math.round(10 * u), y: Math.round(9 * u) };
     this.toggle.setFontSize(fs).setPadding(pad.x, pad.y, pad.x, pad.y).setPosition(x, y);
     this.info.setFontSize(Math.round(10 * u)).setPosition(8 * u, 6 * u);
-    // botões em 2 colunas, grandes o bastante para o dedo
-    const colW = 158 * u;
+    // botões em 3 colunas, grandes o bastante para o dedo
+    const colW = 168 * u;
+    const nc = 3;
     let by = 8 * u + this.info.height + 4 * u;
     this.buttons.forEach((b, i) => {
-      b.setFontSize(fs).setPadding(pad.x, Math.round(7 * u), pad.x, Math.round(7 * u));
-      b.setPosition(8 * u + (i % 2) * colW, by);
-      if (i % 2 === 1) by += b.height + 5 * u;
+      b.setFontSize(Math.round(11 * u)).setPadding(Math.round(8 * u), Math.round(6 * u), Math.round(8 * u), Math.round(6 * u));
+      b.setPosition(8 * u + (i % nc) * colW, by);
+      if (i % nc === nc - 1) by += b.height + 4 * u;
     });
-    if (this.buttons.length % 2) by += this.buttons[0].height + 5 * u;
-    const W = colW * 2 + 8 * u;
+    if (this.buttons.length % nc) by += this.buttons[0].height + 4 * u;
+    const W = colW * nc + 8 * u;
     this.bg.setSize(W, by + 4 * u);
     const { width } = this.scene.scale;
     this.panel.setPosition(Math.round((width - W) / 2), y + this.toggle.height + 6 * u);

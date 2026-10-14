@@ -41,14 +41,14 @@ export class Flame extends Phaser.GameObjects.Sprite {
     this.traveled += Math.hypot(this.vx, this.vy) * dt;
     this.light.setPosition(this.x, this.y).setAlpha(0.35 + this.scene.dayNight.lightLevel * 0.5);
     if (Math.random() < 0.5) this.scene.fx.ember(this.x, this.y);
-    const hitEnemy = this.scene.enemies.some((e) => !e.dead && Phaser.Math.Distance.Between(this.x, this.y + 4, e.fx, e.fy) < 10);
+    const hitEnemy = this.scene.hostiles.some((e) => !e.dead && Phaser.Math.Distance.Between(this.x, this.y + 4, e.fx, e.fy) < 10);
     if (hitEnemy || this.traveled >= PLAYER.flame.range || this.scene.blocksProjectile(this.x, this.y + 4)) this.explode();
   }
 
   explode() {
     const s = this.scene;
     const R = PLAYER.flame.radius;
-    for (const e of s.enemies) {
+    for (const e of s.hostiles) {
       if (e.dead) continue;
       if (Phaser.Math.Distance.Between(this.x, this.y + 4, e.fx, e.fy) <= R) e.takeDamage(Math.max(1, Math.round(PLAYER.flame.damage * this.mul)), this.x, this.y, 190);
     }

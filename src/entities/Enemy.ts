@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { WorldScene } from '../scenes/WorldScene';
 import { Creature } from './Creature';
+import type { Hittable } from './Hittable';
 
 const RESPAWN_MS = 45_000;
 
@@ -8,7 +9,7 @@ const RESPAWN_MS = 45_000;
  * Base dos inimigos: HP, dano por golpe/chama, piscar branco, knockback,
  * animação de morte e respawn no ponto de origem (longe do jogador).
  */
-export abstract class Enemy extends Creature {
+export abstract class Enemy extends Creature implements Hittable {
   maxHp: number;
   hp: number;
   dead = false;
@@ -63,6 +64,11 @@ export abstract class Enemy extends Creature {
     this.body.setMaxSpeed(30);
     this.anims.timeScale = 0.5;
     this.setTint(0x9fe8ff);
+  }
+
+  /** Vivo e ativo (perto da câmera): dá para mirar. */
+  get targetable(): boolean {
+    return !this.dead && this.body.enable;
   }
 
   get stunned(): boolean {
