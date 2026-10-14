@@ -156,6 +156,8 @@ export class Soldier implements Hittable {
     this.sprite.setScale(army.scale);
     this.ring.setScale(army.scale * 2);
     this.icon = s.add.image(x, y, 'rank-icons', this.iconFrame).setDepth(DEPTH.fx - 50).setScale(army.iconScale);
+    // traje: aliados pelo treino da sede, inimigos sorteados pela experiência
+    if (army.ready) this.sprite.setTexture(army.skin(team, type, team === 0 ? army.upTier : rankOf(kills)), 0);
     if (team === 0 && army.clanColor >= 0) {
       this.baseTint = allyTint(army.clanColor);
       this.sprite.setTint(this.baseTint);
@@ -299,6 +301,7 @@ export class Army extends Phaser.Events.EventEmitter {
       s.maxHp = Math.round(SOLDIERS[s.type].hp * s.hpMul);
       s.hp = Math.max(1, Math.round(s.maxHp * k));
       s.icon.setFrame(s.iconFrame);
+      if (this.ready) s.sprite.setTexture(this.skin(0, s.type, this.upTier), 0);
     }
     this.emit('change');
   }
@@ -878,6 +881,29 @@ export class Army extends Phaser.Events.EventEmitter {
     s.thinkAt = this.scene.time.now + 300;
     this.soldiers.push(s);
     return s;
+  }
+
+  /**
+   * Traje de um soldado. Aliados: sobe com o treino (couro → caçador →
+   * legionário → placas). Inimigos: sorteado entre os da experiência dele —
+   * cada exército rival é uma mistura, não uma fila de clones.
+   */
+  skin(team: 0 | 1, type: SoldierType, tier: number): string {
+    const t = Math.max(0, Math.min(3, tier));
+    const ALLY: Record<SoldierType, string[]> = {
+      sword: ['hunter', 'legion', 'legion', 'plate'],
+      greatsword: ['hunter', 'legion', 'plate', 'plate'],
+      bow: ['hunter', 'hunter', 'legion', 'legion'],
+      staff: ['arcane', 'arcane', 'arcane', 'arcane'],
+    };
+    const FOE: Record<SoldierType, string[][]> = {
+      sword: [['leather', 'hunter'], ['leather', 'hunter', 'legion'], ['hunter', 'legion', 'plate'], ['legion', 'plate', 'plate']],
+      greatsword: [['leather', 'hunter', 'legion'], ['hunter', 'legion'], ['legion', 'plate'], ['plate']],
+      bow: [['leather', 'hunter'], ['leather', 'hunter'], ['hunter', 'legion'], ['hunter', 'legion', 'plate']],
+      staff: [['arcane', 'leather'], ['arcane', 'hunter'], ['arcane'], ['arcane', 'plate']],
+    };
+    const outfit = team === 0 ? ALLY[type][t] : FOE[type][t][Math.floor(Math.random() * FOE[type][t].length)];
+    return this.textureFor(outfit, type);
   }
 
   /** Folha fundida de um traje + arma (para coletores e outros figurantes). Precisa de `prepare`. */

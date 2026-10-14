@@ -68,7 +68,9 @@ export function rankIndex(attrs: Record<string, number>, duels: Set<string>, glo
   for (let i = 1; i < RANKS.length; i++) {
     const R = RANKS[i];
     // patente já conquistada não se perde (a Glória baixa só trava a próxima)
-    const ok = i <= keep || (Object.values(attrs).every((v) => v >= R.min) && glory >= R.glory && (!R.duel || duels.has(R.duel)));
+    // a Glória vira pontos e os pontos viram atributos: a patente pede só os atributos (e o duelo)
+    void glory;
+    const ok = i <= keep || (Object.values(attrs).every((v) => v >= R.min) && (!R.duel || duels.has(R.duel)));
     if (!ok) break;
     r = i;
   }

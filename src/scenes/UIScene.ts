@@ -9,6 +9,7 @@ import { ArmyPanel } from '../ui/ArmyPanel';
 import { ClanCreate } from '../ui/ClanCreate';
 import { ClansPanel } from '../ui/ClansPanel';
 import { HQPanel } from '../ui/HQPanel';
+import { MarketPanel } from '../ui/MarketPanel';
 import { MissionsPanel } from '../ui/MissionsPanel';
 import type { Mission } from '../systems/Missions';
 import type { Clan } from '../systems/Clans';
@@ -22,7 +23,7 @@ import { MapPanel } from '../ui/MapPanel';
 import { Minimap } from '../ui/Minimap';
 import type { WorldScene } from './WorldScene';
 
-type PanelId = 'bag' | 'attrs' | 'army' | 'hq' | 'missions' | 'clans' | 'map' | 'debug';
+type PanelId = 'bag' | 'attrs' | 'army' | 'hq' | 'market' | 'missions' | 'clans' | 'map' | 'debug';
 
 /**
  * HUD: à esquerda a insígnia da patente, a vida, a Glória e as ordens do
@@ -41,6 +42,7 @@ export class UIScene extends Phaser.Scene {
   private missionsPanel!: MissionsPanel;
   private clansPanel!: ClansPanel;
   private hqPanel!: HQPanel;
+  private marketPanel!: MarketPanel;
   private goldIcon!: Phaser.GameObjects.Image;
   private goldText!: Phaser.GameObjects.Text;
   private clanCreate!: ClanCreate;
@@ -133,6 +135,7 @@ export class UIScene extends Phaser.Scene {
       ['attrs', 1, 'dark'],
       ['army', 2, 'dark'],
       ['hq', 23, 'dark'],
+      ['market', 22, 'dark'],
       ['missions', 18, 'dark'],
       ['clans', 19, 'dark'],
       ['map', 3, 'dark'],
@@ -166,9 +169,10 @@ export class UIScene extends Phaser.Scene {
     this.clansPanel = new ClansPanel(this, world);
     this.clansPanel.onMap = () => this.togglePanel('map');
     this.hqPanel = new HQPanel(this, world);
+    this.marketPanel = new MarketPanel(this, world);
     this.clanCreate = new ClanCreate(this, world);
     this.armyPanel.onClans = () => this.togglePanel('clans');
-    this.panels = { bag: this.bag, attrs: this.attrs, army: this.armyPanel, hq: this.hqPanel, missions: this.missionsPanel, clans: this.clansPanel, map: this.mapPanel, debug: this.debug };
+    this.panels = { bag: this.bag, attrs: this.attrs, army: this.armyPanel, hq: this.hqPanel, market: this.marketPanel, missions: this.missionsPanel, clans: this.clansPanel, map: this.mapPanel, debug: this.debug };
     this.controls.blocker = (x, y) =>
       this.clanCreate.open ||
       Object.values(this.panels).some((p) => p.open && p.contains(x, y)) ||
@@ -232,6 +236,7 @@ export class UIScene extends Phaser.Scene {
     kb?.addKey(K.M).on('down', () => this.togglePanel('map'));
     kb?.addKey(K.T).on('down', () => this.togglePanel('missions'));
     kb?.addKey(K.H).on('down', () => this.togglePanel('hq'));
+    kb?.addKey(K.V).on('down', () => this.togglePanel('market'));
     kb?.addKey(K.R).on('down', () => this.togglePanel('clans'));
     kb?.addKey(K.ONE).on('down', () => army.setMode('follow'));
     kb?.addKey(K.TWO).on('down', () => army.setMode('attack'));
@@ -343,6 +348,7 @@ export class UIScene extends Phaser.Scene {
     this.missionsPanel.layout(u);
     this.clansPanel.layout(u);
     this.hqPanel.layout(u);
+    this.marketPanel.layout(u);
     this.clanCreate.layout(u);
     fit(this.news, 9, u).setPosition(width / 2, 26 * u).setWordWrapWidth(width * 0.5);
     this.controls.hudBottom = this.hudBottom - 20 * u;
@@ -431,6 +437,7 @@ export class UIScene extends Phaser.Scene {
     this.missionsPanel.update(now);
     this.clansPanel.update(now);
     this.hqPanel.update(now);
+    this.marketPanel.update(now);
     this.mapPanel.update(now);
     if (now - this.lastHud > 500) {
       this.lastHud = now;

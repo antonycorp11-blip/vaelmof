@@ -82,9 +82,10 @@ export class Progress extends Phaser.Events.EventEmitter {
   addGlory(n: number): number {
     const before = this.glory;
     this.glory = Math.max(0, this.glory + n);
-    if (this.glory > this.gloryRecord) {
-      this.gloryFrac += this.glory - this.gloryRecord;
-      this.gloryRecord = this.glory;
+    this.gloryRecord = Math.max(this.gloryRecord, this.glory);
+    // toda Glória ganha rende pontos (perdas não tiram pontos já ganhos)
+    if (n > 0) {
+      this.gloryFrac += n;
       const pts = Math.floor(this.gloryFrac / GLORY_PER_POINT);
       if (pts > 0) {
         this.gloryFrac -= pts * GLORY_PER_POINT;

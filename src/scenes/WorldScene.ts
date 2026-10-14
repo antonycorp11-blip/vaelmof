@@ -33,6 +33,7 @@ import { Clans, type Clan } from '../systems/Clans';
 import { Loot } from '../systems/Loot';
 import { Missions } from '../systems/Missions';
 import { HQ } from '../systems/HQ';
+import { Market } from '../systems/Market';
 import { rollGear } from '../data/gear';
 import { Champions } from '../systems/Champions';
 import type { Hittable } from '../entities/Hittable';
@@ -77,6 +78,8 @@ export class WorldScene extends Phaser.Scene {
   hq!: HQ;
   /** Bandos dos clãs rivais andando pelo mapa. */
   bands!: Bands;
+  /** Mercadores das cidades. */
+  market!: Market;
   animals: Animal[] = [];
   flames: Flame[] = [];
   dayNight!: DayNightSystem;
@@ -146,6 +149,8 @@ export class WorldScene extends Phaser.Scene {
     this.missions = new Missions(this);
     this.hq = new HQ(this);
     this.bands = new Bands(this);
+    this.market = new Market(this);
+    this.market.placeMerchants();
     this.setupClans();
     this.rankIcon = this.add.image(0, 0, 'rank-icons', this.progress.rankIdx).setDepth(DEPTH.fx - 50);
     this.progress.on('change', () => this.rankIcon.setFrame(this.progress.rankIdx));
@@ -303,6 +308,12 @@ export class WorldScene extends Phaser.Scene {
     // bandidos comuns: raramente uma peça Temperada
     this.events.on('enemy-killed', (e: Enemy) => {
       if (!e.transient && e instanceof Bandit && Math.random() < 0.05) this.loot.drop(rollGear(1), e.x, e.y);
+      // bandidos levam umas moedas no bolso
+      if (e instanceof Bandit && !e.transient) {
+        const g = 1 + Math.floor(Math.random() * 4);
+        this.hq.addGold(g);
+        this.fx.floatText(e.x, e.y - 20, `+${g} ouro`, '#ffd77a');
+      }
     });
   }
 
@@ -567,6 +578,7 @@ export class WorldScene extends Phaser.Scene {
     this.missions.update(time);
     this.hq.update(time, dt);
     this.bands.update(time, dt);
+    this.market.update(dt);
     const pl = this.player;
     this.rankIcon
       .setPosition(Math.round(pl.x), Math.round(pl.y - 25))

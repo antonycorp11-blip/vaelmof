@@ -210,6 +210,16 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   agora fica salva. Não há craft; a coleta vai servir para erguer a **sede do
   clã** (próxima etapa).
 
+### Mercadores e ouro (`src/systems/Market.ts`, `src/ui/MarketPanel.ts`, tecla V)
+- Um **mercador na praça de cada cidade**. Compra material da coleta (madeira
+  e pedra 1, gelo 2, minério 4, cristal 8 de ouro; **de outra região vale o
+  dobro**), peças de equipamento (comum 15, Temperada 80, Rúnica 250,
+  Ancestral 700, Lendária 2000) e saque. Vende 15 recrutas e mercenários que
+  entram no exército na hora (dentro do limite da patente) — o jeito de se
+  refazer depois de perder o exército.
+- Cada mercador tem um **caixa** (2.500, renova 80/min): dá para ganhar ouro,
+  mas não à vontade. Bandidos também deixam 1–4 moedas.
+
 ### Clãs no mapa (`src/systems/Bands.ts`)
 - Não existe mais "desafiar" por botão: **cada clã rival tem um bando em campo**
   (60% dos soldados, com o líder) que anda de verdade pelo mapa — patrulha
@@ -261,6 +271,9 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - **Só na sede:** os soldados **se curam** (sem sede, em Brumavale), aceitam-se
   **missões** (os chamados vêm do Lorde da cidade mais próxima; sem sede, no
   salão de Brumavale), **treina-se** o exército e usa-se o **baú**.
+- **Trajes:** os soldados inimigos sorteiam o traje pela experiência do clã
+  (couro, caçador, legionário, placas); os seus trocam de armadura conforme o
+  treino total (caçador → legionário → placas).
 - **Soldados não sobem mais de patente por abates.** O Arsenal treina
   **Ataque** (+10% de dano por nível), **Defesa** (−5% de dano recebido) e
   **Vida** (+12%), até o nível 10, com ouro e minério; a insígnia do exército
@@ -280,15 +293,15 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 
 ### Patentes e Glória (`src/systems/Ranks.ts`, `src/systems/Progress.ts`)
 - Teren **não tem nível**: tem **patente**. Sobe quando **todos os 4
-  atributos** chegam ao mínimo, quando tem a **Glória** exigida e, em algumas,
-  depois de **vencer um campeão** em duelo. A patente define quantos soldados
+  atributos** chegam ao mínimo e, em algumas, depois de **vencer um campeão**
+  em duelo (a Glória vira pontos, os pontos viram atributos). A tela de Teren
+  diz exatamente o que falta. A patente define quantos soldados
   ele comanda. Patente conquistada não se perde.
 - **Glória** é o status de desempenho em batalha: sobe com abates (do herói
   vale mais, do exército vale 1) e vitórias em guerra (2 por soldado inimigo),
   cai com derrotas (1 por soldado inimigo), baixas no exército (−1 cada) e com
-  a morte do herói (−5%). Os **pontos de atributo vêm da Glória nova**: 1 ponto
-  a cada 10 de Glória **acima do recorde**. Perder Glória não tira pontos, mas
-  trava a próxima patente e só volta a render pontos depois de bater o recorde.
+  a morte do herói (−5%). **1 ponto de atributo a cada 10 de Glória ganha**
+  (perdas não tiram pontos e não travam os próximos).
 - O teto de 1000 por atributo ficou; o que mudou foi o ritmo: uma criatura
   básica rende 2 de Glória (0,2 ponto), contra 0,5 ponto antes. Saves antigos
   convertem os pontos já ganhos em Glória.

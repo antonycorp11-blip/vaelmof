@@ -152,7 +152,7 @@ export class AttributesPanel {
       [
         `Vida ${p.hp}/${p.maxHp}   Defesa ${Math.round(p.defense * 100)}%   Dano ${mul(p.dmgMul)}`,
         `Ataque ${mul(p.attackRate)}   Recarga ${mul(P.cooldownMul)}   Carga ${Math.round(this.world.inventory.maxWeight)} kg`,
-        buffs.length ? `Ativo: ${buffs.join(' · ')}` : '1 ponto a cada 10 de Glória acima do recorde',
+        buffs.length ? `Ativo: ${buffs.join(' · ')}` : '1 ponto de atributo a cada 10 de Glória ganha',
       ].join('\n'),
     );
     // o que falta para os itens bloqueados da mochila
@@ -164,7 +164,15 @@ export class AttributesPanel {
       const need = ATTRS.filter((a) => (req[a.id] ?? 0) > A[a.id]).map((a) => `${a.short} ${req[a.id]}`);
       return `${ITEMS[id].name}: ${need.join(' ')}`;
     });
-    this.reqs.setText(lines.length ? `Bloqueados: ${lines.join(' · ')}` : 'Glória sobe com vitórias e abates; derrotas e baixas tiram Glória.');
+    // o que falta para a próxima patente, em claro
+    const N = P.nextRank;
+    let need = '';
+    if (N) {
+      const miss = ATTRS.filter((a) => A[a.id] < N.min).map((a) => `${a.name} ${A[a.id]}/${N.min}`);
+      if (N.duel && !P.duels.has(N.duel)) miss.push(`vencer ${CHAMPIONS[N.duel].name.split(',')[0]} (sul de ${CHAMPIONS[N.duel].city})`);
+      need = miss.length ? `Para ${N.name}: ${miss.join(' · ')}` : '';
+    }
+    this.reqs.setText(need || (lines.length ? `Bloqueados: ${lines.join(' · ')}` : 'Glória sobe com vitórias e abates; derrotas e baixas tiram Glória.')).setColor(need ? COLOR.blue : COLOR.dim);
     // escada de patentes
     const cur = P.rankIdx;
     RANKS.forEach((R, i) => {
@@ -172,7 +180,7 @@ export class AttributesPanel {
       const done = i <= cur;
       const duel = R.duel ? ` · vencer ${CHAMPIONS[R.duel].name.split(',')[0]}${P.duels.has(R.duel) ? ' ✓' : ''}` : '';
       st.name.setText(`${R.name}${i === cur ? '  ◄ você' : ''}`).setColor(i === cur ? COLOR.gold : done ? COLOR.green : i === cur + 1 ? COLOR.text : COLOR.dim);
-      st.req.setText(i === 0 ? `início · ${R.army} soldados` : `atributos ≥ ${R.min} · ${gl(R.glory)} glória${duel} · ${R.army} soldados`).setColor(i === cur + 1 ? COLOR.blue : COLOR.dim);
+      st.req.setText(i === 0 ? `início · ${R.army} soldados` : `todos os atributos ≥ ${R.min}${duel} · ${R.army} soldados`).setColor(i === cur + 1 ? COLOR.blue : COLOR.dim);
       st.icon.setAlpha(done || i === cur + 1 ? 1 : 0.45);
       st.hl.setVisible(i === cur);
     });
