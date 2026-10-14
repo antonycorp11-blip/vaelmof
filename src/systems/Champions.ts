@@ -10,6 +10,7 @@ interface Live {
   y: number;
   enemy?: Enemy;
   label?: Phaser.GameObjects.Text;
+  icon?: Phaser.GameObjects.Image;
 }
 
 /**
@@ -41,6 +42,10 @@ export class Champions {
       if (!c) return;
       c.label?.destroy();
       c.label = undefined;
+      c.icon?.destroy();
+      c.icon = undefined;
+      // duelo vencido vale muita Glória
+      scene.gainGlory(CHAMPIONS[c.id].points * 16, e.x, e.y - 50);
       c.enemy = undefined;
       scene.progress.defeat(c.id);
       const unlock = RANKS.find((r) => r.duel === c.id);
@@ -52,7 +57,8 @@ export class Champions {
     const s = this.scene;
     const p = s.player;
     for (const c of this.list) {
-      if (c.enemy && c.label) c.label.setPosition(c.enemy.x, c.enemy.y - 38).setVisible(c.enemy.visible);
+      if (c.enemy && c.label) c.label.setPosition(c.enemy.x, c.enemy.y - 46).setVisible(c.enemy.visible);
+      if (c.enemy && c.icon) c.icon.setPosition(Math.round(c.enemy.x), Math.round(c.enemy.y - 36)).setScale(s.army.iconScale * 1.2).setVisible(c.enemy.visible);
     }
     if (time - this.lastCheck < 500) return;
     this.lastCheck = time;
@@ -80,12 +86,16 @@ export class Champions {
       .setOrigin(0.5)
       .setResolution(4)
       .setDepth(4250);
+    // insígnia vermelha: a patente do campeão, para saber contra quem se luta
+    c.icon = s.add.image(c.x, c.y - 42, 'rank-icons', 10 + D.rank).setDepth(4150);
   }
 
   private despawn(c: Live) {
     if (c.enemy?.active) this.scene.removeEnemy(c.enemy);
     c.label?.destroy();
     c.label = undefined;
+    c.icon?.destroy();
+    c.icon = undefined;
     c.enemy = undefined;
   }
 }

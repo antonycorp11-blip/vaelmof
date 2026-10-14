@@ -113,7 +113,8 @@ export class AttributesPanel {
     const A = P.attrs;
     const free = P.free;
     const w = p.weapon;
-    this.sub.setText(`Patente ${P.rank.name} · ${w.className} · ${w.name}   Abates ${P.kills} · Pontos ganhos ${fmtPts(P.earned)}`);
+    const gl = (n: number) => Math.round(n).toLocaleString('pt-BR');
+    this.sub.setText(`Patente ${P.rank.name} · Glória ${gl(P.glory)} (recorde ${gl(P.gloryRecord)}) · ${w.className}   Abates ${P.kills}`);
     const frac = P.points - free;
     this.points.setText(`PONTOS: ${free}${frac > 0.001 ? `  (+${fmtPts(frac)})` : ''}`).setColor(free > 0 ? '#9cff8a' : '#a89880');
     const effects: Record<Attr, string> = {
@@ -141,7 +142,7 @@ export class AttributesPanel {
       [
         `Vida ${p.hp}/${p.maxHp}   Defesa ${Math.round(p.defense * 100)}%   Dano da arma ${mul(p.dmgMul)}`,
         `Vel. de ataque ${mul(p.attackRate)}   Recarga ${mul(P.cooldownMul)}   Carga ${Math.round(this.world.inventory.maxWeight)} kg`,
-        buffs.length ? `Ativo: ${buffs.join(' · ')}` : 'Cada criatura vale 0,5 ponto (mais nas regiões difíceis e nos spots)',
+        buffs.length ? `Ativo: ${buffs.join(' · ')}` : '1 ponto a cada 10 de Glória acima do recorde · derrotas e baixas tiram Glória',
       ].join('\n'),
     );
     // o que falta para os itens bloqueados da mochila
@@ -155,7 +156,7 @@ export class AttributesPanel {
     });
     const N = P.nextRank;
     const nextLine = N
-      ? `Próxima patente: ${N.name} — todos os atributos ${N.min}${N.duel ? `${P.duels.has(N.duel) ? '' : ` e vencer ${CHAMPIONS[N.duel].name} (ao sul de ${CHAMPIONS[N.duel].city})`}` : ''} · exército ${N.army}`
+      ? `Próxima patente: ${N.name} — todos os atributos ${N.min} · Glória ${gl(N.glory)}${N.duel ? `${P.duels.has(N.duel) ? '' : ` · vencer ${CHAMPIONS[N.duel].name} (ao sul de ${CHAMPIONS[N.duel].city})`}` : ''} · exército ${N.army}`
       : 'Patente máxima: Marechal.';
     this.reqs.setText(`${nextLine}\n${lines.length ? `Bloqueados: ${lines.join('  ·  ')}` : 'Todos os itens da mochila podem ser usados.'}`);
   }

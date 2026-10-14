@@ -58,7 +58,7 @@ export class ArmyPanel {
         this.setOpen(false);
       });
     });
-    this.ladderTitle = scene.add.text(0, 0, 'PATENTES (todos os atributos ≥)', { ...style, color: '#bfe0ff' });
+    this.ladderTitle = scene.add.text(0, 0, 'PATENTES (atributos ≥ · glória · duelo · soldados)', { ...style, color: '#bfe0ff' });
     this.root.add([this.bg, this.head, this.title, this.sub, this.pool, this.status, this.close, this.warBtn, this.ladderTitle]);
     for (const type of SOLDIER_TYPES) {
       const btn = (label: string, n: number) => {
@@ -139,7 +139,7 @@ export class ArmyPanel {
     RANKS.forEach((R, i) => {
       const done = i <= cur;
       const duel = R.duel ? ` · vencer ${CHAMPIONS[R.duel].name.split(',')[0]}${P.duels.has(R.duel) ? ' ✓' : ''}` : '';
-      this.ladder[i].setText(`${done ? '✓' : ' '} ${R.name.padEnd(9)} ${String(R.min).padStart(4)}${duel} · ${R.army} soldados`).setColor(i === cur ? '#ffd34a' : done ? '#7f8aa0' : i === cur + 1 ? '#ffffff' : '#a8b4c8');
+      this.ladder[i].setText(`${done ? '✓' : ' '} ${R.name.padEnd(9)} ${String(R.min).padStart(4)} · glória ${R.glory.toLocaleString('pt-BR')}${duel} · ${R.army}`).setColor(i === cur ? '#ffd34a' : done ? '#7f8aa0' : i === cur + 1 ? '#ffffff' : '#a8b4c8');
     });
     this.warBtn.setText(a.war ? `GUERRA EM CURSO: ${a.war.house}` : `DECLARAR GUERRA (${Math.max(10, a.size)} inimigos)`).setAlpha(a.war ? 0.6 : 1);
   }

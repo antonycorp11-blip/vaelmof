@@ -34,11 +34,12 @@ export const SOLDIERS: Record<SoldierType, SoldierDef> = {
 };
 
 /** Patentes dos soldados: sobem com abates; multiplicam vida e dano. */
+// os nomes (e os ícones sobre a cabeça) são os quatro primeiros da escada do herói
 export const SOLDIER_RANKS = [
   { name: 'Recruta', kills: 0, mul: 1 },
   { name: 'Soldado', kills: 2, mul: 1.25 },
-  { name: 'Veterano', kills: 5, mul: 1.6 },
-  { name: 'Elite', kills: 10, mul: 2.1 },
+  { name: 'Cabo', kills: 5, mul: 1.6 },
+  { name: 'Sargento', kills: 10, mul: 2.1 },
 ];
 const rankOf = (kills: number) => SOLDIER_RANKS.reduce((r, R, i) => (kills >= R.kills ? i : r), 0);
 
@@ -97,6 +98,8 @@ export class Soldier implements Hittable {
   baseTint = -1;
   readonly sprite: Phaser.GameObjects.Sprite;
   readonly ring: Phaser.GameObjects.Image;
+  /** Insígnia da patente sobre a cabeça (azul aliado, vermelho inimigo). */
+  readonly icon: Phaser.GameObjects.Image;
 
   constructor(
     readonly army: Army,
@@ -115,6 +118,11 @@ export class Soldier implements Hittable {
     this.sprite = s.add.sprite(x, y, `sold-${team}-${type}`, 0).setOrigin(0.5, FOOT / CELL);
     this.sprite.setScale(army.scale);
     this.ring.setScale(army.scale * 2);
+    this.icon = s.add.image(x, y, 'rank-icons', this.iconFrame).setDepth(DEPTH.fx - 50).setScale(army.iconScale);
+  }
+
+  get iconFrame() {
+    return this.team * 10 + this.rank;
   }
 
   get rank() {
@@ -163,6 +171,7 @@ export class Soldier implements Hittable {
   destroy() {
     this.sprite.destroy();
     this.ring.destroy();
+    this.icon.destroy();
   }
 }
 
@@ -205,6 +214,11 @@ export class Army extends Phaser.Events.EventEmitter {
   war: War | null = null;
   ready = false;
   scale: number = HERO.scale;
+
+  /** Tamanho das insígnias (acompanha o ajuste de pixels do herói). */
+  get iconScale(): number {
+    return this.scale * 1.6;
+  }
   private holdX = 0;
   private holdY = 0;
   private faceX = 0;
@@ -480,16 +494,21 @@ export class Army extends Phaser.Events.EventEmitter {
         const k = by.mul / SOLDIER_RANKS[before].mul;
         by.maxHp = Math.round(by.maxHp * k);
         by.hp = Math.min(by.maxHp, Math.round(by.hp * k));
+        by.icon.setFrame(by.iconFrame);
         if (by.team === 0) sc.fx.floatText(by.x, by.y - 30, SOLDIER_RANKS[by.rank].name, '#ffd34a');
       }
     }
     if (s.team === 1) {
       if (this.war) this.war.killed++;
-      // inimigo derrubado (pelo herói ou pelo exército) rende pontos de atributo
-      sc.progress.addKill(0.5);
-    } else if (this.war) this.war.lost++;
+      // abate do herói vale mais (e mais ainda contra soldados graduados); do exército, 1
+      sc.gainGlory(by ? 1 : 3 + 2 * s.rank, s.x, s.y - 30, true);
+    } else {
+      if (this.war) this.war.lost++;
+      // cada baixa custa Glória
+      sc.gainGlory(-1, s.x, s.y - 30);
+    }
     s.sprite.setTintFill(0xffffff);
-    sc.tweens.add({ targets: [s.sprite, s.ring], alpha: 0, duration: 500, onComplete: () => s.destroy() });
+    sc.tweens.add({ targets: [s.sprite, s.ring, s.icon], alpha: 0, duration: 500, onComplete: () => s.destroy() });
     if (s.team === 0) {
       this.save();
       this.emit('change');
@@ -537,6 +556,7 @@ export class Army extends Phaser.Events.EventEmitter {
     for (const s of this.soldiers) {
       s.sprite.setScale(k);
       s.ring.setScale(k * 2);
+      s.icon.setScale(this.iconScale);
     }
   }
 
@@ -710,7 +730,9 @@ export class Army extends Phaser.Events.EventEmitter {
       const vis = s.x > view.x - 48 && s.x < view.right + 48 && s.y > view.y - 48 && s.y < view.bottom + 64;
       s.sprite.setVisible(vis);
       s.ring.setVisible(vis);
+      s.icon.setVisible(vis);
       if (!vis) continue;
+      s.icon.setPosition(Math.round(s.x), Math.round(s.y - 25));
       s.sprite.setFrame(s.dir * COLS + col).setPosition(s.x, s.y).setDepth(DEPTH.entities + s.y);
       if (time < s.flashUntil) s.sprite.setTintFill(0xffffff);
       else if (s.sprite.tintFill) {
@@ -802,16 +824,17 @@ export class Army extends Phaser.Events.EventEmitter {
       // o herói caiu: o inimigo vence e vai embora
       this.rout();
       this.war = null;
-      this.emit('war-end', { ...w, won: false });
+      this.scene.gainGlory(-w.start, p.x, p.y - 40);
+      this.emit('war-end', { ...w, won: false, glory: -w.start });
       return;
     }
     // moral: com 30% do exército de pé, o resto foge
     if (alive <= Math.floor(w.start * 0.3)) {
       this.rout();
       this.war = null;
-      const bonus = Math.round(w.start * 0.25);
-      this.scene.progress.grant(bonus);
-      this.emit('war-end', { ...w, won: true, bonus });
+      const glory = w.start * 2;
+      this.scene.gainGlory(glory, p.x, p.y - 40);
+      this.emit('war-end', { ...w, won: true, glory });
       this.save();
     }
   }
@@ -823,7 +846,7 @@ export class Army extends Phaser.Events.EventEmitter {
       s.fleeing = true;
       s.target = null;
       s.dead = true;
-      sc.tweens.add({ targets: [s.sprite, s.ring], alpha: 0, delay: 1500 + Math.random() * 1500, duration: 600, onComplete: () => s.destroy() });
+      sc.tweens.add({ targets: [s.sprite, s.ring, s.icon], alpha: 0, delay: 1500 + Math.random() * 1500, duration: 600, onComplete: () => s.destroy() });
     }
   }
 

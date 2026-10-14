@@ -47,6 +47,8 @@ export class BootScene extends Phaser.Scene {
     sheet('explosion', 'explosion.png', 32, 32);
     sheet('splash', 'splash.png', 8, 8);
     sheet('ui-icons', 'ui-icons.png');
+    // insígnias de patente: 10 patentes × (aliado, inimigo)
+    sheet('rank-icons', 'rank-icons.png', 11, 11);
     for (const k of ['pixel', 'raindrop', 'shadow', 'glow', 'fog']) this.load.image(k, `${S}${k}.png`);
     // construções das cidades (variantes × janelas apagadas/acesas), torres, fonte e barracas
     for (const [k, B] of Object.entries(BUILDINGS)) this.load.spritesheet(`bld-${k}`, `assets/tiles/bld-${k}.png`, { frameWidth: B.w, frameHeight: B.h });

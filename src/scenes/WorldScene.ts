@@ -57,6 +57,8 @@ export class WorldScene extends Phaser.Scene {
   /** Tudo que o herói pode atingir neste quadro: criaturas e soldados inimigos. */
   hostiles: Hittable[] = [];
   army!: Army;
+  /** Insígnia da patente sobre a cabeça do herói. */
+  private rankIcon!: Phaser.GameObjects.Image;
   champions!: Champions;
   animals: Animal[] = [];
   flames: Flame[] = [];
@@ -119,6 +121,8 @@ export class WorldScene extends Phaser.Scene {
     this.army = new Army(this);
     this.army.setScale(this.player.scaleX);
     this.champions = new Champions(this);
+    this.rankIcon = this.add.image(0, 0, 'rank-icons', this.progress.rankIdx).setDepth(DEPTH.fx - 50);
+    this.progress.on('change', () => this.rankIcon.setFrame(this.progress.rankIdx));
     this.events.on('player-died', () => this.time.delayedCall(2400, () => this.army.regroup()));
     this.spots = new SpawnSpots(this, map);
     this.setupProgress();
@@ -239,14 +243,27 @@ export class WorldScene extends Phaser.Scene {
     if (e.active) e.destroy();
   }
 
-  /** Abates rendem pontos de atributo; atributos mudam vida, carga e requisitos. */
+  /**
+   * Glória ganha ou perdida, com o número flutuando no ponto (x, y). Ganhos
+   * acima do recorde viram pontos de atributo (ver Ranks.ts).
+   */
+  gainGlory(n: number, x: number, y: number, kill = false) {
+    const v = Math.round(n * 10) / 10;
+    if (!v) return;
+    if (kill) this.progress.addKill(v);
+    else this.progress.addGlory(v);
+    // o número só aparece perto do herói (numa guerra grande seriam centenas)
+    const p = this.player;
+    if (Math.abs(x - p.x) < 170 && Math.abs(y - p.y) < 110) this.fx.floatText(x, y, `${v > 0 ? '+' : ''}${fmtPts(v)} glória`, v > 0 ? '#ffd34a' : '#ff7070');
+  }
+
+  /** Abates rendem Glória; atributos mudam vida, carga e requisitos. */
   private setupProgress() {
     const P = this.progress;
-    this.events.on('enemy-killed', (e: Enemy) => {
-      P.addKill(e.points);
-      this.fx.floatText(e.x, e.y - e.barOffset - 4, `+${fmtPts(e.points)} pt`, '#ffd34a');
-      if (Math.floor(P.points + 1e-6) > Math.floor(P.points - e.points + 1e-6)) this.events.emit('points', P.free);
-    });
+    // criaturas: 2 de Glória na básica × nível da região
+    this.events.on('enemy-killed', (e: Enemy) => this.gainGlory(e.points * 4, e.x, e.y - e.barOffset - 4, true));
+    // o herói caiu: perde Glória
+    this.events.on('player-died', () => this.gainGlory(-Math.max(10, Math.round(P.glory * 0.05)), this.player.x, this.player.y - 30));
     this.events.on('enemy-gone', (e: Enemy) => {
       this.spots.release(e);
       Phaser.Utils.Array.Remove(this.enemies, e);
@@ -484,6 +501,11 @@ export class WorldScene extends Phaser.Scene {
     this.player.update(time);
     this.army.update(time, dt);
     this.champions.update(time);
+    const pl = this.player;
+    this.rankIcon
+      .setPosition(Math.round(pl.x), Math.round(pl.y - 25))
+      .setScale(this.army.iconScale)
+      .setVisible(pl.visible && !pl.dead);
     this.gathering.update(time);
     this.spots.update(time);
     this.drawAim(time);

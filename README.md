@@ -155,24 +155,40 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   MAPA marca as cidades (retângulo branco com o nome) e os spots (círculo
   dourado).
 
-### Patentes (`src/systems/Ranks.ts`)
-- Teren **não tem nível**: tem **patente**. Sobe de patente quando **todos os
-  4 atributos** chegam ao mínimo dela; algumas pedem também **vencer um
-  campeão** em duelo. A patente define quantos soldados ele comanda.
+### Patentes e Glória (`src/systems/Ranks.ts`, `src/systems/Progress.ts`)
+- Teren **não tem nível**: tem **patente**. Sobe quando **todos os 4
+  atributos** chegam ao mínimo, quando tem a **Glória** exigida e, em algumas,
+  depois de **vencer um campeão** em duelo. A patente define quantos soldados
+  ele comanda. Patente conquistada não se perde.
+- **Glória** é o status de desempenho em batalha: sobe com abates (do herói
+  vale mais, do exército vale 1) e vitórias em guerra (2 por soldado inimigo),
+  cai com derrotas (1 por soldado inimigo), baixas no exército (−1 cada) e com
+  a morte do herói (−5%). Os **pontos de atributo vêm da Glória nova**: 1 ponto
+  a cada 10 de Glória **acima do recorde**. Perder Glória não tira pontos, mas
+  trava a próxima patente e só volta a render pontos depois de bater o recorde.
+- O teto de 1000 por atributo ficou; o que mudou foi o ritmo: uma criatura
+  básica rende 2 de Glória (0,2 ponto), contra 0,5 ponto antes. Saves antigos
+  convertem os pontos já ganhos em Glória.
 
-  | Patente | Cada atributo ≥ | Duelo | Exército |
-  |---|---|---|---|
-  | Recruta | 10 | — | 5 |
-  | Soldado | 20 | — | 10 |
-  | Cabo | 40 | — | 20 |
-  | Sargento | 70 | Brakk, o Saqueador (sul de Brumavale) | 35 |
-  | Tenente | 110 | — | 50 |
-  | Capitão | 170 | Ysra da Lâmina Fria (sul de Pedrafria) | 80 |
-  | Major | 250 | — | 120 |
-  | Coronel | 380 | Ulgar de Rochedo (sul de Rochedo) | 180 |
-  | General | 600 | — | 250 |
-  | Marechal | 1000 | Morvath, o Arauto (sul de Umbravale) | 300 |
+  | Patente | Cada atributo ≥ | Glória ≥ | Duelo | Exército |
+  |---|---|---|---|---|
+  | Recruta | 10 | 0 | — | 5 |
+  | Soldado | 20 | 150 | — | 10 |
+  | Cabo | 40 | 600 | — | 20 |
+  | Sargento | 70 | 1.500 | Brakk, o Saqueador (sul de Brumavale) | 35 |
+  | Tenente | 110 | 3.000 | — | 50 |
+  | Capitão | 170 | 5.000 | Ysra da Lâmina Fria (sul de Pedrafria) | 80 |
+  | Major | 250 | 8.000 | — | 120 |
+  | Coronel | 380 | 12.000 | Ulgar de Rochedo (sul de Rochedo) | 180 |
+  | General | 600 | 20.000 | — | 250 |
+  | Marechal | 1000 | 30.000 | Morvath, o Arauto (sul de Umbravale) | 300 |
 
+- **Insígnia sobre a cabeça** de todo mundo, sempre visível: escudo **azul**
+  para o herói e os aliados, **vermelho** para inimigos, com a insígnia da
+  patente (ponto, divisas, barras, estrelas, coroa). Os soldados usam as quatro
+  primeiras patentes (Recruta → Soldado → Cabo → Sargento, por abates); os
+  campeões mostram a sua (Brakk Sargento, Ysra Capitã, Ulgar Coronel, Morvath
+  Marechal).
 - Campeões (`src/systems/Champions.ts`): bandidos nomeados, maiores e muito
   mais fortes, que esperam fora dos muros da cidade; derrotados, não voltam.
 - A patente aparece no painel de ATRIBUTOS (com o que falta para a próxima) e
@@ -185,18 +201,17 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   salvo no aparelho.
 - **Ordens:** SEGUIR (formação atrás do herói), ATACAR (cada soldado busca o
   inimigo mais próximo), SEGURAR (fica onde o herói estava).
-- Os soldados **sobem de patente** com abates (Recruta → Soldado → Veterano →
-  Elite), ganhando vida e dano. Quem morre se perde.
+- Os soldados **sobem de patente** com abates (Recruta → Soldado → Cabo →
+  Sargento), ganhando vida e dano. Quem morre se perde (e custa Glória).
 - **Guerra:** DECLARAR GUERRA traz o exército de uma casa rival (cada casa
   tem sua cor) do mesmo tamanho e composição do seu. Ao perder 70% do
-  exército, o inimigo foge: **vitória**, com pontos de atributo. Se Teren cai,
-  é **derrota**. Cada soldado inimigo derrubado (pelo herói ou pelo exército)
-  vale 0,5 ponto.
+  exército, o inimigo foge: **vitória**, com Glória. Se Teren cai, é
+  **derrota** e a Glória cai.
 - **Motor:** um sprite por soldado (as camadas LPC do herói são fundidas numa
   folha de 96 px por tipo e lado), sem física do Phaser (grade espacial para
   se afastarem, colisão direto no mapa), IA em turnos alternados e flechas
   num pool. Lógica medida: ~3 ms por quadro com 500 soldados num desktop.
-- Debug: **Recrutas cheios**, **Aliados +50** (ignora o limite), **Inimigos
+- Debug: **+500 glória**, **Recrutas cheios**, **Aliados +50** (ignora o limite), **Inimigos
   50 / 100 / 300** (teste de estresse), **Limpar exércitos** e **Campeão:
   próximo**.
 

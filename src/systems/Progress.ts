@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { RANKS, rankIndex, type ChampionId, type Rank } from './Ranks';
+import { GLORY_PER_POINT, RANKS, rankIndex, type ChampionId, type Rank } from './Ranks';
 
 /**
  * Atributos no estilo MU: cada criatura derrotada rende pontos (0,5 nas
@@ -44,6 +44,13 @@ export class Progress extends Phaser.Events.EventEmitter {
   earned = 0;
   /** Campeões já derrotados em duelo. */
   duels = new Set<ChampionId>();
+  /** Glória atual (sobe e desce) e o recorde (só os ganhos acima dele viram pontos). */
+  glory = 0;
+  gloryRecord = 0;
+  /** Glória ainda sem virar ponto (fração de 10). */
+  private gloryFrac = 0;
+  /** Maior patente já conquistada (não se perde). */
+  private bestRank = 0;
   private lastRank = 0;
 
   constructor() {
@@ -54,7 +61,28 @@ export class Progress extends Phaser.Events.EventEmitter {
 
   /** Patente atual (Teren não tem nível: tem patente). */
   get rankIdx(): number {
-    return rankIndex(this.attrs, this.duels);
+    return rankIndex(this.attrs, this.duels, this.glory, this.bestRank);
+  }
+
+  /**
+   * Glória ganha (positiva) ou perdida (negativa). Ganhos acima do recorde
+   * viram pontos de atributo (1 a cada 10). Devolve o quanto mudou.
+   */
+  addGlory(n: number): number {
+    const before = this.glory;
+    this.glory = Math.max(0, this.glory + n);
+    if (this.glory > this.gloryRecord) {
+      this.gloryFrac += this.glory - this.gloryRecord;
+      this.gloryRecord = this.glory;
+      const pts = Math.floor(this.gloryFrac / GLORY_PER_POINT);
+      if (pts > 0) {
+        this.gloryFrac -= pts * GLORY_PER_POINT;
+        this.points += pts;
+        this.earned += pts;
+      }
+    }
+    this.changed();
+    return this.glory - before;
   }
 
   get rank(): Rank {
@@ -83,6 +111,7 @@ export class Progress extends Phaser.Events.EventEmitter {
     this.emit('change');
     if (r > this.lastRank) this.emit('rank', RANKS[r]);
     this.lastRank = r;
+    this.bestRank = Math.max(this.bestRank, r);
     this.save();
   }
 
@@ -90,12 +119,10 @@ export class Progress extends Phaser.Events.EventEmitter {
     return Math.floor(this.points + 1e-6);
   }
 
-  /** Abate: soma os pontos da criatura. */
-  addKill(points: number) {
+  /** Abate do herói ou do exército: conta e rende Glória. */
+  addKill(glory: number) {
     this.kills++;
-    this.points += points;
-    this.earned += points;
-    this.changed();
+    this.addGlory(glory);
   }
 
   /** Pontos ganhos fora de abate (debug, vitórias de guerra). */
@@ -161,7 +188,7 @@ export class Progress extends Phaser.Events.EventEmitter {
   // ------------------------------------------------------------ salvar
   save() {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ attrs: this.attrs, points: this.points, kills: this.kills, earned: this.earned, duels: [...this.duels] }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ attrs: this.attrs, points: this.points, kills: this.kills, earned: this.earned, duels: [...this.duels], glory: this.glory, gloryRecord: this.gloryRecord, gloryFrac: this.gloryFrac, bestRank: this.bestRank }));
     } catch {
       /* armazenamento indisponível (aba privada): segue sem salvar */
     }
@@ -177,6 +204,16 @@ export class Progress extends Phaser.Events.EventEmitter {
       this.kills = Number(d.kills) || 0;
       this.earned = Number(d.earned) || 0;
       if (Array.isArray(d.duels)) for (const id of d.duels) this.duels.add(id);
+      if (typeof d.glory === 'number') {
+        this.glory = d.glory;
+        this.gloryRecord = Number(d.gloryRecord) || this.glory;
+        this.gloryFrac = Number(d.gloryFrac) || 0;
+        this.bestRank = Number(d.bestRank) || 0;
+      } else {
+        // save de antes da Glória: os pontos já ganhos contam como Glória conquistada
+        this.glory = this.gloryRecord = Math.round(this.earned * GLORY_PER_POINT);
+        this.bestRank = rankIndex(this.attrs, this.duels, this.glory);
+      }
     } catch {
       /* sem save */
     }
@@ -188,6 +225,8 @@ export class Progress extends Phaser.Events.EventEmitter {
     this.kills = 0;
     this.earned = 0;
     this.duels.clear();
+    this.glory = this.gloryRecord = this.gloryFrac = 0;
+    this.bestRank = 0;
     this.lastRank = 0;
     this.emit('change');
     this.save();

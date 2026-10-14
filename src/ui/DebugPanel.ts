@@ -80,6 +80,7 @@ export class DebugPanel {
       const P = world.progress;
       P.grant(50);
     }, '#6a4a10');
+    add('+500 glória', () => world.progress.addGlory(500), '#6a4a10');
     add('Zerar atributos', () => world.progress.reset(), '#5a2a2a');
     this.spotBtn = add('Spot: próximo', () => {
       const list = world.spots.spots;

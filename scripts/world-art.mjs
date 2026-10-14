@@ -537,3 +537,86 @@ export type BuildingKey = keyof typeof BUILDINGS;
 `;
   fs.writeFileSync(out, body);
 }
+
+// ------------------------------------------------------------------ insígnias de patente
+/**
+ * Ícones de patente sobre a cabeça (11×11): 10 patentes × 2 lados. O fundo é
+ * um escudo azul (aliado / herói) ou vermelho (inimigo); a insígnia é dourada:
+ * ponto, 1–3 divisas, 1–2 barras, 1–3 estrelas e a coroa do Marechal.
+ */
+export function drawRankIcons({ Img, save }) {
+  const S = 11;
+  const img = new Img(S * 10, S * 2);
+  const gold = '#ffd34a';
+  const goldD = '#b08a2c';
+  for (let team = 0; team < 2; team++)
+    for (let r = 0; r < 10; r++) {
+      const t = new Img(S, S);
+      const [bg, bgD] = team === 0 ? ['#2f5fae', '#1c3a70'] : ['#a83030', '#6a1a1a'];
+      // escudo
+      for (let y = 0; y < 10; y++) {
+        const inset = y < 6 ? 0 : y - 5;
+        for (let x = inset; x < 10 - inset; x++) t.set(x, y, y < 5 ? bg : bgD);
+      }
+      // divisa em ^ (1 px de espessura, sem embolar quando são três)
+      const chevron = (y) => {
+        for (const [x, dy] of [[2, 2], [3, 1], [4, 0], [5, 0], [6, 1], [7, 2]]) t.set(x, y + dy, gold);
+      };
+      const bar = (y) => t.rect(2, y, 6, 1.5, gold);
+      const star = (cx, cy) => {
+        t.set(cx, cy - 1, gold);
+        t.set(cx - 1, cy, gold);
+        t.set(cx, cy, gold);
+        t.set(cx + 1, cy, gold);
+        t.set(cx, cy + 1, goldD);
+      };
+      switch (r) {
+        case 0: // Recruta
+          t.rect(4, 4, 2, 2, gold);
+          break;
+        case 1: // Soldado
+          chevron(3.5);
+          break;
+        case 2: // Cabo
+          chevron(2);
+          chevron(5.5);
+          break;
+        case 3: // Sargento
+          chevron(0.5);
+          chevron(3);
+          chevron(5.5);
+          break;
+        case 4: // Tenente
+          bar(4);
+          break;
+        case 5: // Capitão
+          bar(3);
+          bar(6);
+          break;
+        case 6: // Major
+          star(5, 4);
+          break;
+        case 7: // Coronel
+          star(3, 4);
+          star(7, 4);
+          break;
+        case 8: // General
+          star(2, 3);
+          star(5, 5);
+          star(8, 3);
+          break;
+        case 9: // Marechal: coroa
+          t.rect(2, 4, 6, 3, gold);
+          for (const x of [2, 4.5, 7]) t.rect(x, 2, 1, 2, gold);
+          t.rect(2, 6, 6, 1, goldD);
+          break;
+      }
+      t.outline(0, 0, S, S);
+      for (let y = 0; y < S; y++)
+        for (let x = 0; x < S; x++) {
+          const k = (y * S + x) * 4;
+          if (t.d[k + 3]) img.put(r * S + x, team * S + y, t.d[k], t.d[k + 1], t.d[k + 2], t.d[k + 3]);
+        }
+    }
+  save('assets/sprites/rank-icons.png', img);
+}

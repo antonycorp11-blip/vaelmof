@@ -88,9 +88,9 @@ export class UIScene extends Phaser.Scene {
     army.on('mode', () => this.updateArmyHud());
     army.on('change', () => this.updateArmyHud());
     army.on('war', (w: War) => this.showArea('GUERRA!', `${w.house} marcha com ${w.start} soldados`));
-    army.on('war-end', (w: War & { won: boolean; bonus?: number }) => {
-      if (w.won) this.showArea('VITÓRIA', `${w.killed} inimigos derrotados · ${w.lost} baixas · +${w.bonus} pontos`);
-      else this.showArea('DERROTA', `${w.house} venceu · ${w.lost} baixas`);
+    army.on('war-end', (w: War & { won: boolean; glory: number }) => {
+      if (w.won) this.showArea('VITÓRIA', `${w.killed} inimigos derrotados · ${w.lost} baixas · +${w.glory} de glória`);
+      else this.showArea('DERROTA', `${w.house} venceu · ${w.lost} baixas · ${w.glory} de glória`);
       this.updateArmyHud();
     });
     world0.progress.on('rank', (r: Rank) => this.showArea(`Patente: ${r.name}`, `agora você comanda até ${r.army} soldados`));
@@ -104,7 +104,10 @@ export class UIScene extends Phaser.Scene {
     kb?.addKey(Phaser.Input.Keyboard.KeyCodes.TWO).on('down', () => world0.army.setMode('attack'));
     kb?.addKey(Phaser.Input.Keyboard.KeyCodes.THREE).on('down', () => world0.army.setMode('hold'));
     world0.events.on('toast', (msg: string) => this.showToast(msg));
-    world0.progress.on('change', () => this.updateAttrBtn());
+    world0.progress.on('change', () => {
+      this.updateAttrBtn();
+      this.updateArmyHud();
+    });
     const onWeapon = (w: WeaponDef) => {
       this.weaponBtn.setText(w.className);
       this.controls.setButton('attack', w.attackLabel, w.attackIcon);
@@ -142,7 +145,11 @@ export class UIScene extends Phaser.Scene {
     const w = this.scene.get('World') as WorldScene;
     const a = w.army;
     const show = a.size > 0;
-    this.armyInfo.setVisible(show).setText(`Exército ${a.size}/${w.progress.armyCap}${a.war ? ` · inimigos ${a.foes.length}` : ''}`);
+    const P = w.progress;
+    // Glória sempre visível; o exército quando houver
+    this.armyInfo
+      .setVisible(true)
+      .setText(`${P.rank.name} · Glória ${Math.round(P.glory).toLocaleString('pt-BR')}${show ? `\nExército ${a.size}/${P.armyCap}${a.war ? ` · inimigos ${a.foes.length}` : ''}` : ''}`);
     for (const m of this.modeBtns) m.t.setVisible(show).setBackgroundColor(m.mode === a.mode ? '#3a6ab8' : '#1c2a44');
   }
 
@@ -200,7 +207,7 @@ export class UIScene extends Phaser.Scene {
     this.armyInfo.setFontSize(Math.round(10 * u)).setStroke('#1e1a24', 3 * u).setPosition(12 * u, 38 * u);
     let mx = 12 * u;
     for (const m of this.modeBtns) {
-      m.t.setFontSize(Math.round(11 * u)).setPadding(Math.round(9 * u), Math.round(7 * u), Math.round(9 * u), Math.round(7 * u)).setPosition(mx, 54 * u);
+      m.t.setFontSize(Math.round(11 * u)).setPadding(Math.round(9 * u), Math.round(7 * u), Math.round(9 * u), Math.round(7 * u)).setPosition(mx, 68 * u);
       mx += m.t.width + 6 * u;
     }
     this.updateArmyHud();
