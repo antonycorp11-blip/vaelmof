@@ -213,8 +213,11 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   clã** (próxima etapa).
 
 ### Montarias (`scripts/mount-art.mjs`, `src/data/mounts.ts`, `src/systems/Stable.ts`, botão do cavalo / tecla X)
-- **21 montarias** desenhadas por código (pixel art com 4 direções e passada
-  animada): Cavalo Baio, Cavalo Malhado, Corcel Negro, Égua Branca do Vale,
+- **21 montarias** desenhadas por código em alta resolução (quadros de
+  112×80 exibidos a 0,5): cada parte do corpo é pintada como volume, com rampa
+  de 6 tons e pontilhado, contorno colorido, pernas com joelho por cinemática
+  inversa e galope de 6 quadros; de frente e de costas o corpo aparece em
+  perspectiva 3/4 (a ponta de lá mais alta, as pernas de lá entre as de cá): Cavalo Baio, Cavalo Malhado, Corcel Negro, Égua Branca do Vale,
   Corcel de Guerra (barda de aço), Unicórnio Lunar, Pesadelo Flamejante, Urso
   Pardo de Batalha, Urso Polar Rúnico, Lobo Gigante, Lobo da Geada,
   Rinoceronte Couraçado, Javali de Presas, Cervo Espiritual,

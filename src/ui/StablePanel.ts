@@ -40,7 +40,7 @@ export class StablePanel {
       const c: Card = {
         m,
         box: frame(scene, 'frame-inner').setInteractive({ useHandCursor: true }),
-        img: scene.add.image(0, 0, 'mounts', m.row * 16 + 8),
+        img: scene.add.image(0, 0, 'mounts', m.row * 24 + 12),
         name: label(scene, m.name, 7, COLOR.text, 1, false).setOrigin(0.5, 0).setAlign('center'),
       };
       c.box.on('pointerdown', () => {
@@ -127,13 +127,13 @@ export class StablePanel {
     const top = win.head + pad / 2;
     const cols = 7;
     const cw = (win.W - pad * 2) / cols;
-    const ch = Math.min(64 * u, (win.H - top - pad - 70 * u) / 3);
+    const ch = Math.min(80 * u, (win.H - top - pad - 70 * u) / 3);
     this.cards.forEach((c, i) => {
       const x = pad + (i % cols) * cw;
       const y = top + Math.floor(i / cols) * ch;
       sizeFrame(c.box, x + 1, y + 1, cw - 3 * u, ch - 3 * u, u);
-      const k = Math.max(1, Math.floor((ch - 18 * u) / 40));
-      c.img.setScale(k).setPosition(Math.round(x + cw / 2), Math.round(y + (ch - 14 * u) / 2 + 2 * u));
+      const k = Math.min((ch - 16 * u) / 80, (cw - 6 * u) / 112);
+      c.img.setScale(k).setPosition(Math.round(x + cw / 2), Math.round(y + (ch - 14 * u) / 2 + 1 * u));
       fit(c.name, 7, u).setPosition(x + cw / 2, y + ch - 14 * u).setWordWrapWidth(cw - 6 * u);
     });
     const by = top + ch * 3 + 6 * u;

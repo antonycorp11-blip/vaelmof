@@ -315,7 +315,7 @@ export class Player extends Creature {
       const moving = this.body.velocity.lengthSq() > 100;
       const f = moving ? Math.floor(this.mountT) : 0;
       // atrás do herói (e da capa); o herói, com as pernas recortadas, fica sentado na sela
-      this.mountSpr.setFrame(m.row * 16 + p.dir * 4 + f).setPosition(Math.round(this.x), Math.round(this.y)).setDepth(d - 0.4).setVisible(visible).setAlpha(this.alpha * (m.ghost ? 0.85 : 1));
+      this.mountSpr.setFrame(m.row * 24 + p.dir * 6 + f).setPosition(Math.round(this.x), Math.round(this.y)).setDepth(d - 0.4).setVisible(visible).setAlpha(this.alpha * (m.ghost ? 0.85 : 1));
       this.shadow.setScale(1.4, 0.8);
       if (this.mountAura && m.glow) {
         const k = 0.75 + 0.08 * Math.sin(this.scene.time.now / 260);
@@ -406,7 +406,7 @@ export class Player extends Creature {
       this.back.setCrop();
     }
     if (def) {
-      if (!this.mountSpr) this.mountSpr = s.add.sprite(this.x, this.y, 'mounts', 0).setOrigin(0.5, 38 / 40);
+      if (!this.mountSpr) this.mountSpr = s.add.sprite(this.x, this.y, 'mounts', 0).setOrigin(0.5, 76 / 80).setScale(0.5);
       const spr = this.mountSpr;
       spr.setVisible(true);
       // aura das montarias mágicas (atrás dela; o preFX bagunçaria a ordem com o herói)
@@ -531,7 +531,7 @@ export class Player extends Creature {
   private walk(dt: number) {
     if (this.mount) {
       // montado: o herói fica sentado (quadro parado); quem anda é a montaria
-      this.mountT = (this.mountT + dt * 9 * Math.min(1.6, this.body.velocity.length() / 90)) % 4;
+      this.mountT = (this.mountT + dt * 12 * Math.min(1.6, this.body.velocity.length() / 90)) % 6;
       this.setPose(HERO.rows.walk, 0);
       return;
     }
