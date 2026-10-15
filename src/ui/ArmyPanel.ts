@@ -183,7 +183,9 @@ export class ArmyPanel {
     g.clear();
     drawBar(g, this.bar.x, this.bar.y, this.bar.w, this.bar.h, a.pool / a.poolMax, 0x5aa0ff, u);
     this.poolText.setText(`Recrutas ${a.pool}/${a.poolMax} · +1 a cada 3 s`);
-    this.where.setText(a.inCapital ? 'Você está em Brumavale: pode recrutar' : 'Volte a Brumavale (cidade dourada no mapa) para recrutar').setColor(a.inCapital ? COLOR.green : COLOR.dim);
+    const bc = a.barracksCity;
+    this.win.title.setText(bc ? `QUARTEL DE ${bc.name.toUpperCase()}` : 'EXÉRCITO');
+    this.where.setText(bc ? `Você está no quartel de ${bc.name}: pode recrutar (cada cidade tem a sua reserva)` : 'Entre em qualquer cidade (ou no Alojamento da sede) para recrutar').setColor(bc ? COLOR.green : COLOR.dim);
     for (const c of this.cards) {
       const D = SOLDIERS[c.type];
       const mine = a.allies.filter((s) => s.type === c.type);

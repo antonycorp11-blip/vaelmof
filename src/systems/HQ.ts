@@ -353,6 +353,17 @@ export class HQ extends Phaser.Events.EventEmitter {
     }
   }
 
+  /** Paga um custo (estoque, baú, mochila; ouro do cofre). Devolve o que falta ('' = pago). */
+  spend(c: Cost): string {
+    const miss = this.missing(c);
+    if (miss) return `Faltam ${miss}`;
+    this.pay(c);
+    this.save();
+    this.emit('change');
+    this.emit('gold');
+    return '';
+  }
+
   static costText(c: Cost): string {
     return (Object.entries(c) as [Material | 'gold', number][]).map(([k, n]) => `${n} ${MATERIAL_NAME[k]}`).join(' · ');
   }

@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import { TILE } from '../config';
+import { MOUNTS, type MountDef } from '../data/mounts';
+import { SKIN_CELL, SKIN_COLS, SKIN_FOOT, SKINS } from '../data/skins';
 import { DEPTH } from '../entities/Creature';
 import type { Hittable } from '../entities/Hittable';
 import { HERO } from '../entities/heroSheet';
-import { MOUNTS, type MountDef } from '../data/mounts';
-import { SKIN_CELL, SKIN_COLS, SKIN_FOOT, SKINS } from '../data/skins';
 import type { WorldScene } from '../scenes/WorldScene';
+import type { City } from './Cities';
 
 /** Tipos de soldado: a arma define o tipo, como no herói. */
 export type SoldierType = 'sword' | 'greatsword' | 'bow' | 'staff';
@@ -128,8 +129,10 @@ export class Soldier implements Hittable {
   dmgK = 1;
   sizeK = 1;
   champion = false;
-  /** Personagem montado (líder de clã, procurado forte): a montaria e a sela (px de arte). */
+  /** Montado (líder de clã, procurado forte ou cavaleiro do herói). */
   mount: MountDef | null = null;
+  /** Cavaleiro do herói: dano extra (o dos inimigos vem de dmgK). */
+  cavK = 1;
   mountSpr?: Phaser.GameObjects.Sprite;
   home: { x: number; y: number } | null = null;
   onDeath?: () => void;
@@ -185,7 +188,7 @@ export class Soldier implements Hittable {
 
   /** Multiplicador de dano. */
   get mul() {
-    return this.team === 0 ? 1 + 0.1 * this.army.upg.atk : SOLDIER_RANKS[this.rank].mul * this.dmgK;
+    return this.team === 0 ? (1 + 0.1 * this.army.upg.atk) * this.cavK : SOLDIER_RANKS[this.rank].mul * this.dmgK;
   }
 
   /** Multiplicador de vida. */
@@ -209,6 +212,8 @@ export class Soldier implements Hittable {
     if (this.dead) return;
     // defesa treinada na sede (só aliados)
     if (this.team === 0) amount *= Math.max(0.5, 1 - 0.05 * this.army.upg.def);
+    // montaria com barda/couro: defesa extra
+    if (this.mount) amount *= 1 - this.mount.guard;
     this.hp -= amount;
     this.lastHurt = this.army.scene.time.now;
     this.flashUntil = this.army.scene.time.now + 120;
@@ -280,9 +285,8 @@ export interface War {
 export class Army extends Phaser.Events.EventEmitter {
   readonly soldiers: Soldier[] = [];
   mode: ArmyMode = 'follow';
-  /** Recrutas disponíveis em Brumavale (renovam com o tempo). */
-  pool = 40;
-  readonly poolMax = 60;
+  /** Recrutas disponíveis no quartel de cada cidade (renovam com o tempo). */
+  private pools = new Map<string, number>();
   war: War | null = null;
   ready = false;
   scale: number = HERO.scale;
@@ -356,7 +360,7 @@ export class Army extends Phaser.Events.EventEmitter {
         this.garrison.push(g);
         continue;
       }
-      const s = this.addAlly(g.t, p[0], p[1], g.k, false, true);
+      const s = this.addAlly(g.t, p[0], p[1], g.k, false, true, g.m);
       s.postX = p[0];
       s.postY = p[1];
       n++;
@@ -417,9 +421,9 @@ export class Army extends Phaser.Events.EventEmitter {
   private warCheck = 0;
   private heroT: Hittable;
   /** Soldados salvos esperando as folhas ficarem prontas. */
-  private pending: { t: SoldierType; k: number; st?: boolean }[] = [];
+  private pending: { t: SoldierType; k: number; st?: boolean; m?: string }[] = [];
   /** Aquartelados em Brumavale (fora do campo; voltam com Convocar, curados). */
-  garrison: { t: SoldierType; k: number }[] = [];
+  garrison: { t: SoldierType; k: number; m?: string }[] = [];
   /** Campo de fluxo (distância em passos até o herói) para contornar obstáculos. */
   private flow = new Uint16Array((FLOW_R * 2 + 1) ** 2);
   private flowOX = 0;
@@ -570,7 +574,7 @@ export class Army extends Phaser.Events.EventEmitter {
       this.ready = true;
       const p = this.scene.player;
       for (const r of this.pending.splice(0)) {
-        const s = this.addAlly(r.t, p.x, p.y + 30, r.k, false, !!r.st);
+        const s = this.addAlly(r.t, p.x, p.y + 30, r.k, false, !!r.st, r.m);
         if (s.station) {
           // guardas nascem no posto
           this.assignPosts();
@@ -587,15 +591,56 @@ export class Army extends Phaser.Events.EventEmitter {
   }
 
   // ------------------------------------------------------------------ elenco
-  private addAlly(type: SoldierType, x: number, y: number, kills = 0, save = true, station = false) {
+  private addAlly(type: SoldierType, x: number, y: number, kills = 0, save = true, station = false, mount?: string) {
     const s = new Soldier(this, 0, type, x + Phaser.Math.Between(-10, 10), y + Phaser.Math.Between(-6, 6), kills);
     s.station = station;
     this.soldiers.push(s);
+    if (mount && MOUNTS[mount]) this.rideAlly(s, mount);
     if (save) this.save();
     return s;
   }
 
-  /** O herói está em Brumavale (onde se recruta)? */
+  /**
+   * Quartel onde o herói está: o de qualquer cidade (com folga de 2 tiles nos
+   * muros) ou, na sede com Alojamento, o da cidade vizinha à sede.
+   */
+  get barracksCity(): City | undefined {
+    const p = this.scene.player;
+    const tx = p.x / TILE;
+    const ty = p.y / TILE;
+    const here = this.scene.map.cities.find((c) => tx >= c.x0 - 2 && tx <= c.x1 + 2 && ty >= c.y0 - 2 && ty <= c.y1 + 2);
+    if (here) return here;
+    const hq = this.scene.hq;
+    if (hq.founded && hq.heroInside && hq.level('barracks') > 0) return hq.city;
+    return undefined;
+  }
+
+  /** Teto de recrutas de um quartel: a capital forma mais gente. */
+  poolMaxOf(c: City) {
+    return c.capital ? 60 : 35;
+  }
+
+  poolOf(c: City) {
+    return Math.floor(this.pools.get(c.name) ?? (c.capital ? 40 : 25));
+  }
+
+  /** Recrutas do quartel onde o herói está (ou da capital). */
+  get pool(): number {
+    const c = this.barracksCity ?? this.scene.map.cities.find((x) => x.capital);
+    return c ? this.poolOf(c) : 0;
+  }
+
+  set pool(v: number) {
+    const c = this.barracksCity ?? this.scene.map.cities.find((x) => x.capital);
+    if (c) this.pools.set(c.name, Math.max(0, Math.min(this.poolMaxOf(c), v)));
+  }
+
+  get poolMax(): number {
+    const c = this.barracksCity ?? this.scene.map.cities.find((x) => x.capital);
+    return c ? this.poolMaxOf(c) : 60;
+  }
+
+  /** O herói está em Brumavale? */
   get inCapital(): boolean {
     const c = this.scene.map.cities.find((c) => c.capital);
     const p = this.scene.player;
@@ -607,9 +652,7 @@ export class Army extends Phaser.Events.EventEmitter {
 
   /** Por que não dá para recrutar agora ('' = dá). */
   recruitBlock(type: SoldierType, n: number): string {
-    const hq = this.scene.hq;
-    const atHq = hq.founded && hq.heroInside && hq.level('barracks') > 0;
-    if (!this.inCapital && !atHq) return hq.founded ? 'Recrute em Brumavale ou no Alojamento da sede' : 'Recrute no quartel de Brumavale';
+    if (!this.barracksCity) return 'Recrute no quartel de qualquer cidade (ou no Alojamento da sede)';
     if (this.size + n > this.scene.progress.armyCap) return `Sua patente comanda até ${this.scene.progress.armyCap} soldados`;
     if (this.pool < SOLDIERS[type].cost * n) return 'Faltam recrutas (renovam com o tempo)';
     return '';
@@ -751,6 +794,7 @@ export class Army extends Phaser.Events.EventEmitter {
     s.target = null;
     s.onDeath?.();
     const sc = this.scene;
+    if (s.team === 0 && s.mount) sc.events.emit('toast', `Um cavaleiro caiu · ${s.mount.name} voltou ferida ao estábulo`);
     if (by && !by.dead) {
       const before = by.rank;
       by.kills++;
@@ -796,10 +840,10 @@ export class Army extends Phaser.Events.EventEmitter {
     const sc = this.scene;
     for (const s of this.soldiers) {
       if (s.team !== 0 || s.dead || s.station) continue;
-      this.garrison.push({ t: s.type, k: s.kills });
+      this.garrison.push({ t: s.type, k: s.kills, m: s.mount?.id });
       s.dead = true;
       sc.fx.burst(s.x, s.y - 10, 0xbfe0ff, 3);
-      sc.tweens.add({ targets: [s.sprite, s.ring, s.icon], alpha: 0, duration: 400, onComplete: () => s.destroy() });
+      sc.tweens.add({ targets: [s.sprite, s.ring, s.icon, ...(s.mountSpr ? [s.mountSpr] : [])], alpha: 0, duration: 400, onComplete: () => s.destroy() });
     }
     this.save();
     this.emit('change');
@@ -814,7 +858,7 @@ export class Army extends Phaser.Events.EventEmitter {
     const bx = p.x - this.faceX * 140;
     const by = p.y - this.faceY * 140;
     for (const g of this.garrison.splice(0)) {
-      const s = this.addAlly(g.t, bx + Phaser.Math.Between(-30, 30), by + Phaser.Math.Between(-20, 20), g.k, false);
+      const s = this.addAlly(g.t, bx + Phaser.Math.Between(-30, 30), by + Phaser.Math.Between(-20, 20), g.k, false, false, g.m);
       // se nasceu dentro de algo, nasce junto do herói
       if (this.solidAt(s.x, s.y)) {
         s.x = p.x;
@@ -958,9 +1002,9 @@ export class Army extends Phaser.Events.EventEmitter {
     if (!def) return;
     const key = `mount-${id}`;
     const sc = this.scene;
+    s.mount = def;
     const ride = () => {
-      if (s.dead || !s.sprite.active || !sc.textures.exists(key)) return;
-      s.mount = def;
+      if (s.dead || !s.sprite.active || !sc.textures.exists(key) || s.mount !== def || s.mountSpr) return;
       const k = this.scale * s.sizeK;
       s.mountSpr = sc.add.sprite(s.x, s.y, key, 0).setOrigin(0.5, 76 / 80).setScale(0.5 * s.sizeK).setDepth(DEPTH.entities + s.y + 0.4);
       // as folhas de soldado são recortadas por quadro (setCrop não serve): em vez de
@@ -972,6 +1016,71 @@ export class Army extends Phaser.Events.EventEmitter {
     sc.load.atlas(key, `assets/sprites/mounts/${key}.png`, `assets/sprites/mounts/${key}.json`);
     sc.load.once(`filecomplete-atlasjson-${key}`, ride);
     sc.load.start();
+  }
+
+  // ------------------------------------------------------------------ cavalaria
+  /** Soldado do herói monta: mais vida e dano (cavaleiro), mais rápido. */
+  private rideAlly(s: Soldier, id: string) {
+    const m = MOUNTS[id];
+    s.cavK = 1.4 + m.power;
+    s.maxHp = s.hp = Math.round(s.maxHp * 1.6);
+    this.mountChampion(s, id);
+  }
+
+  private unrideAlly(s: Soldier) {
+    s.mountSpr?.destroy();
+    s.mountSpr = undefined;
+    s.mount = null;
+    s.cavK = 1;
+    s.maxHp = Math.round(SOLDIERS[s.type].hp * s.hpMul);
+    s.hp = Math.min(s.hp, s.maxHp);
+    s.sprite.setOrigin(0.5, FOOT / CELL);
+    s.ring.setScale(this.scale * 2 * s.sizeK);
+  }
+
+  /** Quantas cópias da montaria `id` estão com cavaleiros (no campo, de guarda ou aquartelados). */
+  ridersOf(id: string): number {
+    let n = 0;
+    for (const s of this.soldiers) if (s.team === 0 && !s.dead && s.mount?.id === id) n++;
+    for (const g of this.garrison) if (g.m === id) n++;
+    for (const r of this.pending) if (r.m === id) n++;
+    return n;
+  }
+
+  get cavalry(): number {
+    return this.soldiers.filter((s) => s.team === 0 && !s.dead && s.mount).length + this.garrison.filter((g) => g.m).length;
+  }
+
+  /** Promove um soldado do campo a cavaleiro na montaria `id` (quebra-escudos e espadas primeiro). */
+  promote(id: string): string {
+    const st = this.scene.stable;
+    if (!MOUNTS[id] || st.free(id) <= 0) return st.count(id) > 1 ? 'Todas as cópias estão em uso (procrie mais)' : 'Sem montaria livre desta espécie (procrie para ter outra)';
+    const order: SoldierType[] = ['greatsword', 'sword', 'bow', 'staff'];
+    const pick = this.soldiers
+      .filter((s) => s.team === 0 && !s.dead && !s.mount && !s.station)
+      .sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type) || b.kills - a.kills)[0];
+    if (!pick) return 'Nenhum soldado com você para montar (convoque o exército)';
+    this.rideAlly(pick, id);
+    this.scene.fx.burst(pick.x, pick.y - 14, 0xffd77a, 14);
+    this.scene.fx.floatText(pick.x, pick.y - 40, 'CAVALEIRO!', '#ffd77a');
+    this.save();
+    this.emit('change');
+    return `Um ${SOLDIERS[pick.type].name} agora monta ${MOUNTS[id].name}`;
+  }
+
+  /** Tira a montaria `id` de um cavaleiro (volta para o estábulo). */
+  recall(id: string): boolean {
+    const s = this.soldiers.find((x) => x.team === 0 && !x.dead && x.mount?.id === id);
+    if (s) {
+      this.unrideAlly(s);
+    } else {
+      const g = this.garrison.find((x) => x.m === id) ?? this.pending.find((x) => x.m === id);
+      if (!g) return false;
+      g.m = undefined;
+    }
+    this.save();
+    this.emit('change');
+    return true;
   }
 
   /** Tira um soldado do campo sem contar como abate (despawn). */
@@ -1362,14 +1471,19 @@ export class Army extends Phaser.Events.EventEmitter {
     }
   }
 
+  /** Cada quartel forma 1 recruta a cada 3 s, até o teto dele. */
   private regenPool(delta: number) {
-    if (this.pool >= this.poolMax) return;
     this.poolTimer += delta;
-    if (this.poolTimer >= 3000) {
-      this.poolTimer = 0;
-      this.pool++;
-      this.emit('change');
+    if (this.poolTimer < 3000) return;
+    this.poolTimer = 0;
+    let any = false;
+    for (const c of this.scene.map.cities) {
+      const n = this.poolOf(c);
+      if (n >= this.poolMaxOf(c)) continue;
+      this.pools.set(c.name, n + 1);
+      any = true;
     }
+    if (any) this.emit('change');
   }
 
   /** Golpe ou disparo no passo de impacto. */
@@ -1477,8 +1591,8 @@ export class Army extends Phaser.Events.EventEmitter {
   // ------------------------------------------------------------------ salvar
   save() {
     try {
-      const roster = this.soldiers.filter((s) => s.team === 0 && !s.dead).map((s) => ({ t: s.type, k: s.kills, st: s.station || undefined }));
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ roster: [...roster, ...this.pending], garrison: this.garrison, pool: this.pool, formation: this.formation }));
+      const roster = this.soldiers.filter((s) => s.team === 0 && !s.dead).map((s) => ({ t: s.type, k: s.kills, st: s.station || undefined, m: s.mount?.id }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ roster: [...roster, ...this.pending], garrison: this.garrison, pools: Object.fromEntries(this.pools), formation: this.formation }));
     } catch {
       /* sem armazenamento */
     }
@@ -1489,10 +1603,16 @@ export class Army extends Phaser.Events.EventEmitter {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return;
       const d = JSON.parse(raw);
-      if (typeof d.pool === 'number') this.pool = Phaser.Math.Clamp(d.pool, 0, this.poolMax);
+      if (d.pools && typeof d.pools === 'object') for (const [k, v] of Object.entries(d.pools)) if (typeof v === 'number') this.pools.set(k, v);
+      // save antigo: um só quartel (o de Brumavale)
+      else if (typeof d.pool === 'number') {
+        const cap = this.scene.map.cities.find((c) => c.capital);
+        if (cap) this.pools.set(cap.name, d.pool);
+      }
       if (d.formation in FORMATIONS) this.formation = d.formation;
-      if (Array.isArray(d.roster)) for (const r of d.roster) if (SOLDIER_TYPES.includes(r.t)) this.pending.push({ t: r.t, k: Number(r.k) || 0, st: !!r.st });
-      if (Array.isArray(d.garrison)) for (const r of d.garrison) if (SOLDIER_TYPES.includes(r.t)) this.garrison.push({ t: r.t, k: Number(r.k) || 0 });
+      const m = (v: unknown) => (typeof v === 'string' && MOUNTS[v] ? v : undefined);
+      if (Array.isArray(d.roster)) for (const r of d.roster) if (SOLDIER_TYPES.includes(r.t)) this.pending.push({ t: r.t, k: Number(r.k) || 0, st: !!r.st, m: m(r.m) });
+      if (Array.isArray(d.garrison)) for (const r of d.garrison) if (SOLDIER_TYPES.includes(r.t)) this.garrison.push({ t: r.t, k: Number(r.k) || 0, m: m(r.m) });
     } catch {
       /* sem save */
     }

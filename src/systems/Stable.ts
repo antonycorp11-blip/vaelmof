@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { MOUNTS, type MountDef } from '../data/mounts';
 import type { WorldScene } from '../scenes/WorldScene';
+import type { Cost } from './HQ';
 
 const SAVE_KEY = 'vaelmor.stable.v1';
 
@@ -15,6 +16,10 @@ export class Stable extends Phaser.Events.EventEmitter {
   riding = false;
   /** Montarias ganhas e ainda não vistas no estábulo (selo NOVA no menu). */
   unseen = new Set<string>();
+  /** Rebanho: cópias além da primeira de cada espécie (nascidas da procriação). */
+  extra: Record<string, number> = {};
+  /** Filhotes a caminho (hora real em que nascem: continua com o jogo fechado). */
+  breeding: { id: string; readyAt: number }[] = [];
 
   constructor(private scene: WorldScene) {
     super();
@@ -60,8 +65,85 @@ export class Stable extends Phaser.Events.EventEmitter {
 
   choose(id: string) {
     if (!this.owned.has(id)) return;
+    // a única livre está com um cavaleiro: ela volta para você
+    if (this.active !== id && this.free(id) <= 0) this.scene.army.recall(id);
     this.active = id;
     if (this.riding) this.scene.player.setMount(MOUNTS[id]);
+    this.save();
+    this.emit('change');
+  }
+
+  // ------------------------------------------------------------ rebanho e procriação
+  /** Quantas desta espécie você tem. */
+  count(id: string): number {
+    return this.owned.has(id) ? 1 + (this.extra[id] ?? 0) : 0;
+  }
+
+  /** Livres para um cavaleiro (fora a sua e as que já têm cavaleiro). */
+  free(id: string): number {
+    return this.count(id) - (this.active === id ? 1 : 0) - this.scene.army.ridersOf(id);
+  }
+
+  /** Raridade para a procriação: 0 comum, 1 de guerra/região, 2 rara, 3 lendária. */
+  static tier(m: MountDef): number {
+    if (!m.price) return m.desc.startsWith('Lendária') ? 3 : 2;
+    return m.price >= 1000 ? 1 : 0;
+  }
+
+  static breedCost(m: MountDef): Cost {
+    return [
+      { gold: 150, fiber: 20 },
+      { gold: 400, fiber: 40, ore: 10 },
+      { gold: 900, fiber: 60, crystal: 20 },
+      { gold: 2200, fiber: 80, crystal: 60 },
+    ][Stable.tier(m)];
+  }
+
+  /** Minutos até o filhote estar pronto para montar. */
+  static breedMinutes(m: MountDef): number {
+    return [4, 8, 15, 25][Stable.tier(m)];
+  }
+
+  /** Baias de procriação: 1, +1 com sede, +1 com o Salão nível 3. */
+  get breedSlots(): number {
+    const hq = this.scene.hq;
+    return 1 + (hq.founded ? 1 : 0) + (hq.founded && hq.level('hall') >= 3 ? 1 : 0);
+  }
+
+  breedBlock(id: string): string {
+    const m = MOUNTS[id];
+    if (!m || !this.owned.has(id)) return 'Você precisa ter esta montaria';
+    if (this.breeding.length >= this.breedSlots) return `Baias cheias (${this.breedSlots}); a sede e o Salão nível 3 dão mais`;
+    const miss = this.scene.hq.missing(Stable.breedCost(m));
+    return miss ? `Faltam ${miss}` : '';
+  }
+
+  breed(id: string): string {
+    const why = this.breedBlock(id);
+    if (why) return why;
+    const m = MOUNTS[id];
+    const paid = this.scene.hq.spend(Stable.breedCost(m));
+    if (paid) return paid;
+    this.breeding.push({ id, readyAt: Date.now() + Stable.breedMinutes(m) * 60000 });
+    this.save();
+    this.emit('change');
+    return `Cruzamento começou: um filhote de ${m.name} em ${Stable.breedMinutes(m)} min`;
+  }
+
+  private checkAt = 0;
+  /** Filhotes prontos viram montarias do rebanho. */
+  update(time: number) {
+    if (time < this.checkAt || !this.breeding.length) return;
+    this.checkAt = time + 1000;
+    const now = Date.now();
+    const born = this.breeding.filter((b) => b.readyAt <= now);
+    if (!born.length) return;
+    this.breeding = this.breeding.filter((b) => b.readyAt > now);
+    for (const b of born) {
+      this.extra[b.id] = (this.extra[b.id] ?? 0) + 1;
+      this.unseen.add(b.id);
+      this.emit('born', b.id);
+    }
     this.save();
     this.emit('change');
   }
@@ -88,7 +170,7 @@ export class Stable extends Phaser.Events.EventEmitter {
 
   save() {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ owned: [...this.owned], active: this.active, riding: this.riding, unseen: [...this.unseen] }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ owned: [...this.owned], active: this.active, riding: this.riding, unseen: [...this.unseen], extra: this.extra, breeding: this.breeding }));
     } catch {
       /* sem espaço */
     }
@@ -103,6 +185,8 @@ export class Stable extends Phaser.Events.EventEmitter {
       this.active = d.active && MOUNTS[d.active] ? d.active : null;
       this.riding = !!d.riding && !!this.active;
       this.unseen = new Set((d.unseen ?? []).filter((id: string) => this.owned.has(id)));
+      if (d.extra && typeof d.extra === 'object') for (const [k, v] of Object.entries(d.extra)) if (MOUNTS[k] && typeof v === 'number' && v > 0) this.extra[k] = Math.floor(v);
+      if (Array.isArray(d.breeding)) this.breeding = d.breeding.filter((b: { id: string; readyAt: number }) => MOUNTS[b?.id] && Number.isFinite(b.readyAt));
     } catch {
       /* sem save */
     }

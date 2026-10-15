@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DEBUG, FORCE_TOUCH } from '../config';
+import { MOUNTS } from '../data/mounts';
 import type { WeaponDef } from '../data/weapons';
 import { inputState } from '../input/InputState';
 import { VirtualControls } from '../input/VirtualControls';
@@ -164,6 +165,7 @@ export class UIScene extends Phaser.Scene {
       },
     }).setDepth(1400);
     world.stable.on('change', () => this.updateHud());
+    world.stable.on('born', (id: string) => this.showArea('NASCEU UM FILHOTE!', `${MOUNTS[id]?.name ?? ''} · no estábulo, pronto para montar ou virar cavaleiro`));
 
     // --- direita: minimapa, relógio e menu
     this.minimap = new Minimap(this, world);
@@ -518,6 +520,7 @@ export class UIScene extends Phaser.Scene {
     this.clansPanel.update(now);
     this.hqPanel.update(now);
     this.marketPanel.update(now);
+    this.stablePanel.update(now);
     // alvo mais perto: nome, distância e direção (vai embaixo das missões)
     if (now - this.objAt > 500) {
       this.objAt = now;

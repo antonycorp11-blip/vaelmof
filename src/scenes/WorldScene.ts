@@ -652,6 +652,7 @@ export class WorldScene extends Phaser.Scene {
     // ação de contexto: perto do mercador o golpe vira COMPRAR
     inputState.action = !this.army.war && this.market.merchantNear(this.player.x, this.player.y) ? MERCHANT_ACTION : null;
     this.player.update(time);
+    this.stable.update(time);
     this.army.update(time, dt);
     this.champions.update(time);
     this.bosses.update();

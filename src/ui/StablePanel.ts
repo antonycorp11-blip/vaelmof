@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { MOUNTS, type MountDef } from '../data/mounts';
 import type { WorldScene } from '../scenes/WorldScene';
+import { HQ } from '../systems/HQ';
+import { Stable } from '../systems/Stable';
 import { BIOMES } from '../systems/WorldGenerator';
 import { Button, COLOR, fit, frame, label, sizeFrame, Window } from './kit';
 
@@ -28,6 +30,9 @@ export class StablePanel {
   private use: Button;
   private buy: Button;
   private ride: Button;
+  private knight: Button;
+  private recallBtn: Button;
+  private breedBtn: Button;
   private status: Txt;
   private u = 1;
 
@@ -56,6 +61,10 @@ export class StablePanel {
     this.use = new Button(scene, { label: 'USAR ESTA', color: 'blue', size: 10, onTap: () => this.say(this.choose()) }).addTo(w.root);
     this.buy = new Button(scene, { label: 'COMPRAR', color: 'gold', size: 10, onTap: () => this.say(world.stable.buy(this.sel.id)) }).addTo(w.root);
     this.ride = new Button(scene, { label: 'MONTAR', icon: 26, color: 'green', size: 10, onTap: () => this.say(world.stable.toggle()) }).addTo(w.root);
+    // cavalaria: uma montaria parada vira a de um soldado; procriação multiplica o rebanho
+    this.knight = new Button(scene, { label: 'DAR A UM SOLDADO', icon: 2, color: 'blue', size: 9, onTap: () => this.say(this.promote()) }).addTo(w.root);
+    this.recallBtn = new Button(scene, { label: 'RECOLHER', color: 'dark', size: 9, onTap: () => this.say(world.army.recall(this.sel.id) ? `${this.sel.name} voltou ao estábulo` : 'Nenhum cavaleiro com esta montaria') }).addTo(w.root);
+    this.breedBtn = new Button(scene, { label: 'PROCRIAR', icon: 14, color: 'gold', size: 9, onTap: () => this.say(world.stable.breed(this.sel.id)) }).addTo(w.root);
     w.add(this.info, this.status);
     world.stable.on('change', () => this.refresh());
   }
@@ -82,7 +91,20 @@ export class StablePanel {
     this.setOpen(!this.open);
   }
 
-  update() {}
+  private tick = 0;
+  /** Contagem dos filhotes com o painel aberto. */
+  update(time = 0) {
+    if (!this.open || time < this.tick) return;
+    this.tick = time + 1000;
+    if (this.world.stable.breeding.length) this.refresh();
+  }
+
+  private promote(): string {
+    const st = this.world.stable;
+    if (!st.owned.has(this.sel.id)) return 'Você ainda não tem esta montaria';
+    if (st.free(this.sel.id) <= 0) return st.count(this.sel.id) > 1 ? 'Todas as cópias estão em uso (procrie mais)' : 'Esta é a sua montaria: procrie para ter outra';
+    return this.world.army.promote(this.sel.id);
+  }
 
   private choose(): string {
     if (!this.world.stable.owned.has(this.sel.id)) return 'Você ainda não tem esta montaria';
@@ -91,7 +113,7 @@ export class StablePanel {
   }
 
   private say(msg: string) {
-    this.status.setText(msg).setColor(/^(Falt|Você ainda|Este|Você já)/.test(msg) ? COLOR.red : COLOR.green);
+    this.status.setText(msg).setColor(/^(Falt|Você ainda|Este|Você já|Nenhum|Todas|Baias)/.test(msg) ? COLOR.red : COLOR.green);
     this.refresh();
   }
 
@@ -105,6 +127,9 @@ export class StablePanel {
       c.img.setTint(has ? 0xffffff : 0x202028).setAlpha(has ? 1 : 0.85);
       c.box.setTexture(c.m === this.sel ? 'ui-frame-hl' : 'ui-frame-inner');
       c.name.setColor(st.active === c.m.id ? COLOR.green : has ? COLOR.text : COLOR.dim);
+      const n = st.count(c.m.id);
+      const cub = st.breeding.some((b) => b.id === c.m.id);
+      c.name.setText(`${c.m.name}${n > 1 ? ` ×${n}` : ''}${cub ? ' ♥' : ''}`);
     }
     const m = this.sel;
     const has = st.owned.has(m.id);
@@ -112,7 +137,15 @@ export class StablePanel {
     const how = m.price
       ? `Vende por ${m.price} ouro em ${m.biomes.length ? m.biomes.map((b) => BIOMES[b].name).join(', ') : 'qualquer cidade'}`
       : 'Não se compra: cai de campeões, líderes de clã e procurados fortes';
-    this.info.setText([`${m.name}${has ? '  (sua)' : ''}`, `velocidade ×${m.speed.toFixed(2).replace('.', ',')}${bonus ? ` · ${bonus}` : ''}`, m.desc, how].join('\n'));
+    const n = st.count(m.id);
+    const riders = this.world.army.ridersOf(m.id);
+    const herd = has ? `Rebanho: ${n}${st.active === m.id ? ' · 1 é a sua' : ''}${riders ? ` · ${riders} com cavaleiro${riders > 1 ? 's' : ''}` : ''} · ${Math.max(0, st.free(m.id))} livre${st.free(m.id) === 1 ? '' : 's'}` : '';
+    const cubs = st.breeding.filter((b) => b.id === m.id).map((b) => `filhote em ${Math.max(0, Math.ceil((b.readyAt - Date.now()) / 60000))} min`);
+    const breed = has ? `Procriar: ${HQ.costText(Stable.breedCost(m))} · ${Stable.breedMinutes(m)} min · baias ${st.breeding.length}/${st.breedSlots}${cubs.length ? ` · ${cubs.join(', ')}` : ''}` : '';
+    this.info.setText([`${m.name}${has ? '  (sua)' : ''} · velocidade ×${m.speed.toFixed(2).replace('.', ',')}${bonus ? ` · ${bonus}` : ''}`, `${m.desc} ${how}.`, herd, breed].filter(Boolean).join('\n'));
+    this.knight.setVisible(has).setColor(st.free(m.id) > 0 ? 'blue' : 'dark');
+    this.recallBtn.setVisible(has && riders > 0);
+    this.breedBtn.setVisible(has).setColor(st.breedBlock(m.id) ? 'dark' : 'gold');
     this.use.setEnabled(has && st.active !== m.id);
     this.buy.setVisible(!has && sale.includes(m)).setLabel(`COMPRAR ${m.price}`);
     this.ride.setLabel(st.riding ? 'DESMONTAR' : 'MONTAR').setEnabled(!!st.active);
@@ -127,7 +160,7 @@ export class StablePanel {
     const top = win.head + pad / 2;
     const cols = 7;
     const cw = (win.W - pad * 2) / cols;
-    const ch = Math.min(80 * u, (win.H - top - pad - 70 * u) / 3);
+    const ch = Math.min(76 * u, (win.H - top - pad - 92 * u) / 3);
     this.cards.forEach((c, i) => {
       const x = pad + (i % cols) * cw;
       const y = top + Math.floor(i / cols) * ch;
@@ -137,11 +170,15 @@ export class StablePanel {
       fit(c.name, 7, u).setPosition(x + cw / 2, y + ch - 14 * u).setWordWrapWidth(cw - 6 * u);
     });
     const by = top + ch * 3 + 6 * u;
-    fit(this.info, 9, u).setPosition(pad, by).setWordWrapWidth(win.W - pad * 2 - 300 * u);
-    this.use.place(win.W - pad - 296 * u, by, u, 94 * u, 26 * u);
-    this.buy.place(win.W - pad - 198 * u, by, u, 100 * u, 26 * u);
-    this.ride.place(win.W - pad - 94 * u, by, u, 94 * u, 26 * u);
-    fit(this.status, 9, u).setPosition(win.W - pad - 296 * u, by + 32 * u).setWordWrapWidth(296 * u);
+    fit(this.info, 8.5, u).setPosition(pad, by).setWordWrapWidth(win.W - pad * 2 - 310 * u);
+    const bx = win.W - pad - 300 * u;
+    this.use.place(bx, by, u, 96 * u, 24 * u);
+    this.buy.place(bx + 100 * u, by, u, 100 * u, 24 * u);
+    this.ride.place(bx + 204 * u, by, u, 96 * u, 24 * u);
+    this.knight.place(bx, by + 28 * u, u, 132 * u, 24 * u);
+    this.recallBtn.place(bx + 136 * u, by + 28 * u, u, 74 * u, 24 * u);
+    this.breedBtn.place(bx + 214 * u, by + 28 * u, u, 86 * u, 24 * u);
+    fit(this.status, 9, u).setPosition(bx, by + 58 * u).setWordWrapWidth(300 * u);
     this.refresh(true);
   }
 }

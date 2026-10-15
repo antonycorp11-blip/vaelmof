@@ -276,6 +276,20 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   deixar a própria montaria** (senão, a chance de uma rara). Procurados de
   nível 2+ também andam montados. O cavaleiro vai na sela e a montaria é
   desenhada na frente das pernas dele.
+- **Cavaleiros** (estábulo → DAR A UM SOLDADO): uma montaria que você não
+  está usando vira a de um soldado do exército (quebra-escudos e espadas
+  primeiro). O cavaleiro tem +60% de vida, +40% de dano (mais o bônus da
+  montaria), a defesa dela e anda 35% mais rápido; aparece montado na batalha
+  e fica salvo (também aquartelado ou de guarda). RECOLHER devolve a montaria;
+  se o cavaleiro cai, ela volta ferida ao estábulo. Escolher para você uma
+  montaria que só um cavaleiro usa a tira dele.
+- **Rebanho e procriação** (estábulo → PROCRIAR): cada espécie que você tem
+  pode gerar filhotes — comum 150 ouro + 20 fibra em 4 min, de guerra/região
+  400 ouro + 40 fibra + 10 minério em 8 min, rara 900 ouro + 60 fibra + 20
+  cristal em 15 min, lendária 2200 ouro + 80 fibra + 60 cristal em 25 min (o
+  tempo corre com o jogo fechado). Baias: 1, +1 com sede, +1 com o Salão nível
+  3. Cada filhote é mais uma cópia (×N no estábulo) para cavaleiros: assim dá
+  para ter cavalaria de ursos, lobos, rinocerontes, felinos e dragões.
 - **Montaria nova** (`src/ui/MountReveal.ts`): quando uma cai de campeão,
   líder ou procurado, o jogo pausa e aparece um cartão com a montaria num feixe
   de luz girando, a raridade (comum, rara, lendária), velocidade, bônus e a
@@ -470,7 +484,7 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   para a próxima; subir de patente mostra um aviso.
 
 ### Exércitos e guerra (`src/systems/Army.ts`, `src/ui/ArmyPanel.ts`)
-- **Recrutamento** no quartel de **Brumavale** (dentro dos muros): Lâmina do
+- **Recrutamento** no quartel de **qualquer cidade** (cada uma com a sua reserva: 60 na capital, 35 nas outras, +1 a cada 3 s; o Alojamento da sede usa a reserva da cidade vizinha): Lâmina do
   Vale (linha de frente, 1 recruta), Quebra-Escudos (choque, 2), Flecha
   Cinzenta (atiradores, 1) e Arcanista (magia em área, 3). Os recrutas da cidade
   renovam 1 a cada 3 s (até 60); o limite é o da patente. O exército fica
