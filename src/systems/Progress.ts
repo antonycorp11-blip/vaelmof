@@ -29,6 +29,7 @@ export const REQUIREMENTS: Record<string, Partial<Record<Attr, number>>> = {
   weapon_greatsword: { str: 60 },
   weapon_staff: { ene: 25 },
   weapon_bow: { agi: 30 },
+  armor_squire: {},
   armor_leather: {},
   armor_plate: { str: 80, vit: 40 },
   armor_legion: { str: 40, vit: 20 },

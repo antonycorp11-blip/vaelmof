@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { TILE } from '../config';
 import { ITEMS, REGION_NAME, type Region } from '../data/items';
+import { SKIN_CELL, SKIN_FOOT, SKINS } from '../data/skins';
 import type { WorldScene } from '../scenes/WorldScene';
 import type { SoldierType } from './Army';
 import type { City } from './Cities';
@@ -142,15 +143,17 @@ export class Market extends Phaser.Events.EventEmitter {
     const s = this.scene;
     for (const o of this.sprites) o.destroy();
     this.sprites = [];
-    s.army.prepare(() => {
-      const key = s.army.textureFor('arcane', 'staff');
-      for (const c of s.map.cities) {
+    // cada cidade com o seu mercador (roupa, rosto e chapéu próprios)
+    const keys = SKINS.merchants.map((k) => `sk-${k}`);
+    s.army.need(keys, () => {
+      s.map.cities.forEach((c, i) => {
+        const key = keys[i % keys.length];
         const x = (c.cx + 3) * TILE + 8;
         const y = (c.cy + 3) * TILE + 8;
-        const spr = s.add.sprite(x, y, key, 0).setOrigin(0.5, 77 / 96).setScale(s.army.scale).setTint(0xffe8b0).setDepth(10 + y);
+        const spr = s.add.sprite(x, y, key, 0).setOrigin(0.5, SKIN_FOOT / SKIN_CELL).setScale(s.army.scale).setDepth(10 + y);
         const lab = s.add.text(x, y - 32, 'Mercador', { fontFamily: 'Tiny5, monospace', fontSize: '7px', color: '#ffd77a', stroke: '#1e1a24', strokeThickness: 2 }).setOrigin(0.5).setResolution(4).setDepth(4240);
         this.sprites.push(spr, lab);
-      }
+      });
     });
   }
 

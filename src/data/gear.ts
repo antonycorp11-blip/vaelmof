@@ -5,7 +5,9 @@
  * rúnicas para cima — um brilho. A arte é a mesma da peça base, tingida.
  */
 import type { Attr } from '../systems/Progress';
-import type { OutfitId, WeaponId } from '../entities/heroSheets';
+import type { WeaponId } from '../entities/heroSheets';
+
+type BaseOutfit = 'leather' | 'hunter' | 'plate' | 'legion' | 'arcane';
 
 export interface Rarity {
   name: string;
@@ -32,7 +34,7 @@ export interface GearDef {
   id: string;
   name: string;
   kind: 'weapon' | 'armor';
-  base: WeaponId | OutfitId;
+  base: WeaponId | BaseOutfit;
   tier: number;
   /** Tom multiplicado na arte (0xffffff = sem tom). */
   tint: number;
@@ -46,6 +48,7 @@ export const MAIN_ATTR: Record<string, Attr> = {
   greatsword: 'str',
   bow: 'agi',
   staff: 'ene',
+  squire: 'str',
   leather: 'agi',
   hunter: 'agi',
   plate: 'vit',
@@ -81,7 +84,7 @@ const WEAPON_LINES: Record<WeaponId, Line[][]> = {
     [['Olho de Morvath', 0xe0b0ff, 0xb040ff], ['Cetro do Primeiro Rei', 0xfff0c8, 0xffe070]],
   ],
 };
-const ARMOR_LINES: Record<OutfitId, Line[][]> = {
+const ARMOR_LINES: Record<BaseOutfit, Line[][]> = {
   leather: [
     [['Couro Curtido', 0xe0d8c8]],
     [['Gibão das Sombras', 0xb8c0e0, 0x6a7aff]],
@@ -128,7 +131,7 @@ for (const [base, tiers] of Object.entries(WEAPON_LINES) as [WeaponId, Line[][]]
       GEAR[id] = { id, name, kind: 'weapon', base, tier: i + 1, tint, glow };
     }),
   );
-for (const [base, tiers] of Object.entries(ARMOR_LINES) as [OutfitId, Line[][]][])
+for (const [base, tiers] of Object.entries(ARMOR_LINES) as [BaseOutfit, Line[][]][])
   tiers.forEach((list, i) =>
     list.forEach(([name, tint, glow]) => {
       const id = `g_${slug(name)}`;

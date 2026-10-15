@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { ITEMS } from '../data/items';
-import type { OutfitId, WeaponId } from '../entities/heroSheets';
+import type { LookId, OutfitId, WeaponId } from '../entities/heroSheets';
 
 const SAVE_KEY = 'vaelmor.inv.v1';
 
@@ -20,9 +20,9 @@ export class Inventory extends Phaser.Events.EventEmitter {
   static readonly MAX_WEIGHT = 300;
   readonly slots: (ItemStack | null)[] = Array(Inventory.SLOTS).fill(null);
   /** Equipado (fora da mochila): uma arma e uma armadura completa. */
-  equipped: { weapon: WeaponId; armor: OutfitId } = { weapon: 'sword', armor: 'leather' };
+  equipped: { weapon: WeaponId; look: LookId; armor: OutfitId } = { weapon: 'sword', look: 'sword', armor: 'squire' };
   /** Item exato equipado (a peça rara, com raridade, tom e brilho). */
-  gear = { weapon: 'weapon_sword', armor: 'armor_leather' };
+  gear = { weapon: 'weapon_sword', armor: 'armor_squire' };
   /** Requisitos de atributo: devolve o que falta para usar o item ('' = pode). */
   missing: (id: string) => string = () => '';
   /** Carga extra (kg) dada pela Força. */
@@ -47,8 +47,10 @@ export class Inventory extends Phaser.Events.EventEmitter {
     }
     const e = def.equip;
     const old = this.gear[e.kind];
-    if (e.kind === 'weapon') this.equipped.weapon = e.id;
-    else this.equipped.armor = e.id;
+    if (e.kind === 'weapon') {
+      this.equipped.weapon = e.id;
+      this.equipped.look = e.look;
+    } else this.equipped.armor = e.id;
     this.gear[e.kind] = def.id;
     this.slots[i] = { id: old, qty: 1 };
     this.emit('change');
@@ -67,14 +69,16 @@ export class Inventory extends Phaser.Events.EventEmitter {
    * para a espada / o traje de couro, que não exigem nada.
    */
   enforce() {
-    const fix = (kind: 'weapon' | 'armor', base: string) => {
+    const fix = (kind: 'weapon' | 'armor', bases: string[]) => {
       const cur = this.gear[kind];
       if (!this.missing(cur)) return;
-      const i = this.slots.findIndex((s) => s?.id === `${kind}_${base}`);
-      if (i >= 0) this.equipAt(i);
+      for (const base of bases) {
+        const i = this.slots.findIndex((s) => s?.id === `${kind}_${base}`);
+        if (i >= 0) return void this.equipAt(i);
+      }
     };
-    fix('weapon', 'sword');
-    fix('armor', 'leather');
+    fix('weapon', ['sword']);
+    fix('armor', ['squire', 'leather']);
   }
 
   /** Adiciona; devolve quanto coube. Equipamentos não empilham. */
@@ -191,8 +195,10 @@ export class Inventory extends Phaser.Events.EventEmitter {
         const def = id && ITEMS[id];
         if (def?.equip?.kind !== kind) continue;
         this.gear[kind] = id;
-        if (def.equip.kind === 'weapon') this.equipped.weapon = def.equip.id;
-        else this.equipped.armor = def.equip.id;
+        if (def.equip.kind === 'weapon') {
+          this.equipped.weapon = def.equip.id;
+          this.equipped.look = def.equip.look;
+        } else this.equipped.armor = def.equip.id;
       }
       return true;
     } catch {

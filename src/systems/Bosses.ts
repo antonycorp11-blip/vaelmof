@@ -13,9 +13,9 @@ export interface BossSpec {
   points: number;
   /** Patente mostrada na insígnia vermelha (0–9). */
   rank: number;
-  /** Arma e armadura (sorteadas se faltarem): cada personagem tem a sua cara. */
+  /** Arma (sorteada se faltar) e povo (o do bioma, se faltar): roupa, armas e raça do lugar. */
   type?: SoldierType;
-  outfit?: string;
+  faction?: number;
   /** Peça rara que cai ao morrer. */
   loot?: string;
   onKill?: () => void;
@@ -28,12 +28,11 @@ interface Live {
 }
 
 const TYPES: SoldierType[] = ['sword', 'greatsword', 'bow', 'staff'];
-const OUTFITS = ['leather', 'plate', 'legion', 'arcane', 'hunter'];
 const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 
 /**
  * Personagens nomeados (líderes de clã, procurados): soldados inimigos com
- * armadura e arma próprias (5 × 4 combinações, mais o tom), maiores e mais
+ * a roupa de elite do povo do lugar e a arma própria, maiores e mais
  * fortes, com nome e insígnia sobre a cabeça. Ao morrer, deixam cair a peça
  * rara que carregavam e avisam quem os chamou.
  */
@@ -47,13 +46,13 @@ export class Bosses {
     const army = s.army;
     army.prepare(() => {
       const type = spec.type ?? pick(TYPES);
-      const outfit = spec.outfit ?? pick(OUTFITS);
       const live: Partial<Live> = { spec };
       const unit = army.spawnChampion({
         x: spec.x,
         y: spec.y,
         type,
-        outfit,
+        faction: spec.faction,
+        tier: Math.min(3, 1 + Math.floor(spec.rank / 3)),
         hp: spec.hp,
         damage: spec.damage,
         tint: spec.tint,

@@ -164,6 +164,7 @@ export class Bands extends Phaser.Events.EventEmitter {
       // aviso: um bando vem na sua direção
       if (b.goal === 'hunt' && dh < WARN && !b.warned) {
         b.warned = true;
+        s.army.preloadFaction(s.biomeAt(b.x, b.y));
         s.events.emit('area', `${c.name} SE APROXIMA`, `${b.n} soldados vêm atrás de você · lute ou fuja`);
         this.emit('warn', b, c);
       }

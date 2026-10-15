@@ -27,7 +27,7 @@ de rede que o `npm run dev` mostra (ex.: `http://192.168.0.10:5173`), com
 celular e computador na mesma rede Wi-Fi. O service worker só é registrado no
 build de produção (`npm run preview` ou deploy).
 
-`npm run assets` regera todos os PNGs (mapa, inimigos e herói); `npm run hero` regera só o Teren (já estão versionados; só é
+`npm run assets` regera todos os PNGs (mapa, inimigos e herói); `npm run chars` regera só os personagens (herói, soldados, mercadores, coletores) (já estão versionados; só é
 preciso rodar se você alterar `scripts/generate-assets.mjs`).
 
 ### Controles
@@ -252,10 +252,11 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   o zoom, VOCÊ para voltar ao herói.
 
 ### Coletores com arte própria
-- Lenhador (xadrez, machado), pedreiro (avental, picareta), colhedora (vestido,
-  foice), mineiro (capacete com lanterna) e garimpeiro de cristal (túnica,
-  martelinho). Cada ofício tem a sua pilha na sede; eles trabalham nela e
-  levam a carga até o Armazém.
+- Gente de verdade (peças LPC, como o herói), cada ofício com roupa, rosto e
+  ferramenta: lenhador ruivo de suspensórios e machado, pedreiro de avental e
+  picareta, colhedora de lenço e enxada, mineiro de macacão e capacete, e o
+  velho garimpeiro de cristal com martelo. Andam até a pilha do ofício,
+  trabalham com o golpe da ferramenta e levam a carga até o Armazém.
 - Dá para **vender direto da mochila** quando há mercador por perto.
 
 ### Mercadores e ouro (`src/systems/Market.ts`, `src/ui/MarketPanel.ts`, tecla V)
@@ -288,10 +289,37 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - O painel de Clãs mostra onde anda o bando de cada um (cidade, distância, se
   está caçando) e um botão para ver no mapa.
 
-### Personagens com cara própria
-- Líderes de clã, procurados e os capangas deles são montados com as camadas
-  LPC: 5 trajes × 4 armas, mais o tom (antes, todo personagem era o mesmo
-  bandido). Os procurados andam com 2–7 capangas.
+### Povos de cada bioma (`scripts/chars/recipes.py`, `src/data/skins.ts`)
+- Cada bioma tem um **povo com roupa, armas e até raça próprios**, em 4
+  escalões (recruta → veterano → elite → campeão), e cada tipo de soldado com
+  o seu visual (guerreiro, guerreiro pesado, arqueiro, mago — homens e
+  mulheres):
+  - **Vale — Guarda do Vale:** milícia de couro verde e marrom, chapéus de
+    feltro, elmos de chaleira; espada e escudo redondo, lança/alabarda, arco
+    simples, bordão.
+  - **Greenland — Ordem de Greenland:** cavaleiros de azul e branco, tabardos,
+    malha, placas de prata, elmos fechados com penacho; espada e escudo de
+    brasão, montante/alabarda, arco recurvo, cajado de diamante.
+  - **Snowland — Clãs do Norte:** barbudos de peles brancas, elmos vikings com
+    chifres; machado e escudo, lança longa, arco longo, cajado de cristal azul.
+  - **Blockland — Legião:** bronze, saiotes, escudo retangular, elmos com
+    penacho e crista de centurião; gládio, lança-dragão, cajado de aro.
+  - **Blackland — Horda:** **orcs** de pele verde em ferro escuro, viseiras de
+    javali e de chifres, capas rasgadas; maça e mangual, foice, arco negro,
+    cajado retorcido.
+  - **Dustland — Nômades:** turbantes e véus, calças largas, cimitarras e
+    tridentes; os campeões são **homens-lagarto** de bronze e ouro.
+- O exército que aparece é do povo do lugar (os bandos de clã, os procurados,
+  os líderes e os capangas também). O tom da casa ficou leve: a roupa é que
+  diz quem é quem.
+- O **seu exército** tem linha própria (roupa clara, para a cor do clã tingir
+  por cima) que sobe com o treino: gibão → couro e chaleira → malha e tabardo
+  → placas e capa.
+- Cada cidade tem o seu **mercador** (seis: o gordo de chapéu-coco, a
+  vendedora de avental, o do deserto de turbante, o velho de cartola…).
+- Tudo vem **pronto do script** (`npm run chars`): corpo, roupa e arma
+  montados e cada quadro recortado num atlas pequeno (~20 KB), carregado só
+  quando o povo aparece — nada é montado no celular durante o jogo.
 
 ### Herói menos "roubado"
 - Golpes de soldados não dão mais 0,9 s de invulnerabilidade ao herói (cada
@@ -301,8 +329,13 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 ### Coletores da sede
 - Aba **TRABALHO** da sede: contrate coletores (ouro; o Salão comporta 6/12/20)
   para madeira, pedra, fibra, minério e cristal. Eles enchem o **estoque do
-  Armazém** (100/300/800 de cada) sozinhos, e o estoque conta para construir,
-  melhorar, reparar e treinar. Alguns andam pela sede.
+  Armazém** (100/300/800 de cada) sozinhos (minério 3/min, cristal 2/min por
+  coletor), e o estoque conta para construir, melhorar, reparar e treinar —
+  junto com o **baú da sede** e a mochila (gasta primeiro o estoque, depois o
+  baú, por fim a mochila). Alguns andam pela sede.
+- Cada construção mostra o custo com **o que você tem** ("madeira 20/50") em
+  verde ou vermelho e o motivo quando não dá (ex.: precisa estar na sede, ou o
+  Salão no nível certo); tocar no botão apagado diz o que falta.
 
 ### Sede do clã (`src/systems/HQ.ts`, `src/ui/HQPanel.ts`, ícone da casa, tecla H)
 - **Erguer:** só um **Clã** (600 de Glória, não um Bando), num terreno plano
@@ -319,9 +352,8 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - **Só na sede:** os soldados **se curam** (sem sede, em Brumavale), aceitam-se
   **missões** (os chamados vêm do Lorde da cidade mais próxima; sem sede, no
   salão de Brumavale), **treina-se** o exército e usa-se o **baú**.
-- **Trajes:** os soldados inimigos sorteiam o traje pela experiência do clã
-  (couro, caçador, legionário, placas); os seus trocam de armadura conforme o
-  treino total (caçador → legionário → placas).
+- **Trajes:** os soldados inimigos vestem o escalão do povo do bioma pela
+  experiência; os seus sobem de equipamento conforme o treino total.
 - **Soldados não sobem mais de patente por abates.** O Arsenal treina
   **Ataque** (+10% de dano por nível), **Defesa** (−5% de dano recebido) e
   **Vida** (+12%), até o nível 10, com ouro e minério; a insígnia do exército
@@ -456,13 +488,20 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 
 ### Teren (`src/entities/Player.ts`)
 - **Acerto sem tremer a tela:** golpes, flechas e magias não sacodem a câmera nem congelam o jogo; o acerto aparece no alvo (estrela branca com clarão, flash branco e número de dano). Só o terremoto da marreta dá um tremor leve.
-- **Humano**, aventureiro de cabelo escuro bagunçado, olhos verdes, camisa
-  branca, colete e ombreiras de couro, capa verde, botas e espada de aço.
-- Montado em **camadas LPC** (Liberated Pixel Cup — pixel art feita por
-  artistas, ver `CREDITS.md`) por `scripts/hero/build.py`, a partir da receita
-  `scripts/hero/recipe.json`: corpo, cabeça, olhos, nariz, sobrancelhas,
-  cabelo, roupa, capa e espada, cada um numa linha. Trocar uma linha troca a
-  peça em **todas** as animações — é a base para equipar armaduras e armas.
+- **Humano**, aventureiro de cabelo escuro bagunçado e olhos verdes; começa
+  com o **Gibão do Escudeiro** (camisa vinho, malha e couro, braçadeiras) —
+  roupa de guerreiro, não mais a de arqueiro.
+- Montado em **peças LPC** (Liberated Pixel Cup — pixel art feita por
+  artistas, ver `CREDITS.md` e `CREDITS-LPC.md`) por `scripts/chars/build.py`.
+- **Cada armadura tem a sua cara**: as 6 bases e as 20 raras (Gibão das
+  Sombras com máscara, Pele do Lobo Branco, Placas de Rochedo com ombreiras,
+  Armadura do Dragão Negro com viseira de chifres, Couraça do Imperador,
+  Vestes do Vazio…), cada uma com retrato próprio na mochila.
+- **Cada arma tem a sua forma**: espadas de aço e bronze, sabre, florete,
+  cimitarra, maça, espadas de luz azul e vermelha; montante, machado de
+  guerra, alabarda, mangual e foice; arcos simples, recurvos e longos de
+  várias madeiras e metais; cajados de aro, retorcidos, de cristal (cinco
+  cores), de diamante e o cetro em S — com golpes e estocadas próprios.
 - Animações de arte: andar (8 quadros), golpe com espada (quadros 128×128 com
   o rastro da lâmina), magia e queda, nas 4 direções. O código cuida do resto:
   tempo de cada quadro sincronizado com o impacto, avanço no golpe, giro de
@@ -668,36 +707,36 @@ já estão no jogo (mundo 320×320; chunks ficam para quando o mundo crescer);
 mapa com névoa de exploração, coleta por tiers e inventário no estilo Albion
 Online ainda não foram implementados.
 
-## Herói: arte e animação
+## Personagens: arte e animação
 
-`npm run hero` (`python3 scripts/hero/build.py`, requer Pillow) junta a
-**base** (corpo, rosto, cabelo, roupa, capa) com cada **arma** listada em
-`scripts/hero/recipe.json` (em ordem de profundidade `z`) e gera, por arma:
+`npm run chars` (`python3 scripts/chars/build.py`, requer Pillow e numpy) monta
+todos os personagens a partir das peças do Universal LPC Spritesheet Character
+Generator. Na primeira vez faz um clone esparso do repositório (só as
+definições; cada peça é baixada quando uma receita pede) em
+`scripts/chars/.lpc/` (fora do git).
 
-- `outfit-<traje>.png` (+ `-back.png`, o que fica atrás do corpo) e
-  `wpn-<arma>-bg.png` / `-fg.png` (arma atrás / na frente do corpo) — folhas
-  universais LPC, 64×64 por quadro,
-  13 colunas: magia (linhas 0–3), estocada (4–7), andar (8–11), golpe
-  (12–15), arco (16–19), queda (20); cada animação em 4 direções (cima,
-  esquerda, baixo, direita).
-- `wpn-<arma>-<anim>-bg/fg.png` — animações em quadros
-  grandes (128 ou 192 px: golpes da espada e do montante, estocadas do montante
-  e do cajado, o arco andando) — o corpo entra centralizado e a arma usa a arte
-  própria da animação;
-- `src/entities/heroSheets.ts` — tamanho e quantidade de quadros de cada folha.
+- `scripts/chars/lpc.py` lê as definições (`sheet_definitions/*.json`),
+  resolve cada animação (variante pronta ou base + **recoloração pelas
+  paletas** do LPC: tecido, metal, pele, cabelo, madeira), e monta a folha
+  universal (64 px, 13 colunas: magia 0–3, estocada 4–7, andar 8–11, golpe
+  12–15, arco 16–19, queda 20) e as animações grandes das armas (golpe de
+  128/192, estocada de 192, andar de 128, golpe das ferramentas).
+- `scripts/chars/recipes.py` tem as receitas: o corpo do herói, os trajes
+  (base e raros), as aparências das armas, os povos de cada bioma (gente,
+  4 escalões × guerreiro/arqueiro/mago, armas por tipo e escalão), a linha do
+  clã do jogador, os mercadores e os coletores.
+- `scripts/chars/build.py` gera:
+  - `outfit-<traje>.png` (+ `-back.png`, o que fica atrás do corpo, como a
+    capa), `wpn-<aparência>-bg/fg.png` e `wpn-<aparência>-<anim>-bg/fg.png`
+    para o herói, `armor-icons.png` e `src/entities/heroSheets.ts`;
+  - `public/assets/skins/sk-<id>.png + .json`: soldados e figurantes já
+    montados (15 colunas × 4 direções de 96×96: parado, andar, ataque), cada
+    quadro recortado e empacotado num atlas com paleta, e
+    `src/data/skins.ts`;
+  - `CREDITS-LPC.md` com autores e licenças de cada peça usada.
 
-**Armadura nova**: some uma entrada em `outfits` (camadas LPC, defesa,
-velocidade, bônus; `hideHair` se tiver elmo/capuz) e rode `npm run hero`.
-
-**Arma nova**: some uma entrada em `weapons` na receita (camadas e animações
-grandes), rode `npm run hero` e descreva golpes e habilidade em
-`src/data/weapons.ts`.
-
-**Trocar uma peça**: baixe a camada do gerador LPC
-(https://github.com/sanderfrenken/Universal-LPC-Spritesheet-Character-Generator,
-pasta `spritesheets/`), coloque em `scripts/hero/layers/` com o mesmo caminho,
-troque o arquivo na receita (com autores e licença, que vão para o
-`CREDITS.md`) e rode `npm run hero`.
+**Roupa nova / povo novo / arma nova**: edite `recipes.py` (nomes das
+definições LPC e cores das paletas) e rode `npm run chars`.
 
 **Errante** (`npm run wraith`): `scripts/wraith/build.py` (Pillow + numpy)
 recorta as três vistas de `scripts/wraith/concept.png`, anima (flutuar,
@@ -711,7 +750,7 @@ ondular, inclinar), reduz com paleta comum e contorno, repinta os olhos e gera
 | Item | Situação |
 |---|---|
 | Todo o tileset (grama, terra, areia, rocha, água, cachoeira, penhascos, estrada, ponte, escadaria, flores, arbustos, cercas, árvores) | placeholder procedural — trocar por Kenney Tiny Town / Roguelike RPG Pack ou arte própria |
-| Teren | camadas LPC (arte final de terceiros, ver CREDITS). Faltam animações próprias de esquiva e de dano (usa disparada e um quadro da queda) |
+| Teren e personagens | peças LPC (arte final de terceiros, ver CREDITS). Faltam animações próprias de esquiva e de dano (usa disparada e um quadro da queda) |
 | Bandoleiro | rig 2D de poses (48×48, ~24 px de altura) em `scripts/generate-assets.mjs` |
 | Limo, Lobo, Ovelha, Cervo, Pássaro | placeholder procedural 16×16 (vista lateral espelhada para quadrúpedes) |
 | Casas (2 estilos por vila), poço, tochas | placeholder procedural |
@@ -822,7 +861,7 @@ public/
   assets/                 tilesets/, sprites/, tiles/ (PNG placeholder + README de layout)
 scripts/generate-assets.mjs   gerador da pixel art placeholder (mapa, inimigos, efeitos)
 scripts/world-art.mjs         transições de terreno, tiles de cidade e construções por bioma
-scripts/hero/                 Teren: receita e camadas LPC + montagem do spritesheet
+scripts/chars/                personagens LPC: receitas, recoloração e montagem (herói, povos, mercadores, coletores)
 scripts/wraith/               Errante: arte conceitual + animação procedural
 CREDITS.md                fontes e licenças
 ```

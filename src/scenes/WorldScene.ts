@@ -192,20 +192,20 @@ export class WorldScene extends Phaser.Scene {
     this.inventory.extraWeight = this.progress.extraWeight;
     // equipar: arma (define a classe) e armadura (corpo inteiro)
     this.inventory.on('equip', (kind: 'weapon' | 'armor', id: string) => {
-      if (kind === 'weapon') this.player.setWeapon(id as WeaponId);
+      if (kind === 'weapon') this.player.setWeapon(id as WeaponId, this.inventory.equipped.look);
       else this.player.setOutfit(id as OutfitId);
       this.player.applyLook();
     });
     // mochila salva; na primeira vez, a espada e o traje de couro equipados e o resto das bases na mochila
     if (this.inventory.load()) {
       const eq = this.inventory.equipped;
-      if (eq.weapon !== 'sword') this.player.setWeapon(eq.weapon);
-      if (eq.armor !== 'leather') this.player.setOutfit(eq.armor);
+      if (eq.look !== 'sword') this.player.setWeapon(eq.weapon, eq.look);
+      if (eq.armor !== this.player.outfit) this.player.setOutfit(eq.armor);
       this.player.applyLook();
       this.inventory.emit('change');
     } else {
       for (const w of ['greatsword', 'staff', 'bow']) this.inventory.add(`weapon_${w}`, 1);
-      for (const a of ['plate', 'legion', 'arcane', 'hunter']) this.inventory.add(`armor_${a}`, 1);
+      for (const a of ['leather', 'plate', 'legion', 'arcane', 'hunter']) this.inventory.add(`armor_${a}`, 1);
     }
     this.inventory.on('denied', (msg: string) => this.events.emit('toast', msg));
     this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.Q).on('down', () => {
@@ -742,7 +742,10 @@ export class WorldScene extends Phaser.Scene {
     }
     this.biomeTint = (Math.min(255, Math.round(r)) << 16) | (Math.min(255, Math.round(g)) << 8) | Math.min(255, Math.round(b));
     this.biomeDark = dark;
+    const was = this.biome;
     this.biome = this.biomeAt(p.x, p.y);
+    // o povo deste bioma: adianta as peles dos soldados dele
+    if (this.biome !== was && this.army) this.army.preloadFaction(this.biome);
     const W = this.biomeW;
     this.weather.rainMask = W[Biome.VALE] + W[Biome.GREEN] + W[Biome.BLOCK] * 0.6;
   }

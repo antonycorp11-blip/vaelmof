@@ -9,7 +9,7 @@ import type { WorldScene } from '../scenes/WorldScene';
 import { Creature, DEPTH } from './Creature';
 import { Flame } from './Flame';
 import { HERO, LPC_DIR } from './heroSheet';
-import { HERO_SHEETS, OUTFITS, type OutfitId, type WeaponId } from './heroSheets';
+import { HERO_SHEETS, OUTFITS, type LookId, type OutfitId, type WeaponId } from './heroSheets';
 import { Projectile } from './Projectile';
 
 type PlayerState = 'normal' | 'attack' | 'roll' | 'hurt' | 'gather' | 'dead';
@@ -68,7 +68,7 @@ interface Pose {
   big?: { anim: string; i: number };
 }
 
-const bigOf = (w: WeaponId, anim: string) => (HERO_SHEETS[w].big as unknown as Record<string, BigAnim | undefined>)[anim];
+const bigOf = (w: LookId, anim: string) => (HERO_SHEETS[w].big as unknown as Record<string, BigAnim | undefined>)[anim];
 
 /**
  * Teren: herói humano em camadas LPC (scripts/hero/recipe.json). Desenhado
@@ -87,7 +87,9 @@ export class Player extends Creature {
   /** Direção para onde Teren olha (unitário). */
   facing = new Phaser.Math.Vector2(0, 1);
   weapon: WeaponDef = WEAPONS.sword;
-  outfit: OutfitId = 'leather';
+  outfit: OutfitId = 'squire';
+  /** Aparência da arma (a forma: sabre, maça, foice…); a classe vem de `weapon`. */
+  look: LookId = 'sword';
   /** 0 baixo, 1 esquerda, 2 direita, 3 cima. */
   private dir = 0;
   private pose: Pose = { row: HERO.rows.walk, col: 0, dir: 0 };
@@ -146,7 +148,7 @@ export class Player extends Creature {
   private lastUpdate = 0;
 
   constructor(scene: WorldScene, x: number, y: number) {
-    super(scene, x, y, 'outfit-leather', 20, 10, 0);
+    super(scene, x, y, 'outfit-squire', 20, 10, 0);
     const F = HERO.frame;
     this.setOrigin(0.5, HERO.footY / F);
     this.body.setSize(20, 10);
@@ -280,7 +282,7 @@ export class Player extends Creature {
     const o = OUTFITS[this.outfit];
     this.back.setVisible(visible && o.back);
     if (o.back) this.back.setFrame(frame);
-    const w = this.weapon.id;
+    const w = this.look;
     const big = p.big ? bigOf(w, p.big.anim) : undefined;
     for (const [s, side] of [
       [this.wBg, 'bg'],
@@ -371,7 +373,7 @@ export class Player extends Creature {
     if (!missing.length) return done();
     for (const k of missing) {
       const big = /^wpn-(\w+)-(\w+)-(bg|fg)$/.exec(k);
-      const b = big ? bigOf(big[1] as WeaponId, big[2]) : undefined;
+      const b = big ? bigOf(big[1] as LookId, big[2]) : undefined;
       const F = b ? b.frame : HERO.frame;
       s.load.spritesheet(k, `assets/sprites/${k}.png`, { frameWidth: F, frameHeight: F });
     }
@@ -379,7 +381,7 @@ export class Player extends Creature {
     s.load.start();
   }
 
-  private weaponKeys(id: WeaponId): string[] {
+  private weaponKeys(id: LookId): string[] {
     const w = HERO_SHEETS[id];
     const keys: string[] = [];
     for (const side of ['bg', 'fg'] as const) if (w[side]) keys.push(`wpn-${id}-${side}`);
@@ -420,10 +422,12 @@ export class Player extends Creature {
     s.events.emit('mount', def);
   }
 
-  setWeapon(id: WeaponId) {
+  setWeapon(id: WeaponId, look: LookId = id) {
     if (this.state2 === 'dead') return;
-    this.ensure(this.weaponKeys(id), () => {
+    if (!HERO_SHEETS[look]) look = id;
+    this.ensure(this.weaponKeys(look), () => {
       this.weapon = WEAPONS[id];
+      this.look = look;
       this.combo = 0;
       this.comboUntil = 0;
       this.pendingShot = undefined;
@@ -727,7 +731,7 @@ export class Player extends Creature {
       return;
     }
     const anim = M.anim === 'spin' ? 'slash' : M.anim;
-    const b = bigOf(this.weapon.id, anim)!;
+    const b = bigOf(this.look, anim)!;
     let dir = this.dir;
     let step = M.cols ? M.cols[Math.min(i, M.cols.length - 1)] : Math.min(i, b.frames - 1);
     if (M.anim === 'spin') {

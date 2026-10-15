@@ -8,9 +8,9 @@
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
-    "assets": "node scripts/generate-assets.mjs && python3 scripts/hero/build.py && python3 scripts/wraith/build.py",
+    "assets": "node scripts/generate-assets.mjs && python3 scripts/chars/build.py && python3 scripts/wraith/build.py",
     "typecheck": "tsc --noEmit",
-    "hero": "python3 scripts/hero/build.py",
+    "chars": "python3 scripts/chars/build.py",
     "wraith": "python3 scripts/wraith/build.py"
   },
   "dependencies": {

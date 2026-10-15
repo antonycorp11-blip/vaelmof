@@ -2,8 +2,8 @@ import Phaser from 'phaser';
 import { TILE } from '../config';
 import { DEPTH } from '../entities/Creature';
 import type { Hittable } from '../entities/Hittable';
-import { HERO, LPC_DIR } from '../entities/heroSheet';
-import { HERO_SHEETS } from '../entities/heroSheets';
+import { HERO } from '../entities/heroSheet';
+import { SKIN_CELL, SKIN_COLS, SKIN_FOOT, SKINS } from '../data/skins';
 import type { WorldScene } from '../scenes/WorldScene';
 
 /** Tipos de soldado: a arma define o tipo, como no herói. */
@@ -43,34 +43,22 @@ export const SOLDIER_RANKS = [
 ]
 const rankOf = (kills: number) => SOLDIER_RANKS.reduce((r, R, i) => (kills >= R.kills ? i : r), 0);
 
-/** Trajes de cada lado (o herói usa o mesmo sistema de camadas). */
-const OUTFIT: Record<0 | 1, Record<SoldierType, string>> = {
-  0: { sword: 'legion', greatsword: 'legion', bow: 'hunter', staff: 'arcane' },
-  1: { sword: 'plate', greatsword: 'plate', bow: 'leather', staff: 'arcane' },
-};
 /** Cor do anel no chão: a do clã do jogador (muda ao fundar) e vermelho inimigo. */
 export const TEAM_COLOR = [0x5aa0ff, 0xff5a5a];
 /** Tom da arte dos aliados: a cor do clã clareada (para não escurecer demais). */
-export const allyTint = (c: number) => {
-  const k = 0.5;
+export const allyTint = (c: number, k = 0.75) => {
   const r = (c >> 16) & 255;
   const g = (c >> 8) & 255;
   const b = c & 255;
   return (Math.round(r + (255 - r) * k) << 16) | (Math.round(g + (255 - g) * k) << 8) | Math.round(b + (255 - b) * k);
 };
-const BACK: Record<string, boolean> = { leather: true, plate: false, legion: false, arcane: true, hunter: true };
-
 /** Quadro do soldado: 96×96, pés em y = 77; 15 colunas (0 parado, 1–8 andar, 9–14 ataque) × 4 direções. */
-const CELL = 96;
-const FOOT = 77;
-const COLS = 15;
-/** Animação grande (folhas de 128/192 px do herói) usada no ataque. */
-const ATTACK: Record<SoldierType, { big?: string; row: number; cols: number[] }> = {
-  sword: { big: 'slash', row: HERO.rows.slash, cols: [0, 1, 2, 3, 4, 5] },
-  greatsword: { big: 'slash', row: HERO.rows.slash, cols: [0, 1, 2, 3, 4, 5] },
-  staff: { big: 'thrust', row: HERO.rows.thrust, cols: [0, 1, 2, 4, 5, 7] },
-  bow: { row: HERO.rows.shoot, cols: [1, 3, 5, 7, 8, 10] },
-};
+const CELL = SKIN_CELL;
+const FOOT = SKIN_FOOT;
+const COLS = SKIN_COLS;
+/** Pele pronta para quem ainda espera a sua carregar. */
+const FALLBACK = 'sk-ally-0-sword-0';
+const pickOf = <T>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)];
 /** Passo do ataque em que o golpe acerta / a flecha sai. */
 const HIT_STEP = 3;
 const STEP_MS = 80;
@@ -115,6 +103,8 @@ export class Soldier implements Hittable {
   lastBy: Soldier | null = null;
   /** Cor da casa (exércitos inimigos); -1 = sem tom. */
   baseTint = -1;
+  /** Pele (textura) em uso. */
+  skin = '';
   /** Último dano levado (a cura espera um pouco). */
   lastHurt = -99999;
   /** O caminho reto até o herói está bloqueado: segue o campo de fluxo. */
@@ -144,6 +134,8 @@ export class Soldier implements Hittable {
     x: number,
     y: number,
     kills = 0,
+    /** Povo (bioma 0–5) dos inimigos: define roupa, arma e até a raça. */
+    readonly faction = 0,
   ) {
     this.x = x;
     this.y = y;
@@ -152,12 +144,12 @@ export class Soldier implements Hittable {
     const s = army.scene;
     // anel no chão: profundidade fixa (abaixo de todos), não entra na reordenação por y
     this.ring = s.add.image(x, y, 'soldier-ring').setTint(TEAM_COLOR[team]).setAlpha(0.7).setDepth(DEPTH.birdShadow - 0.5);
-    this.sprite = s.add.sprite(x, y, `sold-${team}-${type}`, 0).setOrigin(0.5, FOOT / CELL);
+    this.sprite = s.add.sprite(x, y, s.textures.exists(FALLBACK) ? FALLBACK : '__MISSING', 0).setOrigin(0.5, FOOT / CELL);
     this.sprite.setScale(army.scale);
     this.ring.setScale(army.scale * 2);
     this.icon = s.add.image(x, y, 'rank-icons', this.iconFrame).setDepth(DEPTH.fx - 50).setScale(army.iconScale);
-    // traje: aliados pelo treino da sede, inimigos sorteados pela experiência
-    if (army.ready) this.sprite.setTexture(army.skin(team, type, team === 0 ? army.upTier : rankOf(kills)), 0);
+    // traje: aliados pelo treino da sede; inimigos pelo povo (bioma) e pela experiência
+    army.dress(this, team === 0 ? army.upTier : rankOf(kills));
     if (team === 0 && army.clanColor >= 0) {
       this.baseTint = allyTint(army.clanColor);
       this.sprite.setTint(this.baseTint);
@@ -301,7 +293,7 @@ export class Army extends Phaser.Events.EventEmitter {
       s.maxHp = Math.round(SOLDIERS[s.type].hp * s.hpMul);
       s.hp = Math.max(1, Math.round(s.maxHp * k));
       s.icon.setFrame(s.iconFrame);
-      if (this.ready) s.sprite.setTexture(this.skin(0, s.type, this.upTier), 0);
+      this.dress(s, this.upTier);
     }
     this.emit('change');
   }
@@ -462,36 +454,77 @@ export class Army extends Phaser.Events.EventEmitter {
     return n;
   }
 
-  // ------------------------------------------------------------------ folhas
-  /** Carrega as camadas que faltam e funde uma folha por tipo e lado. */
+  // ------------------------------------------------------------------ peles
+  /**
+   * Peles prontas (scripts/chars): corpo, roupa e arma já montados num atlas
+   * com cada quadro recortado. Carregadas sob demanda (poupa memória no
+   * celular): a dos aliados no começo, a de cada povo quando ele aparece.
+   */
+  private loading = new Map<string, (() => void)[]>();
+
+  /** Carrega as peles que faltam e chama `done`. */
+  need(keys: string[], done: () => void) {
+    const s = this.scene;
+    const missing = [...new Set(keys)].filter((k) => !s.textures.exists(k));
+    if (!missing.length) return done();
+    let left = missing.length;
+    const one = () => {
+      if (--left === 0) done();
+    };
+    let start = false;
+    for (const k of missing) {
+      const q = this.loading.get(k);
+      if (q) {
+        q.push(one);
+        continue;
+      }
+      this.loading.set(k, [one]);
+      s.load.atlas(k, `assets/skins/${k}.png`, `assets/skins/${k}.json`);
+      s.load.once(`filecomplete-atlasjson-${k}`, () => {
+        const cbs = this.loading.get(k) ?? [];
+        this.loading.delete(k);
+        cbs.forEach((f) => f());
+      });
+      start = true;
+    }
+    if (start && !s.load.isLoading()) s.load.start();
+  }
+
+  /** Pele (chave da textura) de um soldado: aliados pela linha do clã; inimigos pelo povo do bioma. */
+  skinKey(team: 0 | 1, type: SoldierType, tier: number, faction = 0): string {
+    const t = Math.max(0, Math.min(3, tier));
+    const list = team === 0 ? SKINS.ally[t][type] : (SKINS.factions[String(Math.max(0, Math.min(5, faction))) as keyof typeof SKINS.factions] ?? SKINS.factions['0']).tiers[t][type];
+    return `sk-${pickOf(list as readonly string[])}`;
+  }
+
+  /** Veste o soldado (troca a textura quando a pele chega). */
+  dress(s: Soldier, tier: number) {
+    const key = this.skinKey(s.team, s.type, tier, s.faction);
+    s.skin = key;
+    const apply = () => {
+      if (s.dead || s.skin !== key) return;
+      s.sprite.setTexture(key, s.sprite.frame?.name ?? 0);
+    };
+    if (this.scene.textures.exists(key)) apply();
+    else this.need([key], apply);
+  }
+
+  /** Adianta as peles de um povo (ao entrar no bioma ou quando um bando se aproxima). */
+  preloadFaction(f: number) {
+    const F = SKINS.factions[String(Math.max(0, Math.min(5, f))) as keyof typeof SKINS.factions];
+    if (!F) return;
+    const keys: string[] = [];
+    for (const tier of F.tiers) for (const list of Object.values(tier)) for (const k of list as readonly string[]) keys.push(`sk-${k}`);
+    this.need(keys, () => {});
+  }
+
+  /** Carrega as peles dos aliados (o treino atual) e solta os recrutas pendentes. */
   prepare(done: () => void) {
     if (this.ready) return done();
-    const s = this.scene;
-    const keys = new Set<string>();
-    const sizes = new Map<string, number>();
-    for (const team of [0, 1] as const)
-      for (const t of SOLDIER_TYPES) {
-        const o = OUTFIT[team][t];
-        keys.add(`outfit-${o}`);
-        if (BACK[o]) keys.add(`outfit-${o}-back`);
-      }
-    for (const t of SOLDIER_TYPES) {
-      const w = HERO_SHEETS[t];
-      if (w.bg) keys.add(`wpn-${t}-bg`);
-      if (w.fg) keys.add(`wpn-${t}-fg`);
-      const A = ATTACK[t];
-      if (A.big) {
-        const b = (w.big as unknown as Record<string, { frame: number; bg: boolean; fg: boolean }>)[A.big];
-        for (const side of ['bg', 'fg'] as const)
-          if (b[side]) {
-            keys.add(`wpn-${t}-${A.big}-${side}`);
-            sizes.set(`wpn-${t}-${A.big}-${side}`, b.frame);
-          }
-      }
-    }
-    const missing = [...keys].filter((k) => !s.textures.exists(k));
-    const finish = () => {
-      for (const team of [0, 1] as const) for (const t of SOLDIER_TYPES) this.compose(team, t);
+    const keys = [FALLBACK];
+    for (const t of ['sword', 'greatsword', 'bow', 'staff'] as SoldierType[]) for (const k of SKINS.ally[this.upTier][t]) keys.push(`sk-${k}`);
+    this.need(keys, () => {
+      if (this.ready) return done();
       this.ready = true;
       const p = this.scene.player;
       for (const r of this.pending.splice(0)) {
@@ -508,91 +541,7 @@ export class Army extends Phaser.Events.EventEmitter {
       this.assignPosts();
       this.regroup();
       done();
-    };
-    if (!missing.length) return finish();
-    for (const k of missing) {
-      const F = sizes.get(k) ?? HERO.frame;
-      s.load.spritesheet(k, `assets/sprites/${k}.png`, { frameWidth: F, frameHeight: F });
-    }
-    s.load.once(Phaser.Loader.Events.COMPLETE, finish);
-    s.load.start();
-  }
-
-  private compose(team: 0 | 1, type: SoldierType, o = OUTFIT[team][type], key = `sold-${team}-${type}`) {
-    const s = this.scene;
-    if (s.textures.exists(key)) return;
-    const img = (k: string) => (s.textures.exists(k) ? (s.textures.get(k).getSourceImage() as HTMLImageElement) : null);
-    const body = img(`outfit-${o}`)!;
-    const back = BACK[o] ? img(`outfit-${o}-back`) : null;
-    const wbg = img(`wpn-${type}-bg`);
-    const wfg = img(`wpn-${type}-fg`);
-    const A = ATTACK[type];
-    const big = A.big ? (HERO_SHEETS[type].big as unknown as Record<string, { frame: number; footY: number; frames: number }>)[A.big] : undefined;
-    const bbg = A.big ? img(`wpn-${type}-${A.big}-bg`) : null;
-    const bfg = A.big ? img(`wpn-${type}-${A.big}-fg`) : null;
-    const ct = s.textures.createCanvas(key, COLS * CELL, 4 * CELL)!;
-    const ctx = ct.getContext();
-    ctx.imageSmoothingEnabled = false;
-    const F = HERO.frame;
-    const uni = (src: HTMLImageElement | null, row: number, col: number, cx: number, cy: number) => {
-      if (src) ctx.drawImage(src, col * F, row * F, F, F, cx + (CELL - F) / 2, cy + FOOT - HERO.footY, F, F);
-    };
-    for (let d = 0; d < 4; d++) {
-      const lr = LPC_DIR[d];
-      for (let c = 0; c < COLS; c++) {
-        const cx = c * CELL;
-        const cy = d * CELL;
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(cx, cy, CELL, CELL);
-        ctx.clip();
-        if (c <= 8) {
-          // parado (coluna 0) e andando (1–8): folha universal
-          const row = HERO.rows.walk + lr;
-          for (const src of [back, wbg, body, wfg]) uni(src, row, c, cx, cy);
-        } else {
-          const i = c - 9;
-          const row = A.row + lr;
-          const col = A.cols[i];
-          uni(back, row, col, cx, cy);
-          if (big && bbg) ctx.drawImage(bbg, i * big.frame, lr * big.frame, big.frame, big.frame, cx + CELL / 2 - big.frame / 2, cy + FOOT - big.footY, big.frame, big.frame);
-          else if (!big) uni(wbg, row, col, cx, cy);
-          uni(body, row, col, cx, cy);
-          if (big && bfg) ctx.drawImage(bfg, i * big.frame, lr * big.frame, big.frame, big.frame, cx + CELL / 2 - big.frame / 2, cy + FOOT - big.footY, big.frame, big.frame);
-          else if (!big) uni(wfg, row, col, cx, cy);
-        }
-        ctx.restore();
-      }
-    }
-    // cada quadro recortado ao desenho: a GPU não pinta os ~70% transparentes da célula
-    const px = ctx.getImageData(0, 0, COLS * CELL, 4 * CELL).data;
-    const rowW = COLS * CELL * 4;
-    for (let d = 0; d < 4; d++)
-      for (let c = 0; c < COLS; c++) {
-        const cx = c * CELL;
-        const cy = d * CELL;
-        let x0 = CELL;
-        let y0 = CELL;
-        let x1 = -1;
-        let y1 = -1;
-        for (let y = 0; y < CELL; y++) {
-          const base = (cy + y) * rowW + cx * 4 + 3;
-          for (let x = 0; x < CELL; x++)
-            if (px[base + x * 4] > 0) {
-              if (x < x0) x0 = x;
-              if (x > x1) x1 = x;
-              if (y < y0) y0 = y;
-              if (y > y1) y1 = y;
-            }
-        }
-        if (x1 < 0) {
-          x0 = y0 = 0;
-          x1 = y1 = 0;
-        }
-        const f = ct.add(d * COLS + c, 0, cx + x0, cy + y0, x1 - x0 + 1, y1 - y0 + 1);
-        f?.setTrim(CELL, CELL, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
-      }
-    ct.refresh();
+    });
   }
 
   // ------------------------------------------------------------------ elenco
@@ -643,7 +592,7 @@ export class Army extends Phaser.Events.EventEmitter {
 
   // ------------------------------------------------------------------ guerra
   /** Uma casa rival manda um exército de `n` soldados contra o herói. */
-  declareWar(n: number, house?: { name: string; color: number; clan?: string }, opts: { origin?: { x: number; y: number }; exact?: boolean; vet?: number; siege?: { x: number; y: number } } = {}) {
+  declareWar(n: number, house?: { name: string; color: number; clan?: string }, opts: { origin?: { x: number; y: number }; exact?: boolean; vet?: number; siege?: { x: number; y: number }; faction?: number } = {}) {
     if (this.war) return;
     const p = opts.origin ?? this.scene.player;
     // cada casa rival tem a sua cor (tingindo o exército inteiro)
@@ -654,7 +603,9 @@ export class Army extends Phaser.Events.EventEmitter {
       ['Casa das Dunas Negras', 0x9a8a70],
       ['Casa Morvane', 0x90c8a0],
     ];
-    const [name, color] = house ? [house.name, allyTint(house.color)] : Phaser.Utils.Array.GetRandom(houses);
+    const [name, raw] = house ? [house.name, house.color] : Phaser.Utils.Array.GetRandom(houses);
+    // tom leve: a roupa de cada povo é que identifica; a cor só marca a casa
+    const color = allyTint(raw, 0.72);
     // de onde vêm: o lado mais livre a ~300 px
     let ang = 0;
     let best = -1;
@@ -674,6 +625,8 @@ export class Army extends Phaser.Events.EventEmitter {
     const cy = opts.exact ? p.y : p.y + Math.sin(ang) * 300;
     const fx = -Math.cos(ang);
     const fy = -Math.sin(ang);
+    // o povo do lugar de onde vêm (roupa, armas e raça do bioma)
+    const faction = opts.faction ?? this.scene.biomeAt(cx, cy);
     const rx = -fy;
     const ry = fx;
     const per = 16;
@@ -691,7 +644,7 @@ export class Army extends Phaser.Events.EventEmitter {
       // um ou outro veterano: o exército rival é tão experiente quanto o seu, em média
       const vet = opts.vet ?? 0;
       const kills = SOLDIER_RANKS[Math.max(0, Math.min(3, vet - (Math.random() < 0.4 ? 1 : 0)))].kills;
-      const s = new Soldier(this, 1, type, x, y, kills);
+      const s = new Soldier(this, 1, type, x, y, kills, faction);
       s.thinkAt = this.scene.time.now + Math.random() * 600;
       s.baseTint = color;
       s.sprite.setTint(color);
@@ -863,11 +816,11 @@ export class Army extends Phaser.Events.EventEmitter {
    * armadura e arma próprias, maior, mais forte e tingido. Sem guerra, fica
    * perto de casa até o herói chegar. Precisa de `prepare` antes.
    */
-  spawnChampion(spec: { x: number; y: number; type: SoldierType; outfit: string; hp: number; damage: number; tint: number; scale: number; rank: number; onDeath?: () => void }): Soldier {
-    const key = `sold-v-${spec.outfit}-${spec.type}`;
-    this.compose(1, spec.type, spec.outfit, key);
-    const s = new Soldier(this, 1, spec.type, spec.x, spec.y, SOLDIER_RANKS[Math.min(3, spec.rank)].kills);
-    s.sprite.setTexture(key, 0);
+  spawnChampion(spec: { x: number; y: number; type: SoldierType; faction?: number; tier?: number; hp: number; damage: number; tint: number; scale: number; rank: number; onDeath?: () => void }): Soldier {
+    const faction = spec.faction ?? this.scene.biomeAt(spec.x, spec.y);
+    const s = new Soldier(this, 1, spec.type, spec.x, spec.y, SOLDIER_RANKS[Math.min(3, spec.rank)].kills, faction);
+    // personagens: o escalão de cima do povo (ou o pedido)
+    this.dress(s, spec.tier ?? Math.min(3, spec.rank + 1));
     s.maxHp = s.hp = spec.hp;
     s.dmgK = spec.damage / SOLDIERS[spec.type].damage;
     s.sizeK = spec.scale;
@@ -881,36 +834,6 @@ export class Army extends Phaser.Events.EventEmitter {
     s.thinkAt = this.scene.time.now + 300;
     this.soldiers.push(s);
     return s;
-  }
-
-  /**
-   * Traje de um soldado. Aliados: sobe com o treino (couro → caçador →
-   * legionário → placas). Inimigos: sorteado entre os da experiência dele —
-   * cada exército rival é uma mistura, não uma fila de clones.
-   */
-  skin(team: 0 | 1, type: SoldierType, tier: number): string {
-    const t = Math.max(0, Math.min(3, tier));
-    const ALLY: Record<SoldierType, string[]> = {
-      sword: ['hunter', 'legion', 'legion', 'plate'],
-      greatsword: ['hunter', 'legion', 'plate', 'plate'],
-      bow: ['hunter', 'hunter', 'legion', 'legion'],
-      staff: ['arcane', 'arcane', 'arcane', 'arcane'],
-    };
-    const FOE: Record<SoldierType, string[][]> = {
-      sword: [['leather', 'hunter'], ['leather', 'hunter', 'legion'], ['hunter', 'legion', 'plate'], ['legion', 'plate', 'plate']],
-      greatsword: [['leather', 'hunter', 'legion'], ['hunter', 'legion'], ['legion', 'plate'], ['plate']],
-      bow: [['leather', 'hunter'], ['leather', 'hunter'], ['hunter', 'legion'], ['hunter', 'legion', 'plate']],
-      staff: [['arcane', 'leather'], ['arcane', 'hunter'], ['arcane'], ['arcane', 'plate']],
-    };
-    const outfit = team === 0 ? ALLY[type][t] : FOE[type][t][Math.floor(Math.random() * FOE[type][t].length)];
-    return this.textureFor(outfit, type);
-  }
-
-  /** Folha fundida de um traje + arma (para coletores e outros figurantes). Precisa de `prepare`. */
-  textureFor(outfit: string, type: SoldierType): string {
-    const key = `sold-v-${outfit}-${type}`;
-    this.compose(1, type, outfit, key);
-    return key;
   }
 
   /** Tira um soldado do campo sem contar como abate (despawn). */

@@ -230,7 +230,6 @@ export class Missions extends Phaser.Events.EventEmitter {
           // capangas: alguns bandidos com armas e trajes variados, perto do chefe
           const n = 2 + k + Math.floor(Math.random() * 3);
           const types = ['sword', 'sword', 'bow', 'greatsword', 'staff'] as const;
-          const outfits = ['leather', 'hunter', 'plate', 'legion', 'arcane'];
           for (let i = 0; i < n; i++) {
             const a = (i / n) * Math.PI * 2;
             const type = types[Math.floor(Math.random() * types.length)];
@@ -239,7 +238,7 @@ export class Missions extends Phaser.Events.EventEmitter {
                 x: t.x + Math.cos(a) * 26,
                 y: t.y + Math.sin(a) * 18,
                 type,
-                outfit: outfits[Math.floor(Math.random() * outfits.length)],
+                tier: Math.max(0, Math.min(3, k - 1)),
                 hp: Math.round(12 + k * 10),
                 damage: 1.5 + k * 0.8,
                 tint: 0xd8c8b0,

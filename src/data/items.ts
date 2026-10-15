@@ -3,7 +3,7 @@
  * não é a mesma de um carvalho de Greenland, e as receitas de craft vão pedir
  * o material específico (a coleta vai servir para erguer a sede do clã). Ícones em items.png (16×16), na ordem de `icon`.
  */
-import { HERO_SHEETS, OUTFITS, type OutfitId, type WeaponId } from '../entities/heroSheets';
+import { HERO_SHEETS, OUTFITS, type LookId, type OutfitId, type WeaponId } from '../entities/heroSheets';
 import { GEAR, RARITY } from './gear';
 
 export type Family = 'wood' | 'stone' | 'ore' | 'crystal' | 'fiber' | 'ice' | 'fruit' | 'weapon' | 'armor';
@@ -16,7 +16,7 @@ export interface ItemDef {
   /** Folha do ícone (padrão: items). */
   sheet?: 'items' | 'ui-icons' | 'armor-icons';
   /** Equipável: arma ou armadura (sempre completa, corpo inteiro). */
-  equip?: { kind: 'weapon'; id: WeaponId } | { kind: 'armor'; id: OutfitId };
+  equip?: { kind: 'weapon'; id: WeaponId; look: LookId } | { kind: 'armor'; id: OutfitId };
   /** Linha de atributos para a mochila. */
   info?: string;
   /** kg por unidade. */
@@ -58,6 +58,10 @@ for (const family of Object.keys(FAMILY) as (keyof typeof FAMILY)[])
 
 export const itemId = (family: keyof typeof FAMILY, region: Region) => `${family}_${region}`;
 
+export const CLASS_NAME: Record<WeaponId, string> = { sword: 'Guerreiro', greatsword: 'Guerreiro pesado', staff: 'Mago', bow: 'Arqueiro' };
+/** Aparência de cada arma pelo nome (cada peça rara tem a sua forma: sabre, maça, foice, arco longo…). */
+const LOOK_BY_NAME: Record<string, LookId> = Object.fromEntries((Object.entries(HERO_SHEETS) as [LookId, { name: string }][]).map(([k, v]) => [v.name, k]));
+
 // armas (a arma define a classe) — ícones de ui-icons.png
 const WEAPON_ITEM: Record<WeaponId, { icon: number; weight: number; info: string }> = {
   sword: { icon: 0, weight: 3, info: 'combo de 3 cortes · Investida, Redemoinho, Grito de guerra' },
@@ -67,28 +71,32 @@ const WEAPON_ITEM: Record<WeaponId, { icon: number; weight: number; info: string
 };
 for (const [id, w] of Object.entries(WEAPON_ITEM) as [WeaponId, (typeof WEAPON_ITEM)[WeaponId]][]) {
   const sh = HERO_SHEETS[id];
-  ITEMS[`weapon_${id}`] = { id: `weapon_${id}`, name: `${sh.name} (${sh.class})`, icon: w.icon, sheet: 'ui-icons', weight: w.weight, family: 'weapon', equip: { kind: 'weapon', id }, info: w.info };
+  ITEMS[`weapon_${id}`] = { id: `weapon_${id}`, name: `${sh.name} (${CLASS_NAME[id]})`, icon: w.icon, sheet: 'ui-icons', weight: w.weight, family: 'weapon', equip: { kind: 'weapon', id, look: id }, info: w.info };
 }
 // armaduras completas — retratos em armor-icons.png
-const ARMOR_WEIGHT: Record<OutfitId, number> = { leather: 4, plate: 22, legion: 14, arcane: 3, hunter: 6 };
+const ARMOR_WEIGHT: Record<string, number> = { squire: 9, leather: 4, plate: 22, legion: 14, arcane: 3, hunter: 6 };
 for (const id of Object.keys(OUTFITS) as OutfitId[]) {
   const o = OUTFITS[id];
+  if (o.base !== id) continue;
   const parts = [`defesa ${Math.round(o.defense * 100)}%`];
   if (o.speed !== 1) parts.push(`velocidade ${o.speed > 1 ? '+' : ''}${Math.round((o.speed - 1) * 100)}%`);
   if (o.bonus) parts.push(o.desc);
   ITEMS[`armor_${id}`] = { id: `armor_${id}`, name: o.name, icon: o.icon, sheet: 'armor-icons', weight: ARMOR_WEIGHT[id], family: 'armor', equip: { kind: 'armor', id }, info: parts.join(' · ') };
 }
 
-// equipamento raro (ver data/gear.ts): mesma arte e ícone da base, com tom e brilho
+// equipamento raro (ver data/gear.ts): cada peça com a sua arte (e brilho nas raras)
 const pct = (k: number) => `${Math.round(k * 100)}%`;
 for (const g of Object.values(GEAR)) {
   const R = RARITY[g.tier];
   if (g.kind === 'weapon') {
     const b = ITEMS[`weapon_${g.base}`];
-    ITEMS[g.id] = { ...b, id: g.id, name: g.name, equip: { kind: 'weapon', id: g.base as WeaponId }, tier: g.tier, tint: g.tint, glow: g.glow, info: `${R.name} · dano ×${R.power.toFixed(2).replace('.', ',')} · ${HERO_SHEETS[g.base as WeaponId].class}` };
+    const look = LOOK_BY_NAME[g.name] ?? (g.base as LookId);
+    ITEMS[g.id] = { ...b, id: g.id, name: g.name, equip: { kind: 'weapon', id: g.base as WeaponId, look }, tier: g.tier, glow: g.glow, info: `${R.name} · dano ×${R.power.toFixed(2).replace('.', ',')} · ${CLASS_NAME[g.base as WeaponId]}` };
   } else {
     const b = ITEMS[`armor_${g.base}`];
-    const o = OUTFITS[g.base as OutfitId];
-    ITEMS[g.id] = { ...b, id: g.id, name: g.name, equip: { kind: 'armor', id: g.base as OutfitId }, tier: g.tier, tint: g.tint, glow: g.glow, info: `${R.name} · defesa ${pct(o.defense + R.guard)}${o.bonus ? ` · ${o.desc}` : ''}` };
+    // o traje próprio da peça (gerado com o mesmo id); sem ele, a base tingida
+    const own = (OUTFITS as Record<string, (typeof OUTFITS)[OutfitId]>)[g.id];
+    const o = own ?? OUTFITS[g.base as OutfitId];
+    ITEMS[g.id] = { ...b, id: g.id, name: g.name, icon: own ? own.icon : b.icon, equip: { kind: 'armor', id: (own ? g.id : g.base) as OutfitId }, tier: g.tier, tint: own ? undefined : g.tint, glow: g.glow, info: `${R.name} · defesa ${pct(o.defense + R.guard)}${o.bonus ? ` · ${o.desc}` : ''}` };
   }
 }

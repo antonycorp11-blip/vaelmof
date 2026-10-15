@@ -277,9 +277,19 @@ export class HQPanel {
       r.name.setText(`${D.name}  ${lv ? `nível ${lv}/${max}` : 'não construída'}`).setColor(lv ? (hp > 0 ? COLOR.gold : COLOR.red) : COLOR.dim);
       r.desc.setText(D.desc[Math.min(max, lv + (lv < max ? 1 : 0))] || D.desc[lv] || '');
       const next = hq.nextCost(r.id);
-      r.cost.setText(broken ? `reparar: ${HQ.costText(hq.repairCost(r.id))}` : next ? `custo: ${HQ.costText(next)}` : 'nível máximo').setColor(broken ? COLOR.red : COLOR.blue);
+      const cost = broken ? hq.repairCost(r.id) : next;
       const why = broken ? '' : hq.buildBlock(r.id);
-      r.btn.setLabel(broken ? 'REPARAR' : !next ? 'MÁXIMO' : lv ? 'MELHORAR' : 'CONSTRUIR').setColor(broken ? 'gold' : 'green').setEnabled(broken || !why);
+      // custo com o que você tem (estoque dos coletores + baú + mochila) e o motivo se não der
+      const parts = cost ? (Object.entries(cost) as [keyof typeof MATERIAL_NAME, number][]).map(([k, n]) => `${MATERIAL_NAME[k]} ${Math.min(hq.have(k), 9999)}/${n}`) : [];
+      const short = cost ? hq.missing(cost) : '';
+      const reason = why && !why.startsWith('Faltam') ? ` — ${why}` : '';
+      r.cost
+        .setText(cost ? `${broken ? 'reparar' : 'custo'}: ${parts.join(' · ')}${reason}` : 'nível máximo')
+        .setColor(!cost ? COLOR.dim : short || reason ? COLOR.red : COLOR.green);
+      r.btn
+        .setLabel(broken ? 'REPARAR' : !next ? 'MÁXIMO' : lv ? 'MELHORAR' : 'CONSTRUIR')
+        .setColor(broken ? 'gold' : why ? 'dark' : 'green')
+        .setEnabled(broken || !!next);
       r.bar.clear();
       if (lv) drawBar(r.bar, r.box.x + 8 * u, r.box.y + r.box.displayHeight - 7 * u, r.box.displayWidth - 100 * u, 3 * u, hp / D.hp[lv], hp / D.hp[lv] > 0.4 ? 0x5fbf52 : 0xd83c3c, u);
     }
@@ -295,7 +305,7 @@ export class HQPanel {
       const n = hq.st.workers[r.m];
       const st = Math.floor(hq.st.stock[r.m]);
       r.info.setText(`${n} coletor${n === 1 ? '' : 'es'} · +${n * WORK_RATE[r.m]}/min · estoque ${st}/${hq.stockCap} · na mochila ${w.inventory.countFamily(r.m)}`);
-      r.hire.setEnabled(!hq.hireBlock());
+      r.hire.setColor(hq.hireBlock() ? 'dark' : 'green');
       r.fire.setEnabled(n > 0);
       r.bar.clear();
       drawBar(r.bar, r.box.x + 10 * u, r.box.y + r.box.displayHeight - 12 * u, r.box.displayWidth - 220 * u, 5 * u, st / hq.stockCap, 0x8a6a3a, u);
@@ -309,7 +319,7 @@ export class HQPanel {
       const lv = hq.st.train[r.id];
       const why = hq.trainBlock(r.id);
       r.info.setText(`nível ${lv}/${TRAIN_MAX} · ${TRAIN_FX[r.id](lv)}${lv < TRAIN_MAX ? ` · próximo: ${HQ.costText(trainCost(lv))}` : ''}${why && why !== 'Nível máximo' ? ` · ${why}` : ''}`);
-      r.btn.setEnabled(!why);
+      r.btn.setEnabled(lv < TRAIN_MAX).setColor(why ? 'dark' : 'green');
       r.bar.clear();
       drawBar(r.bar, r.name.x, r.name.y + 16 * u, this.win.W * 0.42, 5 * u, lv / TRAIN_MAX, 0xffc850, u);
     }

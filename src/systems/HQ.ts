@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { TILE } from '../config';
 import { BUILDINGS, type BuildingKey } from '../data/buildings';
 import { ITEMS } from '../data/items';
+import { SKIN_CELL, SKIN_COLS, SKIN_FOOT, SKINS } from '../data/skins';
 import { DEPTH } from '../entities/Creature';
 import type { Hittable } from '../entities/Hittable';
 import type { WorldScene } from '../scenes/WorldScene';
@@ -115,7 +116,7 @@ export const TRAIN_MAX = 10;
 export type Train = 'atk' | 'def' | 'hp';
 export const MATERIALS: Material[] = ['wood', 'stone', 'fiber', 'ore', 'crystal'];
 /** Quanto cada coletor junta por minuto. */
-export const WORK_RATE: Record<Material, number> = { wood: 6, stone: 5, fiber: 6, ore: 2, crystal: 1 };
+export const WORK_RATE: Record<Material, number> = { wood: 6, stone: 5, fiber: 6, ore: 3, crystal: 2 };
 /** Coletores por nível do Salão e estoque por material por nível do Armazém. */
 const WORKER_CAP = [0, 6, 12, 20];
 const STOCK_CAP = [100, 300, 800];
@@ -315,25 +316,47 @@ export class HQ extends Phaser.Events.EventEmitter {
   // ------------------------------------------------------------ custos
   /** Texto do que falta ('' = tem tudo). */
   missing(c: Cost): string {
-    const inv = this.scene.inventory;
     const out: string[] = [];
     for (const [k, n] of Object.entries(c) as [Material | 'gold', number][]) {
-      const have = k === 'gold' ? this.gold : inv.countFamily(k) + Math.floor(this.st.stock[k] ?? 0);
+      const have = this.have(k);
       if (have < n) out.push(`${n - have} de ${MATERIAL_NAME[k]}`);
     }
     return out.join(', ');
   }
 
+  /** Material no baú da sede (de qualquer região). */
+  chestCount(f: string): number {
+    return this.st.chest.reduce((n, s) => n + (s && ITEMS[s.id]?.family === f ? s.qty : 0), 0);
+  }
+
+  /** Quanto há para gastar: estoque dos coletores + baú da sede + mochila (ouro: o cofre). */
+  have(k: Material | 'gold'): number {
+    if (k === 'gold') return this.gold;
+    return Math.floor(this.st.stock[k] ?? 0) + this.chestCount(k) + this.scene.inventory.countFamily(k);
+  }
+
   private pay(c: Cost) {
     const inv = this.scene.inventory;
     for (const [k, n] of Object.entries(c) as [Material | 'gold', number][]) {
-      if (k === 'gold') this.st.gold -= n;
-      else {
-        // primeiro o estoque do Armazém, depois a mochila
-        const fromStock = Math.min(n, Math.floor(this.st.stock[k] ?? 0));
-        this.st.stock[k] -= fromStock;
-        if (n - fromStock > 0) inv.removeFamily(k, n - fromStock);
+      if (k === 'gold') {
+        this.st.gold -= n;
+        continue;
       }
+      // primeiro o estoque dos coletores, depois o baú da sede, por fim a mochila
+      let left = n;
+      const fromStock = Math.min(left, Math.floor(this.st.stock[k] ?? 0));
+      this.st.stock[k] -= fromStock;
+      left -= fromStock;
+      const chest = this.st.chest;
+      for (let i = chest.length - 1; i >= 0 && left > 0; i--) {
+        const s = chest[i];
+        if (!s || ITEMS[s.id]?.family !== k) continue;
+        const q = Math.min(left, s.qty);
+        s.qty -= q;
+        left -= q;
+        if (!s.qty) chest[i] = null;
+      }
+      if (left > 0) inv.removeFamily(k, left);
     }
   }
 
@@ -490,17 +513,24 @@ export class HQ extends Phaser.Events.EventEmitter {
     this.piles = [];
     if (!this.founded) return;
     const s = this.scene;
-    MATERIALS.forEach((m, job) => {
-      const n = this.st.workers[m];
-      if (!n) return;
-      const p = this.pileAt(job);
-      this.piles.push(s.add.image(p.x, p.y + 6, 'workers-props', job).setOrigin(0.5, 1).setDepth(DEPTH.entities + p.y + 6));
-      for (let i = 0; i < Math.min(3, n); i++) {
-        const spr = s.add.sprite(p.x + (i - 1) * 14, p.y + 10, 'workers', job * 18).setOrigin(0.5, 27 / 28);
-        this.walkers.push({ s: spr, job, state: 'work', t: Math.random() * 3000, anim: 0, tx: p.x, ty: p.y });
-      }
+    const gen = ++this.workerGen;
+    // cada ofício com a sua gente e ferramenta (machado, picareta, enxada, martelo)
+    const keys = MATERIALS.filter((m) => this.st.workers[m]).map((m) => `sk-${SKINS.workers[m]}`);
+    s.army.need(keys, () => {
+      if (gen !== this.workerGen || !this.founded) return;
+      MATERIALS.forEach((m, job) => {
+        const n = this.st.workers[m];
+        if (!n) return;
+        const p = this.pileAt(job);
+        this.piles.push(s.add.image(p.x, p.y + 6, 'workers-props', job).setOrigin(0.5, 1).setDepth(DEPTH.entities + p.y + 6));
+        for (let i = 0; i < Math.min(3, n); i++) {
+          const spr = s.add.sprite(p.x + (i - 1) * 14, p.y + 10, `sk-${SKINS.workers[m]}`, 0).setOrigin(0.5, SKIN_FOOT / SKIN_CELL).setScale(s.army.scale);
+          this.walkers.push({ s: spr, job, state: 'work', t: Math.random() * 3000, anim: Math.random() * 1000, tx: p.x, ty: p.y });
+        }
+      });
     });
   }
+  private workerGen = 0;
 
 
 
@@ -899,7 +929,8 @@ export class HQ extends Phaser.Events.EventEmitter {
       if (w.state === 'work') {
         // golpes na pilha (quadros de trabalho, virado para ela)
         w.t -= delta;
-        w.s.setFrame(w.job * 18 + 16 + (Math.floor(w.anim / 260) % 2)).setFlipX(w.s.x > this.pileAt(w.job).x);
+        const face = w.s.x > this.pileAt(w.job).x ? 1 : 2;
+        w.s.setFrame(face * SKIN_COLS + 9 + (Math.floor(w.anim / 120) % 6));
         if (w.t <= 0) {
           w.state = 'store';
           const st = this.storeAt();
@@ -938,7 +969,7 @@ export class HQ extends Phaser.Events.EventEmitter {
       w.s.x += ux * v;
       w.s.y += uy * v;
       const dir = Math.abs(ux) > Math.abs(uy) ? (ux < 0 ? 1 : 2) : uy < 0 ? 3 : 0;
-      w.s.setFlipX(false).setFrame(w.job * 18 + dir * 4 + (Math.floor(w.anim / 140) % 4)).setDepth(DEPTH.entities + w.s.y);
+      w.s.setFrame(dir * SKIN_COLS + 1 + (Math.floor(w.anim / 110) % 8)).setDepth(DEPTH.entities + w.s.y);
     }
     // torres
     const foes = s.army.war ? s.army.soldiers : null;

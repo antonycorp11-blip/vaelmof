@@ -25,7 +25,7 @@ export class BootScene extends Phaser.Scene {
     const sheet = (key: string, file: string, w = 16, h = 16) => this.load.spritesheet(key, S + file, { frameWidth: w, frameHeight: h });
     // Teren: camadas LPC montadas por scripts/hero; Errante: scripts/wraith
     // Teren em camadas: traje inicial e espada (os outros carregam ao equipar)
-    for (const k of ['outfit-leather', 'outfit-leather-back', 'wpn-sword-bg', 'wpn-sword-fg']) sheet(k, `${k}.png`, HERO.frame, HERO.frame);
+    for (const k of ['outfit-squire', 'outfit-leather-back', 'wpn-sword-bg', 'wpn-sword-fg']) sheet(k, `${k}.png`, HERO.frame, HERO.frame);
     for (const side of ['bg', 'fg']) sheet(`wpn-sword-slash-${side}`, `wpn-sword-slash-${side}.png`, HERO_SHEETS.sword.big.slash.frame, HERO_SHEETS.sword.big.slash.frame);
     sheet('armor-icons', 'armor-icons.png', 40, 54);
     sheet('arrow', 'arrow.png');
@@ -58,7 +58,6 @@ export class BootScene extends Phaser.Scene {
     // montarias: 21 × (4 direções × 4 quadros), 48×40
     this.load.spritesheet('mounts', 'assets/sprites/mounts.png', { frameWidth: 112, frameHeight: 80 });
     // coletores da sede (5 ofícios × 18 quadros) e as pilhas de cada ofício
-    this.load.spritesheet('workers', 'assets/sprites/workers.png', { frameWidth: 20, frameHeight: 28 });
     this.load.spritesheet('workers-props', 'assets/sprites/workers-props.png', { frameWidth: 32, frameHeight: 24 });
     this.load.spritesheet('crests', 'assets/ui/crests.png', { frameWidth: 12, frameHeight: 12 });
     for (const k of ['pixel', 'raindrop', 'shadow', 'glow', 'fog']) this.load.image(k, `${S}${k}.png`);
