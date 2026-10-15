@@ -62,6 +62,8 @@ export interface WorldData {
   canopy: Int16Array;
   collision: Uint8Array;
   biome: Uint8Array;
+  /** Estradas entre as cidades (1 = estrada). */
+  road: Uint8Array;
   spawns: { kind: SpawnKind; x: number; y: number; variant?: string }[];
   /** Pontos de luz permanentes (cristais) em px do mundo. */
   glows: { x: number; y: number; color: number }[];
@@ -650,5 +652,5 @@ export function generateWorld(seed: number): WorldData {
   const start = { x: capital.cx * TILE + 8, y: (capital.cy + 3) * TILE + 8 };
   poi[0] = start;
 
-  return { width: W, height: H, ground, water, edge, cliffs, decor, canopy, collision, biome, spawns, glows, cities, buildings, props, poi, start };
+  return { width: W, height: H, ground, water, edge, cliffs, decor, canopy, collision, biome, road, spawns, glows, cities, buildings, props, poi, start };
 }

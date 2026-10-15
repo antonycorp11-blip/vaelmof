@@ -147,7 +147,7 @@ export class MapPanel {
     this.zout.place(width - pad - 34 * u, height / 2 + 4 * u, u, 34 * u, 32 * u);
     this.me.place(width - pad - 70 * u, height / 2 + 44 * u, u, 70 * u, 26 * u);
     fit(this.legend, 9, u)
-      .setText(`□ cidade   ■ sua sede   ■ bando rival (vermelho = vem atrás de você)   * alvo   ◯ spot   ◆ campeão   ▲ você${this.teleport ? '   · toque para ir' : '   · arraste para andar'}`)
+      .setText(`□ cidade   ▣ forte (cor do dono)   ◯ território   ■ sua sede   ■ bando rival (vermelho = vem atrás de você)   * alvo   ◯ spot   ◆ campeão   ▲ você${this.teleport ? '   · toque para ir' : '   · arraste para andar'}`)
       .setPosition(pad, height - pad - 12 * u)
       .setWordWrapWidth(width - pad * 2);
     this.place();
@@ -173,6 +173,29 @@ export class MapPanel {
     const k = this.k;
     const at = (x: number, y: number) => this.toScreen(x, y);
     g.clear();
+    // territórios: mancha na cor do dono em volta de cada cidade
+    for (const c of w.map.cities) {
+      const owner = w.forts.ownerOf(c);
+      if (!owner) continue;
+      const col = owner === 'player' ? w.clans.player.color : (w.clans.byId(owner)?.color ?? 0x888888);
+      let nd = Infinity;
+      for (const o of w.map.cities) if (o !== c) nd = Math.min(nd, Math.hypot(o.cx - c.cx, o.cy - c.cy));
+      const r = Math.min(70, nd / 2) * TILE * k;
+      const [x, y] = at(c.cx * TILE, c.cy * TILE);
+      g.fillStyle(col, owner === 'player' ? 0.28 : 0.16).fillCircle(x, y, r);
+      g.lineStyle(Math.max(1, u), col, 0.6).strokeCircle(x, y, r);
+    }
+    // fortes
+    for (const f of w.forts.forts) {
+      const c = w.forts.center(f);
+      const [x, y] = at(c.x, c.y);
+      const mine = f.owner === 'player';
+      const col = mine ? w.clans.player.color : (w.clans.byId(f.owner)?.color ?? 0x888888);
+      const r = 4 * u;
+      g.fillStyle(0x0b0d14, 1).fillRect(x - r - u, y - r - 2 * u, r * 2 + 2 * u, r * 2 + 3 * u);
+      g.fillStyle(col, 1).fillRect(x - r, y - r, r * 2, r * 2).fillRect(x - r, y - r - u, 2 * u, u).fillRect(x + r - 2 * u, y - r - u, 2 * u, u);
+      if (mine) g.fillStyle(0xffd77a, 1).fillRect(x - u, y - u, 2 * u, 2 * u);
+    }
     for (const c of w.map.cities) {
       const [x, y] = at(c.x0 * TILE, c.y0 * TILE);
       const ww = Math.max(4 * u, (c.x1 - c.x0) * TILE * k);

@@ -133,6 +133,19 @@ export class Minimap {
       g.fillStyle(0x0b0d14, 1).fillRect(pt[0] - r - u, pt[1] - r - u, r * 2 + 2 * u, r * 2 + 2 * u);
       g.fillStyle(c.capital ? 0xffd77a : 0xf3ead2, 1).fillRect(pt[0] - r, pt[1] - r, r * 2, r * 2);
     }
+    // fortes: torre com a cor do dono (o seu com miolo dourado)
+    for (const f of w.forts.forts) {
+      const c = w.forts.center(f);
+      const pt = this.toScreen(c.x, c.y);
+      if (!pt) continue;
+      const mine = f.owner === 'player';
+      const col = mine ? w.clans.player.color : (w.clans.byId(f.owner)?.color ?? 0x888888);
+      const r = 3 * u;
+      g.fillStyle(0x0b0d14, 1).fillRect(pt[0] - r - u, pt[1] - r - 2 * u, r * 2 + 2 * u, r * 2 + 3 * u);
+      g.fillStyle(col, 1).fillRect(pt[0] - r, pt[1] - r, r * 2, r * 2);
+      g.fillStyle(col, 1).fillRect(pt[0] - r, pt[1] - r - u, u, u).fillRect(pt[0] + r - u, pt[1] - r - u, u, u);
+      if (mine) g.fillStyle(0xffd77a, 1).fillRect(pt[0] - u, pt[1] - u, 2 * u, 2 * u);
+    }
     // spots de up
     for (const sp of w.spots.spots) {
       const pt = this.toScreen(sp.x, sp.y);

@@ -40,6 +40,7 @@ import { rollGear } from '../data/gear';
 import { Champions } from '../systems/Champions';
 import { CHAMPIONS, RANKS, type ChampionId } from '../systems/Ranks';
 import type { Hittable } from '../entities/Hittable';
+import { Forts } from '../systems/Forts';
 import { MountFx } from '../systems/MountFx';
 import { Streamer } from '../systems/Streamer';
 import { TileWindow } from '../systems/TileWindow';
@@ -83,6 +84,8 @@ export class WorldScene extends Phaser.Scene {
   loot!: Loot;
   /** Sede do clã. */
   hq!: HQ;
+  /** Fortes dos clãs e territórios. */
+  forts!: Forts;
   /** Bandos dos clãs rivais andando pelo mapa. */
   bands!: Bands;
   /** Mercadores das cidades. */
@@ -166,6 +169,7 @@ export class WorldScene extends Phaser.Scene {
     this.market = new Market(this);
     this.market.placeMerchants();
     this.stable = new Stable(this);
+    this.forts = new Forts(this);
     // um save estranho nunca pode impedir o jogo de abrir: na dúvida, desmonta
     try {
       if (this.stable.riding && this.stable.mount) this.player.setMount(this.stable.mount);
@@ -418,6 +422,12 @@ export class WorldScene extends Phaser.Scene {
     }
     const next = RANKS[this.progress.rankIdx + 1];
     if (next?.duel) champ(next.duel);
+    // forte do herói com ataque marcado
+    const r = this.forts?.retake;
+    if (r) {
+      const f = this.forts.forts.find((x) => this.forts.key(x) === r.fort);
+      if (f) out.push({ ...this.forts.center(f), name: `Defenda ${f.city}`, color: 0x5aa0ff });
+    }
     return out;
   }
 
@@ -649,8 +659,15 @@ export class WorldScene extends Phaser.Scene {
     H.length = 0;
     for (const e of this.enemies) H.push(e);
     for (const s of this.army.soldiers) if (s.team === 1 && !s.dead) H.push(s);
+    // cerco: portão, torres e Salão do forte rival também são alvos do herói
+    for (const t of this.forts.hostileStructures()) H.push(t);
     // ação de contexto: perto do mercador o golpe vira COMPRAR
     inputState.action = !this.army.war && this.market.merchantNear(this.player.x, this.player.y) ? MERCHANT_ACTION : null;
+    // diante do portão de um forte: atacar (rival) ou deixar/chamar a guarda (seu)
+    if (!inputState.action && !this.army.war) {
+      const f = this.forts.fortAtGate();
+      if (f) inputState.action = f.owner === 'player' ? { id: 'fort-guard', label: f.guards?.length ? 'CHAMAR GUARDA' : 'DEIXAR GUARDA', icon: 10 } : { id: 'fort-siege', label: 'ATACAR FORTE', icon: 5 };
+    }
     this.player.update(time);
     this.stable.update(time);
     this.army.update(time, dt);
@@ -661,6 +678,7 @@ export class WorldScene extends Phaser.Scene {
     this.missions.update(time);
     this.hq.update(time, dt);
     this.bands.update(time, dt);
+    this.forts.update(time, dt);
     this.market.update(dt);
     const pl = this.player;
     this.rankIcon

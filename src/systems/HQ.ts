@@ -269,6 +269,7 @@ export class HQ extends Phaser.Events.EventEmitter {
     for (const c of m.cities) {
       if (ox < c.x1 + 4 && ox + HQ_W > c.x0 - 4 && oy < c.y1 + 4 && oy + HQ_H > c.y0 - 4) return 'Longe dos muros: a sede fica nas vizinhanças da cidade, não dentro';
     }
+    if (s.forts?.overlaps(ox, oy, HQ_W, HQ_H)) return 'Perto demais de um forte de clã';
     const near = m.cities.some((c) => Math.max(c.x0 - (ox + HQ_W), ox - c.x1, c.y0 - (oy + HQ_H), oy - c.y1) < 60);
     if (!near) return 'Longe demais: a sede precisa ficar a até 60 tiles de uma cidade';
     let bad = 0;

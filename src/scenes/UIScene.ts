@@ -256,8 +256,17 @@ export class UIScene extends Phaser.Scene {
     world.events.on('mount', (def: unknown) => this.controls.setButton('dodge', def ? 'DISPARADA' : 'ESQUIVA', def ? 9 : 1));
     if (world.player.mount) this.controls.setButton('dodge', 'DISPARADA', 9);
     // ação de contexto (mercador…): o botão de golpe muda de nome e abre o painel
-    world.events.on('action', (id: PanelId) => {
-      if (!this.panels[id]?.open) this.togglePanel(id);
+    world.events.on('action', (id: string) => {
+      // fortes: atacar o rival ou deixar/chamar a guarda no seu
+      if (id === 'fort-siege' || id === 'fort-guard') {
+        const f = world.forts.fortAtGate();
+        if (!f) return;
+        const msg = id === 'fort-siege' ? world.forts.startSiege(f) : world.forts.toggleGuards(f);
+        if (msg) this.showToast(msg);
+        return;
+      }
+      const pid = id as PanelId;
+      if (!this.panels[pid]?.open) this.togglePanel(pid);
     });
     world.events.on('weapon', (w: WeaponDef) => {
       onWeapon(w);

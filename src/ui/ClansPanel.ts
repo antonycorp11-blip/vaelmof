@@ -176,6 +176,15 @@ export class ClansPanel {
     this.bigCrest.set(c.crest, c.color);
     this.dName.setText(c.name).setColor(c.player ? COLOR.green : COLOR.gold);
     const lines = [`${CLAN_TIERS[t].name} · #${C.position(c)} no ranking · sede em ${c.city}`, `Líder: ${c.leader}${c.player ? '' : ` (montaria: ${MOUNTS[C.mountOf(c)]?.name ?? 'cavalo'})`} · ${C.soldiersOf(c)} soldados · ${gl(C.glory(c))} Glória`];
+    // fortes e territórios
+    const F = this.world.forts;
+    if (c.player) {
+      const terr = F.territories.map((t) => t.name);
+      lines.push(terr.length ? `Territórios: ${terr.join(', ')} · fortes: ${F.mine.length} (+${15 * F.mine.length} ouro/min e material)` : 'Sem territórios: tome o forte de um clã rival para ganhar o da cidade');
+    } else {
+      const f = F.byClan(c.id);
+      lines.push(f ? `Forte perto de ${f.city} (vá até o portão com o exército para atacar)` : 'Sem forte (reconstruindo)');
+    }
     if (c.player) {
       const nx = CLAN_TIERS[t + 1];
       if (nx) lines.push(nx.name === 'Casa' ? `Para virar Casa: ${gl(nx.glory)} Glória e a patente ${RANKS[RANKS.length - 1].name}` : `Próximo degrau: ${nx.name} com ${gl(nx.glory)} Glória`);

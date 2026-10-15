@@ -445,6 +445,31 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - **Corneta:** VOLTAR À SEDE leva o herói para casa (espera de 90 s, não em
   guerra). O herói renasce na sede.
 
+### Fortes dos clãs e territórios (`src/systems/Forts.ts`)
+- **Cada clã rival tem um forte de verdade** perto da cidade-sede (16×12
+  tiles, fora das estradas e dos muros): muralha (paliçada ou pedra pela força
+  do clã), portão fechado, duas torres, Salão e casernas, com os estandartes
+  do clã. Aparece no minimapa e no mapa (▣ na cor do dono).
+- **Cerco:** com o exército, vá até o portão — o botão de golpe vira ATACAR
+  FORTE. A guarnição (40% dos soldados do clã) defende de dentro, as torres
+  atiram no seu exército e em você; seus soldados e você atacam o portão, as
+  torres e o Salão. **Salão no chão (ou a guarnição em fuga) = forte
+  conquistado:** ouro (300 + 450 por nível), a peça do líder, 25% de chance da
+  montaria dele; o clã perde 35% da Glória e muda a sede para outra cidade
+  (ergue outro forte em 10 min). Cerco que falha: o forte é consertado.
+- **Territórios:** cada cidade é um território; o dono é quem tem forte lá (o
+  herói também pela sede). Seus territórios rendem +15 de ouro/min por forte e
+  +8/min de material da região no estoque da sede (madeira no Vale e em
+  Greenland, cristal em Snowland, pedra em Blockland, minério em Blackland,
+  fibra em Dustland). O mapa pinta cada território com a cor do dono.
+- **Retomadas com hora marcada:** de 8 a 14 min, um clã (o que perdeu o
+  forte, ou o mais forte) marcha para retomar um forte seu, com 3 min de aviso
+  e o forte marcado como alvo no mapa. Com você por perto, a batalha é de
+  verdade nos muros (o inimigo ataca portão, torres e Salão); longe, a guarda
+  e as torres decidem.
+- **Guarda:** no portão do seu forte o botão vira DEIXAR GUARDA (até 12
+  soldados ficam lá) / CHAMAR GUARDA.
+
 ### Patentes e Glória (`src/systems/Ranks.ts`, `src/systems/Progress.ts`)
 - Teren **não tem nível**: tem **patente**. Sobe quando **todos os 4
   atributos** chegam ao mínimo e, em algumas, depois de **vencer um campeão**

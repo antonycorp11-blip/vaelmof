@@ -296,8 +296,10 @@ export class Army extends Phaser.Events.EventEmitter {
   upg = { atk: 0, def: 0, hp: 0 };
   /** Onde se curam: taxa por segundo no ponto (definido pela sede). */
   healAt: (x: number, y: number) => number = () => 0;
-  /** Construções que o inimigo pode atacar (sede). */
+  /** Construções que o inimigo pode atacar (sede, fortes do herói). */
   structures: () => Hittable[] = () => [];
+  /** Construções inimigas que o exército do herói ataca (forte rival sob cerco). */
+  siegeTargets: () => Hittable[] = () => [];
   /** Posto do i-ésimo soldado de guarda na sede. */
   postOf: (i: number) => [number, number] | null = () => null;
 
@@ -419,7 +421,7 @@ export class Army extends Phaser.Events.EventEmitter {
   private poolTimer = 0;
   private frameN = 0;
   private warCheck = 0;
-  private heroT: Hittable;
+  readonly heroT: Hittable;
   /** Soldados salvos esperando as folhas ficarem prontas. */
   private pending: { t: SoldierType; k: number; st?: boolean; m?: string }[] = [];
   /** Aquartelados em Brumavale (fora do campo; voltam com Convocar, curados). */
@@ -1223,9 +1225,13 @@ export class Army extends Phaser.Events.EventEmitter {
     // o exército do herói também enfrenta as criaturas do mapa — menos em guerra,
     // quando só um bicho colado nele tira o foco do exército inimigo
     else if (!this.war) for (const e of this.scene.enemies) consider(e);
-    else if (!best) {
-      bd = 30 * 30;
-      for (const e of this.scene.enemies) consider(e);
+    else {
+      // cerco: portão, torres e Salão do forte rival também são alvos
+      for (const t of this.siegeTargets()) consider(t);
+      if (!best) {
+        bd = 30 * 30;
+        for (const e of this.scene.enemies) consider(e);
+      }
     }
     return best;
   }
@@ -1563,6 +1569,19 @@ export class Army extends Phaser.Events.EventEmitter {
       this.emit('war-end', { ...w, won: true, glory });
       this.save();
     }
+  }
+
+  /** Vitória forçada (o Salão do forte inimigo caiu): os que sobraram fogem. */
+  winWar() {
+    const w = this.war;
+    if (!w) return;
+    const p = this.scene.player;
+    this.rout();
+    this.war = null;
+    const glory = w.start * 2;
+    this.scene.gainGlory(glory, p.x, p.y - 40);
+    this.emit('war-end', { ...w, won: true, glory });
+    this.save();
   }
 
   private rout() {
