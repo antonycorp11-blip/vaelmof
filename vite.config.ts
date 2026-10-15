@@ -23,9 +23,13 @@ function precacheManifest(): Plugin {
         }
       };
       walk(outDir);
-      const list = files.filter((f) => f !== 'sw.js' && f !== '_headers' && !f.endsWith('-preview.png') && !f.endsWith('.md')).sort();
+      const all = files.filter((f) => f !== 'sw.js' && f !== '_headers' && !f.endsWith('-preview.png') && !f.endsWith('.md')).sort();
+      // instalação leve: só o essencial para abrir (página, código, fontes, ícones). As
+      // imagens entram no cache conforme o jogo pede (baixar os ~900 arquivos de uma vez
+      // na instalação deixava a abertura no iPhone muito lenta e falhava fácil).
+      const list = all.filter((f) => f === 'index.html' || f === 'manifest.json' || /^assets\/[^/]+\.(js|css)$/.test(f) || f.startsWith('fonts/') || f.startsWith('icons/'));
       const hash = createHash('sha1');
-      for (const f of list) hash.update(f).update(readFileSync(join(outDir, f)));
+      for (const f of all) hash.update(f).update(readFileSync(join(outDir, f)));
       const swPath = join(outDir, 'sw.js');
       const sw = readFileSync(swPath, 'utf8')
         .replace(/const VERSION = '[^']*';/, `const VERSION = '${hash.digest('hex').slice(0, 10)}';`)

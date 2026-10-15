@@ -676,9 +676,15 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - `public/manifest.json` com `"orientation": "landscape"`,
   `"display": "standalone"`, nome e ícones 192 e 512 (+ maskable e
   apple-touch-icon).
-- `public/sw.js`: no build, um plugin do Vite injeta a lista de **todos os
-  arquivos do `dist/`** (JS, PNGs, manifest, ícones) e uma versão por hash;
-  estratégia cache-first, funciona offline após o primeiro carregamento.
+- `public/sw.js`: no build, um plugin do Vite injeta só **o essencial para
+  abrir** (página, JS, fontes, ícones, manifest) e uma versão por hash de todo
+  o `dist/`; imagens e dados entram no cache na primeira vez que o jogo os pede
+  (revalidados com o servidor). A abertura é rede primeiro, mas com a rede
+  lenta usa a cópia guardada em 3 s. Funciona offline depois de jogar uma vez.
+  (Antes a instalação baixava os ~900 arquivos — 15 MB — de uma vez, o que
+  deixava a abertura do PWA no iPhone muito lenta.)
+- Se algo quebrar enquanto o jogo abre, aparece a mensagem do erro com
+  "Tentar de novo", em vez de ficar parado no carregamento.
 - Em retrato aparece a tela **"Gire o aparelho para jogar"** (CSS
   `orientation: portrait`).
 - No primeiro toque tenta tela cheia e `screen.orientation.lock('landscape')`

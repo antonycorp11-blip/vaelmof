@@ -143,6 +143,9 @@ export class WorldScene extends Phaser.Scene {
     this.buildWorld(map);
     this.physics.world.setBounds(0, 0, W, H);
 
+    // efeitos antes de tudo: sistemas que restauram o save (montaria, sede…) já os usam
+    this.createFx();
+
     // jogador
     this.player = new Player(this, map.start.x, map.start.y);
 
@@ -163,7 +166,13 @@ export class WorldScene extends Phaser.Scene {
     this.market = new Market(this);
     this.market.placeMerchants();
     this.stable = new Stable(this);
-    if (this.stable.riding && this.stable.mount) this.player.setMount(this.stable.mount);
+    // um save estranho nunca pode impedir o jogo de abrir: na dúvida, desmonta
+    try {
+      if (this.stable.riding && this.stable.mount) this.player.setMount(this.stable.mount);
+    } catch (e) {
+      console.warn('montaria não restaurada', e);
+      this.stable.riding = false;
+    }
     // campeões de duelo deixam montaria; líderes e procurados fortes, às vezes uma rara
     this.events.on('champion-defeated', (id: string) => CHAMPION_MOUNT[id] && this.stable.give(CHAMPION_MOUNT[id]));
     this.events.on('rare-mount-roll', (chance: number) => {
@@ -232,12 +241,12 @@ export class WorldScene extends Phaser.Scene {
     this.createWorldMap(map);
     this.ambient = this.add.rectangle(0, 0, 10, 10, 0xffffff).setOrigin(0).setDepth(DEPTH.ambient);
     this.ambient.setBlendMode(Phaser.BlendModes.MULTIPLY);
-    this.createFx();
     this.bars = this.add.graphics().setDepth(DEPTH.fx + 1);
 
     if (DEBUG) {
       (window as unknown as { vaelmor: unknown }).vaelmor = { scene: this, input: inputState };
     }
+    this.game.events.emit('vaelmor-ready');
   }
 
   // ------------------------------------------------------------------ criaturas

@@ -1,7 +1,8 @@
-/* Vaelmor — service worker: cache offline dos assets principais.
+/* Vaelmor — service worker: cache offline.
  * No build (`npm run build`) o plugin em vite.config.ts substitui a lista
- * abaixo por todos os arquivos gerados em dist/ e grava uma versão nova,
- * invalidando o cache antigo. */
+ * abaixo pelo essencial para abrir (página, código, fontes, ícones) e grava
+ * uma versão nova, invalidando o cache antigo. As imagens e dados entram no
+ * cache na primeira vez que o jogo os pede. */
 const VERSION = 'dev';
 const PRECACHE = [
   './',
@@ -38,21 +39,24 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (req.mode === 'navigate') {
-    event.respondWith(
-      fetch(req, { cache: 'no-store' })
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put('./index.html', copy));
-          return res;
-        })
-        .catch(() => caches.match('./index.html')),
-    );
+    // rede primeiro (pega a versão nova), mas sem deixar a abertura presa: com a
+    // rede lenta, em 3 s abre a cópia guardada (a nova fica para a próxima vez)
+    const net = fetch(req, { cache: 'no-store' }).then((res) => {
+      if (res.ok) {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put('./index.html', copy));
+      }
+      return res;
+    });
+    const slow = new Promise((resolve) => setTimeout(resolve, 3000)).then(() => caches.match('./index.html')).then((hit) => hit || net);
+    event.respondWith(Promise.race([net.catch(() => caches.match('./index.html')), slow]));
     return;
   }
   event.respondWith(
     caches.match(req).then((hit) => {
       if (hit) return hit;
-      return fetch(req).then((res) => {
+      // revalida com o servidor (304 barato) para não guardar uma imagem velha da CDN
+      return fetch(req, { cache: 'no-cache' }).then((res) => {
         if (res.ok) {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(req, copy));

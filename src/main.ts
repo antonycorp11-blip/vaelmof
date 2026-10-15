@@ -57,3 +57,20 @@ window.addEventListener('orientationchange', onResize);
 window.visualViewport?.addEventListener('resize', onResize);
 
 setupPwa();
+
+// Se algo quebrar enquanto o jogo abre, mostra o erro na tela (no iPhone não há
+// console) em vez de ficar parado na tela de carregamento sem explicação.
+let opened = false;
+game.events.once('vaelmor-ready', () => (opened = true));
+function bootError(msg: string) {
+  if (opened || document.getElementById('boot-error')) return;
+  const d = document.createElement('div');
+  d.id = 'boot-error';
+  d.style.cssText = 'position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;background:#1e1a24;color:#f3ead2;font:14px monospace;text-align:center;z-index:99';
+  d.innerHTML = `<b style="color:#ffd77a">O jogo não conseguiu abrir</b><span style="opacity:.8;max-width:640px;word-break:break-word"></span><button style="font:inherit;padding:10px 18px;background:#3a6ea8;color:#fff;border:0;border-radius:6px">Tentar de novo</button>`;
+  (d.querySelector('span') as HTMLElement).textContent = msg;
+  (d.querySelector('button') as HTMLButtonElement).onclick = () => location.reload();
+  document.body.appendChild(d);
+}
+window.addEventListener('error', (e) => bootError(String(e.message || e.error)));
+window.addEventListener('unhandledrejection', (e) => bootError(String(e.reason)));
