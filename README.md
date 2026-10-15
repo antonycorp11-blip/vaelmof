@@ -213,10 +213,16 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   clã** (próxima etapa).
 
 ### Montarias (`scripts/mount-art.mjs`, `src/data/mounts.ts`, `src/systems/Stable.ts`, botão do cavalo / tecla X)
-- **21 montarias** desenhadas por código em alta resolução (quadros de
-  112×80 exibidos a 0,5): cada parte do corpo é pintada como volume, com rampa
-  de 6 tons e pontilhado, contorno colorido, pernas com joelho por cinemática
-  inversa e galope de 6 quadros; de frente e de costas o corpo aparece em
+- **21 montarias** esculpidas por código em alta resolução (quadros de
+  112×80 exibidos a 0,5): cada parte é um campo de distância (SDF) feito de
+  formas unidas de modo suave, como argila — sem "gomos" entre tronco, pescoço
+  e cabeça. A luz sai da normal do campo (cima à esquerda, com luz refletida
+  do chão e sombra projetada de uma parte na outra), as marcas (barriga,
+  manchas, listras, meias, armadura) usam a mesma luz da pele, há crina e pelo
+  em fios, asas de morcego com dedos e membrana recortada e asas de penas em
+  leque, e contorno seletivo. Anatomia própria por espécie (coxa e jarrete,
+  antebraço, cascos, patas, garras), galope de 6 quadros por cinemática
+  inversa e, de frente e de costas, o corpo em
   perspectiva 3/4 (a ponta de lá mais alta, as pernas de lá entre as de cá): Cavalo Baio, Cavalo Malhado, Corcel Negro, Égua Branca do Vale,
   Corcel de Guerra (barda de aço), Unicórnio Lunar, Pesadelo Flamejante, Urso
   Pardo de Batalha, Urso Polar Rúnico, Lobo Gigante, Lobo da Geada,
