@@ -418,7 +418,12 @@ export class WorldScene extends Phaser.Scene {
     for (const m of this.missions.active) {
       if (m.target) out.push({ x: m.target.x, y: m.target.y, name: m.target.name, color: 0xff3a3a });
       if (m.champ) champ(m.champ);
-      if (m.clan) {
+      if (m.kind === 'siege' && m.clan) {
+        const f = this.forts.byClan(m.clan);
+        const c = this.clans.byId(m.clan);
+        if (f && c) out.push({ ...this.forts.center(f), name: `Forte do ${c.name}`, color: c.color });
+      } else if (m.raid) out.push({ x: m.raid.x, y: m.raid.y, name: `Defesa de ${m.city}`, color: 0xb08060 });
+      else if (m.clan) {
         const b = this.bands.byClan(m.clan);
         const c = this.clans.byId(m.clan);
         if (b && c && b.n > 0) out.push({ x: b.x, y: b.y, name: c.name, color: c.color });

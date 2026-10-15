@@ -9,7 +9,7 @@ import type { City } from './Cities';
 import { CHAMPIONS, RANKS, type ChampionId } from './Ranks';
 import { BIOMES } from './WorldGenerator';
 
-export type MissionKind = 'hunt' | 'bounty' | 'clan' | 'duel';
+export type MissionKind = 'hunt' | 'bounty' | 'clan' | 'duel' | 'siege' | 'defend';
 
 export interface Mission {
   id: string;
@@ -28,6 +28,10 @@ export interface Mission {
   target?: { x: number; y: number; name: string; tier: number };
   clan?: string;
   champ?: ChampionId;
+  /** Contrato de campanha de um Lorde: quem paga, quanto falta pagar e o prazo (relógio dos clãs). */
+  contract?: { lord: string; pay: number; deadline: number };
+  /** Defesa: onde e quando os saqueadores atacam. */
+  raid?: { x: number; y: number; at: number; started?: boolean };
 }
 
 const SAVE_KEY = 'vaelmor.missions.v1';
@@ -57,6 +61,12 @@ export class Missions extends Phaser.Events.EventEmitter {
   /** Procurados no mapa (e o bando de capangas de cada um); null = nascendo. */
   private bounty = new Map<string, Soldier[] | null>();
   private lastCheck = 0;
+  private contractAt = 0;
+  /** Reputação com cada Lorde (contratos cumpridos − falhados). */
+  favor: Record<string, number> = {};
+  private nextOffer = 0;
+  /** Guerra de defesa (contrato) em curso. */
+  private defending: Mission | null = null;
 
   constructor(private scene: WorldScene) {
     super();
@@ -70,6 +80,16 @@ export class Missions extends Phaser.Events.EventEmitter {
     });
     scene.events.on('champion-defeated', (id: ChampionId) => {
       for (const m of this.active) if (m.kind === 'duel' && m.champ === id) this.progress(m, 1);
+    });
+    scene.events.on('fort-captured', (id: string) => {
+      for (const m of this.active) if (m.kind === 'siege' && m.clan === id) this.progress(m, 1);
+    });
+    scene.army.on('war-end', (w: { won: boolean }) => {
+      const m = this.defending;
+      if (!m) return;
+      this.defending = null;
+      if (w.won) this.progress(m, 1);
+      else this.fail(m, 'os saqueadores venceram');
     });
   }
 
@@ -137,11 +157,122 @@ export class Missions extends Phaser.Events.EventEmitter {
     s.gainGlory(m.reward, s.player.x, s.player.y - 50);
     s.army.pool = Math.min(s.army.poolMax, s.army.pool + m.recruits);
     s.hq.addGold(this.gold(m));
+    if (m.contract) {
+      s.hq.addGold(m.contract.pay);
+      this.favor[m.contract.lord] = (this.favor[m.contract.lord] ?? 0) + 1;
+      s.events.emit('area', 'CONTRATO CUMPRIDO', `${m.contract.lord} paga ${m.contract.pay} de ouro · reputação com ele sobe`);
+    }
     s.army.emit('change');
     s.clans.log(`${s.clans.player.name} cumpriu a missão de ${lordOf(m.city)}: ${m.title}.`);
     this.emit('complete', m);
     this.save();
     this.emit('change');
+  }
+
+  /** Contrato quebrado (prazo ou derrota): o Lorde não esquece. */
+  private fail(m: Mission, why: string) {
+    const i = this.active.indexOf(m);
+    if (i < 0) return;
+    this.active.splice(i, 1);
+    const s = this.scene;
+    if (m.contract) this.favor[m.contract.lord] = (this.favor[m.contract.lord] ?? 0) - 1;
+    s.clans.log(`Contrato com ${m.contract?.lord ?? lordOf(m.city)} falhou: ${why}.`, true);
+    s.events.emit('area', 'CONTRATO PERDIDO', `${m.title} · ${why}`);
+    this.save();
+    this.emit('change');
+  }
+
+  // ------------------------------------------------------------ contratos dos Lordes
+  /**
+   * De tempos em tempos um Lorde manda um mensageiro: quer o clã do herói numa
+   * campanha (tomar o forte de um clã rival ou defender a cidade de saqueadores).
+   * Metade adiantada, o resto na entrega; dá para negociar.
+   */
+  private offerContract() {
+    const s = this.scene;
+    const forts = s.forts.forts.filter((f) => f.owner !== 'player' && s.clans.byId(f.owner));
+    const cities = s.map.cities;
+    const city = cities[Math.floor(Math.random() * cities.length)];
+    const lord = lordOf(city.name);
+    const fav = this.favor[lord] ?? 0;
+    const k = 1 + Math.max(-0.3, Math.min(0.6, fav * 0.15));
+    const id = `k${Date.now().toString(36)}`;
+    let m: Mission;
+    if (forts.length && Math.random() < 0.6) {
+      const f = forts.sort((a, b) => Math.hypot(a.ox - city.cx, a.oy - city.cy) - Math.hypot(b.ox - city.cx, b.oy - city.cy))[Math.floor(Math.random() * Math.min(3, forts.length))];
+      const c = s.clans.byId(f.owner)!;
+      const pay = Math.round((500 + f.tier * 500 + c.soldiers * 3) * k);
+      m = { id, kind: 'siege', city: city.name, clan: c.id, have: 0, need: 1, title: `Campanha: forte do ${c.name}`, desc: `${lord} contrata o seu clã para tomar o forte do ${c.name} perto de ${f.city}. Pagamento: ${pay} de ouro (metade agora).`, reward: 150 + f.tier * 100, recruits: 15, contract: { lord, pay, deadline: s.clans.now + 20 * 60000 } };
+    } else {
+      const at = this.findSpot(city);
+      const pay = Math.round((350 + s.progress.rankIdx * 60) * k);
+      m = { id, kind: 'defend', city: city.name, have: 0, need: 1, title: `Defesa de ${city.name}`, desc: `Saqueadores vão atacar os arredores de ${city.name} em 3 min (marcado no mapa). ${lord} paga ${pay} de ouro (metade agora) para você estar lá e vencer.`, reward: 120, recruits: 12, contract: { lord, pay, deadline: s.clans.now + 6 * 60000 }, raid: { ...at, at: s.clans.now + 3 * 60000 } };
+    }
+    const accept = (pay: number) => {
+      if (this.active.length >= MAX_ACTIVE) return s.events.emit('toast', `Você já tem ${MAX_ACTIVE} missões`);
+      m.contract!.pay = Math.round(pay / 2);
+      m.contract!.deadline = s.clans.now + (m.kind === 'siege' ? 20 : 6) * 60000;
+      if (m.raid) m.raid.at = s.clans.now + 3 * 60000;
+      s.hq.addGold(Math.round(pay / 2));
+      this.active.push(m);
+      s.clans.log(`O ${s.clans.player.name} aceitou o contrato de ${lord}: ${m.title}.`, true);
+      this.save();
+      this.emit('change');
+    };
+    const pay = m.contract!.pay;
+    s.events.emit('dialog', {
+      name: `Mensageiro de ${lord}`,
+      title: `${city.name} · reputação ${fav >= 0 ? '+' : ''}${fav}`,
+      color: 0xd8b860,
+      crest: 7,
+      text: `${lord} manda saudações ao ${s.clans.player.name}. ${m.desc} ${m.kind === 'siege' ? 'Prazo: 20 minutos.' : ''}`,
+      options: [
+        { label: `ACEITAR (${Math.round(pay / 2)} já)`, color: 'gold', onPick: () => accept(pay) },
+        {
+          label: 'NEGOCIAR +30%',
+          color: 'blue',
+          onPick: () => {
+            // Lorde com quem você tem fama aceita mais fácil
+            if (Math.random() < 0.5 + fav * 0.1) {
+              s.events.emit('toast', `${lord} aceita pagar mais: ${Math.round(pay * 1.3)} de ouro`);
+              accept(Math.round(pay * 1.3));
+            } else {
+              this.favor[lord] = fav - 1;
+              s.events.emit('toast', `${lord} se ofende com a pechincha e procura outro clã`);
+            }
+          },
+        },
+        { label: 'RECUSAR', color: 'dark', onPick: () => s.events.emit('toast', `${lord} vai procurar outro clã`) },
+      ],
+    });
+  }
+
+  private contracts() {
+    const s = this.scene;
+    const now = s.clans.now;
+    if (!this.nextOffer) this.nextOffer = now + 4 * 60000;
+    // prazos e ataques marcados
+    for (const m of [...this.active]) {
+      if (m.raid && !m.raid.started && now >= m.raid.at) {
+        m.raid.started = true;
+        const p = s.player;
+        if (Math.hypot(p.x - m.raid.x, p.y - m.raid.y) < 50 * TILE && !s.army.war) {
+          this.defending = m;
+          const n = 10 + s.progress.rankIdx * 4;
+          s.army.prepare(() => {
+            s.army.declareWar(n, { name: `Saqueadores de ${m.city}`, color: 0xb08060 }, { origin: { x: m.raid!.x + 120, y: m.raid!.y }, exact: true, vet: Math.min(3, Math.floor(s.progress.rankIdx / 3)) });
+            s.events.emit('area', 'SAQUEADORES!', `defenda ${m.city} · ${n} inimigos`);
+          });
+        } else this.fail(m, 'você não estava lá');
+        continue;
+      }
+      if (m.contract && now > m.contract.deadline && !(m.raid?.started && this.defending === m)) this.fail(m, 'o prazo acabou');
+    }
+    // nova proposta: com clã, exército e sem guerra
+    if (now > this.nextOffer && s.clans.founded && !s.army.war && s.army.size - s.army.garrison.length >= 6 && this.active.length < MAX_ACTIVE) {
+      this.nextOffer = now + (6 + Math.random() * 3) * 60000;
+      this.offerContract();
+    }
   }
 
   // ------------------------------------------------------------ geração
@@ -198,6 +329,10 @@ export class Missions extends Phaser.Events.EventEmitter {
 
   // ------------------------------------------------------------ procurados no mapa
   update(time: number) {
+    if (time - this.contractAt > 1000) {
+      this.contractAt = time;
+      this.contracts();
+    }
     if (time - this.lastCheck < 500) return;
     this.lastCheck = time;
     const s = this.scene;
@@ -270,7 +405,7 @@ export class Missions extends Phaser.Events.EventEmitter {
   // ------------------------------------------------------------ salvar
   save() {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ active: this.active, offers: [...this.offers.entries()], done: this.done }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ active: this.active, offers: [...this.offers.entries()], done: this.done, favor: this.favor, nextOffer: this.nextOffer }));
     } catch {
       /* sem espaço */
     }
@@ -284,6 +419,8 @@ export class Missions extends Phaser.Events.EventEmitter {
       this.active = Array.isArray(d.active) ? d.active : [];
       this.offers = new Map(Array.isArray(d.offers) ? d.offers : []);
       this.done = Number(d.done) || 0;
+      if (d.favor && typeof d.favor === 'object') this.favor = d.favor;
+      this.nextOffer = Number(d.nextOffer) || 0;
     } catch {
       /* começa sem missões */
     }

@@ -484,6 +484,16 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - **Conversar a qualquer hora** (tela de Clãs → CONVERSAR): PROVOCAR (o bando
   vem atrás de você), DESAFIO DE HONRA (o líder vem para um duelo) ou TRÉGUA.
 
+### Contratos dos Lordes (`src/systems/Missions.ts`)
+- De 6 a 9 min, com clã e exército (6+ soldados), um **mensageiro de um
+  Lorde** oferece uma campanha: **tomar o forte de um clã** (prazo de 20 min,
+  paga 500 + 500 por nível do forte + 3 por soldado do clã) ou **defender os
+  arredores de uma cidade** de saqueadores numa hora marcada (3 min; você
+  precisa estar lá). Metade adiantada, o resto na entrega, mais Glória e
+  recrutas. **NEGOCIAR** pede +30% (o Lorde pode se ofender); **RECUSAR**.
+- **Reputação** com cada Lorde: cumprir sobe (contratos pagam até +60%),
+  falhar ou estourar o prazo desce. O alvo aparece no mapa e na seta.
+
 ### Patentes e Glória (`src/systems/Ranks.ts`, `src/systems/Progress.ts`)
 - Teren **não tem nível**: tem **patente**. Sobe quando **todos os 4
   atributos** chegam ao mínimo e, em algumas, depois de **vencer um campeão**

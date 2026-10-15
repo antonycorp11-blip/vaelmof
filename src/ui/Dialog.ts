@@ -40,6 +40,7 @@ export class Dialog {
   private buttons: Button[] = [];
   private spec: DialogSpec | null = null;
   private typed = 0;
+  private startAt = 0;
   private u = 1;
 
   constructor(private scene: Phaser.Scene) {
@@ -70,6 +71,7 @@ export class Dialog {
     this.spec = spec;
     this.typed = 0;
     const s = this.scene;
+    this.startAt = s.time.now;
     s.scene.pause('World');
     this.root.setVisible(true).setAlpha(0);
     s.tweens.add({ targets: this.root, alpha: 1, duration: 180 });
@@ -119,7 +121,8 @@ export class Dialog {
     if (!this.open || !this.spec) return;
     const full = this.spec.text;
     if (this.typed >= full.length) return;
-    this.typed = Math.min(full.length, this.typed + 2);
+    // ~60 letras por segundo, pelo relógio (não pelo FPS)
+    this.typed = Math.min(full.length, Math.max(this.typed, Math.floor((this.scene.time.now - this.startAt) * 0.06)));
     this.text.setText(full.slice(0, this.typed));
   }
 

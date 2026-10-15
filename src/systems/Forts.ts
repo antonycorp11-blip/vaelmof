@@ -476,6 +476,7 @@ export class Forts extends Phaser.Events.EventEmitter {
     if (free.length) c.city = free[Math.floor(Math.random() * free.length)].name;
     this.rebuild.push({ clan: c.id, at: s.clans.now + 10 * 60000 });
     s.clans.log(`O ${s.clans.player.name} tomou o forte do ${c.name} em ${f.city}! ${c.name} recua para ${c.city}.`, true);
+    s.events.emit('fort-captured', c.id);
     s.events.emit('area', 'FORTE CONQUISTADO!', `território de ${f.city} · +${gold} ouro · rende ouro e material por minuto`);
     // às vezes o líder foge e deixa a montaria
     const mount = s.clans.mountOf(c);
