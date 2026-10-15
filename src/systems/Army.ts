@@ -3,6 +3,7 @@ import { TILE } from '../config';
 import { DEPTH } from '../entities/Creature';
 import type { Hittable } from '../entities/Hittable';
 import { HERO } from '../entities/heroSheet';
+import { MOUNTS, type MountDef } from '../data/mounts';
 import { SKIN_CELL, SKIN_COLS, SKIN_FOOT, SKINS } from '../data/skins';
 import type { WorldScene } from '../scenes/WorldScene';
 
@@ -127,6 +128,9 @@ export class Soldier implements Hittable {
   dmgK = 1;
   sizeK = 1;
   champion = false;
+  /** Personagem montado (líder de clã, procurado forte): a montaria e a sela (px de arte). */
+  mount: MountDef | null = null;
+  mountSpr?: Phaser.GameObjects.Sprite;
   home: { x: number; y: number } | null = null;
   onDeath?: () => void;
   /** Taxa de cura do lugar onde está (sede ou, sem sede, Brumavale); 0 = não cura. */
@@ -231,6 +235,7 @@ export class Soldier implements Hittable {
     this.sprite.destroy();
     this.ring.destroy();
     this.icon.destroy();
+    this.mountSpr?.destroy();
   }
 }
 
@@ -535,12 +540,15 @@ export class Army extends Phaser.Events.EventEmitter {
     const busy = new Set<string>([FALLBACK, ...this.loading.keys()]);
     for (const o of this.scene.children.list) {
       const k = (o as Phaser.GameObjects.Sprite).texture?.key;
-      if (k && k.startsWith('sk-')) busy.add(k);
+      if (k && (k.startsWith('sk-') || k.startsWith('mount-'))) busy.add(k);
     }
     for (const t of ['sword', 'greatsword', 'bow', 'staff'] as SoldierType[]) for (const k of SKINS.ally[this.upTier][t]) busy.add(`sk-${k}`);
     const near = SKINS.factions[String(this.scene.biome) as keyof typeof SKINS.factions];
     if (near) for (const tier of near.tiers) for (const list of Object.values(tier)) for (const k of list as readonly string[]) busy.add(`sk-${k}`);
     for (const k of tm.getTextureKeys()) if (k.startsWith('sk-') && !busy.has(k)) tm.remove(k);
+    // atlas de montarias que ninguém (herói ou cavaleiro inimigo) está usando
+    const ridden = this.scene.player.mount ? `mount-${this.scene.player.mount.id}` : '';
+    for (const k of tm.getTextureKeys()) if (k.startsWith('mount-') && k !== 'mount-icons' && k !== ridden && !busy.has(k)) tm.remove(k);
   }
 
   /** Adianta as peles de um povo (ao entrar no bioma ou quando um bando se aproxima). */
@@ -763,7 +771,7 @@ export class Army extends Phaser.Events.EventEmitter {
       sc.gainGlory(-1, s.x, s.y - 30);
     }
     s.sprite.setTintFill(0xffffff);
-    sc.tweens.add({ targets: [s.sprite, s.ring, s.icon], alpha: 0, duration: 500, onComplete: () => s.destroy() });
+    sc.tweens.add({ targets: [s.sprite, s.ring, s.icon, ...(s.mountSpr ? [s.mountSpr] : [])], alpha: 0, duration: 500, onComplete: () => s.destroy() });
     if (s.team === 0) {
       this.save();
       this.emit('change');
@@ -939,6 +947,31 @@ export class Army extends Phaser.Events.EventEmitter {
     s.thinkAt = this.scene.time.now + 300;
     this.soldiers.push(s);
     return s;
+  }
+
+  /**
+   * Põe um personagem numa montaria: carrega o atlas dela (se preciso) e ergue
+   * o cavaleiro até a sela; a montaria fica na frente das pernas dele.
+   */
+  mountChampion(s: Soldier, id: string) {
+    const def = MOUNTS[id];
+    if (!def) return;
+    const key = `mount-${id}`;
+    const sc = this.scene;
+    const ride = () => {
+      if (s.dead || !s.sprite.active || !sc.textures.exists(key)) return;
+      s.mount = def;
+      const k = this.scale * s.sizeK;
+      s.mountSpr = sc.add.sprite(s.x, s.y, key, 0).setOrigin(0.5, 76 / 80).setScale(0.5 * s.sizeK).setDepth(DEPTH.entities + s.y + 0.4);
+      // as folhas de soldado são recortadas por quadro (setCrop não serve): em vez de
+      // cortar as pernas, a montaria é desenhada na frente delas
+      s.sprite.setOrigin(0.5, (FOOT + (def.seat * s.sizeK) / k - 4) / CELL);
+      s.ring.setScale(this.scale * 2.6 * s.sizeK);
+    };
+    if (sc.textures.exists(key)) return ride();
+    sc.load.atlas(key, `assets/sprites/mounts/${key}.png`, `assets/sprites/mounts/${key}.json`);
+    sc.load.once(`filecomplete-atlasjson-${key}`, ride);
+    sc.load.start();
   }
 
   /** Tira um soldado do campo sem contar como abate (despawn). */
@@ -1233,7 +1266,7 @@ export class Army extends Phaser.Events.EventEmitter {
       // movimento
       // com o herói montado, o exército acompanha em marcha forçada
       const ride = s.team === 0 && !s.target && !s.station && p.mount ? Math.min(2, p.mount.speed * 0.9) : 1;
-      const speed = D.speed * (time < s.slowUntil ? 0.45 : 1) * (s.fleeing ? 1.3 : 1) * ride;
+      const speed = D.speed * (time < s.slowUntil ? 0.45 : 1) * (s.fleeing ? 1.3 : 1) * ride * (s.mount ? 1.35 : 1);
       let tx = 0;
       let ty = 0;
       const ddx = gx - s.x;
@@ -1307,8 +1340,11 @@ export class Army extends Phaser.Events.EventEmitter {
       s.sprite.setVisible(vis);
       s.ring.setVisible(vis);
       s.icon.setVisible(vis);
+      s.mountSpr?.setVisible(vis);
       if (!vis) continue;
-      s.icon.setPosition(Math.round(s.x), Math.round(s.y - 25));
+      s.icon.setPosition(Math.round(s.x), Math.round(s.y - 25 - (s.mount ? s.mount.seat * s.sizeK : 0)));
+      // montaria na frente das pernas do cavaleiro (sentado na sela)
+      if (s.mountSpr) s.mountSpr.setFrame(s.dir * 6 + (moving ? Math.floor(s.animT * 0.75) % 6 : 0)).setPosition(Math.round(s.x), Math.round(s.y)).setDepth(DEPTH.entities + s.y + 0.4);
       s.sprite.setFrame(s.dir * COLS + col).setPosition(s.x, s.y).setDepth(DEPTH.entities + s.y);
       if (time < s.flashUntil) s.sprite.setTintFill(0xffffff);
       else if (s.sprite.tintFill) {

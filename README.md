@@ -266,6 +266,16 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   cada campeão de duelo deixa a sua (Brakk → Javali, Ysra → Lobo da Geada,
   Ulgar → Grifo, Morvath → Dragão Rubro), líderes de clã têm 10% e procurados
   fortes 15% de deixar uma rara.
+- **Líderes montados:** o líder de cada clã rival entra na batalha montado
+  (`mountFor` em `src/data/mounts.ts`, sempre a mesma por líder): cavalos nos
+  clãs pequenos, a fera do povo da cidade-sede nos médios (urso em Greenland,
+  lobo em Snowland, rinoceronte/javali em Blockland, salamandra em Blackland,
+  tigre/raptor em Dustland) e uma rara nos grandes (grifo, unicórnio, lobo da
+  geada, pesadelo, dragões, pantera…). A montaria aparece na tela de Clãs, o
+  líder montado anda 35% mais rápido e, derrotado, tem **35% de chance de
+  deixar a própria montaria** (senão, a chance de uma rara). Procurados de
+  nível 2+ também andam montados. O cavaleiro vai na sela e a montaria é
+  desenhada na frente das pernas dele.
 - **Montaria nova** (`src/ui/MountReveal.ts`): quando uma cai de campeão,
   líder ou procurado, o jogo pausa e aparece um cartão com a montaria num feixe
   de luz girando, a raridade (comum, rara, lendária), velocidade, bônus e a

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { TILE } from '../config';
+import { mountFor } from '../data/mounts';
 import { rollGear } from '../data/gear';
 import type { Enemy } from '../entities/Enemy';
 import type { Soldier } from './Army';
@@ -221,6 +222,8 @@ export class Missions extends Phaser.Events.EventEmitter {
           points: 6 + k * 6,
           rank: k * 2,
           loot: rollGear(k),
+          // procurados graúdos andam montados
+          mount: k >= 2 ? mountFor(t.name, k >= 4 ? 3 : k >= 3 ? 2 : 1, s.biomeAt(t.x, t.y)) : undefined,
           onKill: () => {
             if (k >= 3) s.events.emit('rare-mount-roll', 0.15);
             this.progress(m, 1);

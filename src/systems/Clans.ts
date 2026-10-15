@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { rollGear } from '../data/gear';
+import { mountFor } from '../data/mounts';
 import type { WorldScene } from '../scenes/WorldScene';
 import { RANKS } from './Ranks';
 
@@ -102,6 +103,12 @@ export class Clans extends Phaser.Events.EventEmitter {
   }
 
   /** Degrau do clã. O do jogador só vira Casa com a última patente. */
+  /** Montaria do líder: pela força do clã e pelo povo da cidade-sede (sempre a mesma). */
+  mountOf(c: Clan): string {
+    const city = this.scene.map.cities.find((x) => x.name === c.city);
+    return mountFor(c.id + c.leader, this.tier(c), city?.biome ?? 0);
+  }
+
   tier(c: Clan): number {
     const t = tierOfGlory(this.glory(c));
     if (c.player && t >= CLAN_TIERS.length - 1 && this.scene.progress.rankIdx < RANKS.length - 1) return CLAN_TIERS.length - 2;

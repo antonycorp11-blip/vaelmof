@@ -426,7 +426,8 @@ export class Player extends Creature {
       const show = () => {
         if (this.mount !== def || !this.mountSpr) return;
         this.mountSpr.setTexture(key, 0);
-        for (const k of s.textures.getTextureKeys()) if (k.startsWith('mount-') && k !== key && k !== 'mount-icons') s.textures.remove(k);
+        // a anterior sai da memória na limpeza periódica (Army.gcSkins), se ninguém
+        // mais a usar — um líder inimigo pode estar montado nela agora
       };
       if (s.textures.exists(key)) show();
       else {

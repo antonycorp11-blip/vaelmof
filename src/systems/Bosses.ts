@@ -18,6 +18,8 @@ export interface BossSpec {
   faction?: number;
   /** Peça rara que cai ao morrer. */
   loot?: string;
+  /** Vem montado (id da montaria). */
+  mount?: string;
   onKill?: () => void;
 }
 
@@ -69,6 +71,7 @@ export class Bosses {
       });
       // insígnia vermelha com a patente do personagem
       unit.icon.setFrame(10 + Math.max(0, Math.min(9, spec.rank)));
+      if (spec.mount) army.mountChampion(unit, spec.mount);
       live.unit = unit;
       live.label = s.add
         .text(spec.x, spec.y - 40, spec.name, { fontFamily: 'Tiny5, monospace', fontSize: '7px', color: '#ffd34a', stroke: '#1e1a24', strokeThickness: 2 })
@@ -93,7 +96,7 @@ export class Bosses {
   update() {
     for (const b of this.list) {
       const u = b.unit;
-      b.label.setPosition(Math.round(u.x), Math.round(u.y - 34 - 10 * u.sizeK)).setVisible(u.sprite.visible);
+      b.label.setPosition(Math.round(u.x), Math.round(u.y - 34 - 10 * u.sizeK - (u.mount ? u.mount.seat * u.sizeK : 0))).setVisible(u.sprite.visible);
     }
   }
 }

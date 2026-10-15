@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { RARITY } from '../data/gear';
 import { ITEMS } from '../data/items';
+import { MOUNTS } from '../data/mounts';
 import type { WorldScene } from '../scenes/WorldScene';
 import { CLAN_TIERS, type Clan } from '../systems/Clans';
 import { RANKS } from '../systems/Ranks';
@@ -174,7 +175,7 @@ export class ClansPanel {
     const t = C.tier(c);
     this.bigCrest.set(c.crest, c.color);
     this.dName.setText(c.name).setColor(c.player ? COLOR.green : COLOR.gold);
-    const lines = [`${CLAN_TIERS[t].name} · #${C.position(c)} no ranking · sede em ${c.city}`, `Líder: ${c.leader} · ${C.soldiersOf(c)} soldados · ${gl(C.glory(c))} Glória`];
+    const lines = [`${CLAN_TIERS[t].name} · #${C.position(c)} no ranking · sede em ${c.city}`, `Líder: ${c.leader}${c.player ? '' : ` (montaria: ${MOUNTS[C.mountOf(c)]?.name ?? 'cavalo'})`} · ${C.soldiersOf(c)} soldados · ${gl(C.glory(c))} Glória`];
     if (c.player) {
       const nx = CLAN_TIERS[t + 1];
       if (nx) lines.push(nx.name === 'Casa' ? `Para virar Casa: ${gl(nx.glory)} Glória e a patente ${RANKS[RANKS.length - 1].name}` : `Próximo degrau: ${nx.name} com ${gl(nx.glory)} Glória`);

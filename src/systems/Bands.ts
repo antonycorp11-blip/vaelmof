@@ -236,6 +236,7 @@ export class Bands extends Phaser.Events.EventEmitter {
     const s = this.scene;
     this.engaged = b;
     const t = s.clans.tier(c);
+    const leaderMount = s.clans.mountOf(c);
     s.army.prepare(() => {
       s.army.declareWar(b.n, { name: c.name, color: c.color, clan: c.id }, { origin: { x: b.x, y: b.y }, exact: true, vet: Math.min(3, t) });
       s.bosses.spawn(
@@ -250,9 +251,13 @@ export class Bands extends Phaser.Events.EventEmitter {
           points: 10 + t * 8,
           rank: Math.min(9, t * 2 + 1),
           loot: c.gear,
+          // o líder vem montado: cavalo nos clãs pequenos, a fera da região nos médios, uma rara nos grandes
+          mount: leaderMount,
           onKill: () => {
             this.leader = undefined;
-            s.events.emit('rare-mount-roll', 0.1);
+            // 35% de deixar a própria montaria (se ainda não for sua); senão, a chance de uma rara
+            if (!s.stable.owned.has(leaderMount) && Math.random() < 0.35) s.stable.give(leaderMount);
+            else s.events.emit('rare-mount-roll', 0.1);
             s.events.emit('toast', `${c.leader}, líder do ${c.name}, caiu!`);
           },
         },

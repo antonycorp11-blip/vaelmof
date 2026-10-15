@@ -97,3 +97,24 @@ MOUNT_ART.forEach((a, row) => {
 export const RARE_MOUNTS: MountId[] = ['unicorn', 'polar', 'stag', 'panther', 'frostwolf', 'nightmare', 'griffin', 'emerald'];
 /** O que cada campeão de duelo deixa (além da peça rara). */
 export const CHAMPION_MOUNT: Record<string, MountId> = { brakk: 'boar', ysra: 'frostwolf', ulgar: 'griffin', morvath: 'ruby' };
+
+/**
+ * Montaria de um personagem inimigo (líder de clã, procurado): cavalos para os
+ * pequenos, a fera do bioma para os médios, uma rara para os mais fortes.
+ * Sorteio fixo por nome (o mesmo líder sempre na mesma montaria).
+ */
+export function mountFor(seed: string, tier: number, faction: number): MountId {
+  const POOLS: MountId[][][] = [
+    // [comuns, da região, raras] por povo (bioma 0–5)
+    [['bay', 'pinto', 'black'], ['war', 'black'], ['unicorn', 'griffin']],
+    [['white', 'bay', 'pinto'], ['bear', 'war'], ['stag', 'emerald']],
+    [['black', 'white'], ['wolf', 'war'], ['frostwolf', 'polar']],
+    [['bay', 'black'], ['rhino', 'boar'], ['griffin', 'polar']],
+    [['black', 'pinto'], ['salamander', 'boar'], ['nightmare', 'ruby']],
+    [['pinto', 'bay'], ['sabre', 'raptor'], ['panther', 'emerald']],
+  ];
+  const pool = POOLS[Math.max(0, Math.min(5, faction))][tier >= 3 ? 2 : tier >= 2 ? 1 : 0];
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return pool[h % pool.length];
+}
