@@ -3,7 +3,7 @@ import { PLAYER } from '../config';
 import { BUFFS, WEAPONS, type BuffId, type Effect, type Move, type WeaponDef } from '../data/weapons';
 import { ITEMS } from '../data/items';
 import { RARITY } from '../data/gear';
-import type { MountDef } from '../data/mounts';
+import type { MountDef, MountSkill } from '../data/mounts';
 import { consume, inputState } from '../input/InputState';
 import type { WorldScene } from '../scenes/WorldScene';
 import { Creature, DEPTH } from './Creature';
@@ -68,6 +68,8 @@ interface Pose {
   big?: { anim: string; i: number };
 }
 
+/** Recarga da disparada montado (ms). */
+const MOUNT_DASH_CD = 2600;
 const bigOf = (w: LookId, anim: string) => (HERO_SHEETS[w].big as unknown as Record<string, BigAnim | undefined>)[anim];
 
 /**
@@ -317,7 +319,9 @@ export class Player extends Creature {
       const moving = this.body.velocity.lengthSq() > 100;
       const f = moving ? Math.floor(this.mountT) : 0;
       // atrás do herói (e da capa); o herói, com as pernas recortadas, fica sentado na sela
-      this.mountSpr.setFrame(m.row * 24 + p.dir * 6 + f).setPosition(Math.round(this.x), Math.round(this.y)).setDepth(d - 0.4).setVisible(visible).setAlpha(this.alpha * (m.ghost ? 0.85 : 1));
+      const ready = this.mountSpr.texture.key === `mount-${m.id}`;
+      if (ready) this.mountSpr.setFrame(p.dir * 6 + f);
+      this.mountSpr.setPosition(Math.round(this.x), Math.round(this.y)).setDepth(d - 0.4).setVisible(visible && ready).setAlpha(this.alpha * (m.ghost ? 0.85 : 1));
       this.shadow.setScale(1.4, 0.8);
       if (this.mountAura && m.glow) {
         const k = 0.75 + 0.08 * Math.sin(this.scene.time.now / 260);
@@ -371,14 +375,21 @@ export class Player extends Creature {
     const s = this.scene;
     const missing = keys.filter((k) => !s.textures.exists(k));
     if (!missing.length) return done();
-    for (const k of missing) {
-      const big = /^wpn-(\w+)-(\w+)-(bg|fg)$/.exec(k);
-      const b = big ? bigOf(big[1] as LookId, big[2]) : undefined;
-      const F = b ? b.frame : HERO.frame;
-      s.load.spritesheet(k, `assets/sprites/${k}.png`, { frameWidth: F, frameHeight: F });
-    }
+    for (const k of missing) s.load.atlas(k, `assets/sprites/${k}.png`, `assets/sprites/${k}.json`);
     s.load.once(Phaser.Loader.Events.COMPLETE, done);
     s.load.start();
+  }
+
+  /**
+   * Tira da memória de vídeo as folhas do herói que saíram de uso (arma ou
+   * traje anterior). No celular, acumular folhas a cada troca acabava
+   * estourando o limite do WebGL e o jogo congelava.
+   */
+  private release(prefix: 'wpn-' | 'outfit-', keep: string[]) {
+    const tm = this.scene.textures;
+    const busy = new Set([...keep, 'outfit-leather-back']);
+    for (const s of [this, this.back, this.wBg, this.wFg]) busy.add(s.texture.key);
+    for (const k of tm.getTextureKeys()) if (k.startsWith(prefix) && !busy.has(k)) tm.remove(k);
   }
 
   private weaponKeys(id: LookId): string[] {
@@ -408,9 +419,20 @@ export class Player extends Creature {
       this.back.setCrop();
     }
     if (def) {
-      if (!this.mountSpr) this.mountSpr = s.add.sprite(this.x, this.y, 'mounts', 0).setOrigin(0.5, 76 / 80).setScale(0.5);
-      const spr = this.mountSpr;
-      spr.setVisible(true);
+      if (!this.mountSpr) this.mountSpr = s.add.sprite(this.x, this.y, 'mount-icons', 0).setOrigin(0.5, 76 / 80).setScale(0.5).setVisible(false);
+      // cada montaria tem o seu atlas, carregado ao montar (e a anterior sai da memória)
+      const key = `mount-${def.id}`;
+      const show = () => {
+        if (this.mount !== def || !this.mountSpr) return;
+        this.mountSpr.setTexture(key, 0);
+        for (const k of s.textures.getTextureKeys()) if (k.startsWith('mount-') && k !== key && k !== 'mount-icons') s.textures.remove(k);
+      };
+      if (s.textures.exists(key)) show();
+      else {
+        s.load.atlas(key, `assets/sprites/mounts/${key}.png`, `assets/sprites/mounts/${key}.json`);
+        s.load.once(`filecomplete-atlasjson-${key}`, show);
+        s.load.start();
+      }
       // aura das montarias mágicas (atrás dela; o preFX bagunçaria a ordem com o herói)
       if (!this.mountAura) this.mountAura = s.add.image(this.x, this.y, 'glow').setBlendMode(Phaser.BlendModes.ADD);
       this.mountAura.setVisible(!!def.glow).setTint(def.glow || 0xffffff);
@@ -425,9 +447,13 @@ export class Player extends Creature {
   setWeapon(id: WeaponId, look: LookId = id) {
     if (this.state2 === 'dead') return;
     if (!HERO_SHEETS[look]) look = id;
-    this.ensure(this.weaponKeys(look), () => {
+    const keys = this.weaponKeys(look);
+    this.ensure(keys, () => {
       this.weapon = WEAPONS[id];
       this.look = look;
+      // as camadas passam para a arma nova já no próximo quadro; a velha sai da memória
+      this.syncLayers();
+      this.release('wpn-', keys);
       this.combo = 0;
       this.comboUntil = 0;
       this.pendingShot = undefined;
@@ -446,6 +472,8 @@ export class Player extends Creature {
       this.outfit = id;
       this.setTexture(`outfit-${id}`);
       if (OUTFITS[id].back) this.back.setTexture(`outfit-${id}-back`);
+      this.syncLayers();
+      this.release('outfit-', keys);
       this.scene.fx.burst(this.x, this.y - 10, 0xbfe6ff, 10);
       this.scene.events.emit('outfit', id);
     });
@@ -587,7 +615,12 @@ export class Player extends Creature {
     const dt = Math.min(0.05, (time - (this.lastUpdate || time)) / 1000);
     this.lastUpdate = time;
     const move = this.readMove();
-    const wantAttack = this.pressed('attack', time);
+    let wantAttack = this.pressed('attack', time);
+    // perto de alguém, o golpe vira ação (abrir a loja do mercador…)
+    if (wantAttack && inputState.action && this.state2 === 'normal') {
+      this.scene.events.emit('action', inputState.action.id);
+      wantAttack = false;
+    }
     const wantDodge = this.pressed('dodge', time);
     const wantSkill = SKILL_ACTIONS.map((a) => this.pressed(a, time));
     const st = this.state2;
@@ -644,7 +677,44 @@ export class Player extends Creature {
       this.facing.copy(move).normalize();
       if (st === 'normal') this.updateDir(move.x, move.y);
     }
-    const speed = PLAYER.speed * O.speed * this.speedMul * this.weightMul * this.scene.progress.moveMul * (this.mount ? this.mount.speed : 1);
+    let speed = PLAYER.speed * O.speed * this.speedMul * this.weightMul * this.scene.progress.moveMul * (this.mount ? this.mount.speed : 1);
+
+    // montado: galope (andando um tempo, acelera), disparada (botão de esquiva) e habilidade da montaria
+    const m = this.mount;
+    if (m) {
+      // em combate (guerra ou inimigo perto) o botão de coletar vira a habilidade da montaria
+      if (time - this.combatCheck > 250) {
+        this.combatCheck = time;
+        const sc = this.scene;
+        this.mountCombat = !!sc.army.war || sc.enemies.some((e) => e.targetable && Math.abs(e.fx - this.x) < 150 && Math.abs(e.fy - this.y) < 110);
+      }
+      this.gallopT = moving ? Math.min(1, this.gallopT + dt / 1.4) : Math.max(0, this.gallopT - dt * 3);
+      speed *= 1 + 0.35 * this.gallopT;
+      if (this.gallopT > 0.9 && moving && time - this.lastGhost > 160) {
+        this.lastGhost = time;
+        this.dust(1);
+      }
+      inputState.cooldowns.dodge = Phaser.Math.Clamp(1 - (time - this.lastMountDash) / MOUNT_DASH_CD, 0, 1);
+      inputState.mountSkill = { label: m.skill.name, icon: m.skill.icon, cd: Phaser.Math.Clamp(1 - (time - this.lastMountSkill) / m.skill.cooldown, 0, 1) };
+      if (wantDodge && st === 'normal' && time - this.lastMountDash >= MOUNT_DASH_CD) this.startCharge(time, moving ? move : this.facing, 420, 2.3, 2, 1);
+      if (!inputState.canGather && st === 'normal' && this.pressed('gather', time) && time - this.lastMountSkill >= m.skill.cooldown) {
+        this.lastMountSkill = time;
+        this.mountSkill(m.skill, moving ? move.clone().normalize() : this.facing.clone());
+      }
+      if (time < this.chargeUntil) {
+        const v = speed * this.chargeK;
+        this.body.setVelocity(this.chargeDir.x * v, this.chargeDir.y * v);
+        this.updateDir(this.chargeDir.x, this.chargeDir.y);
+        this.walk(dt * 1.8);
+        if (time - this.lastGhost > 50) this.ghost(time);
+        this.trample(time);
+        this.sortDepth();
+        return;
+      }
+    } else {
+      inputState.mountSkill = null;
+      this.mountCombat = false;
+    }
 
     // ações — a esquiva cancela tudo; o golpe pode ser encadeado no fim da recuperação
     if (wantDodge && !this.mount && time - this.lastDodge >= this.dodgeCooldown) {
@@ -1020,6 +1090,101 @@ export class Player extends Creature {
 
   wantsGather(time: number): boolean {
     return this.pressed('gather', time);
+  }
+
+  // ---------------------------------------------------------------- montaria
+  private gallopT = 0;
+  private combatCheck = 0;
+  /** Montado e com inimigos por perto: a habilidade da montaria tem a vez no botão de coletar. */
+  mountCombat = false;
+  private lastMountDash = -99999;
+  private lastMountSkill = -99999;
+  private chargeUntil = 0;
+  private chargeK = 1;
+  private chargeDmg = 0;
+  private chargeStun = 0;
+  private chargeDir = new Phaser.Math.Vector2(1, 0);
+  private trampled = new Set<unknown>();
+
+  /** Disparada montado: avança rápido e atropela quem estiver no caminho. */
+  private startCharge(time: number, dir: Phaser.Math.Vector2, ms: number, k: number, dmg: number, stunK: number) {
+    this.lastMountDash = time;
+    this.buffered.dodge = 0;
+    this.chargeUntil = time + ms;
+    this.chargeK = k;
+    this.chargeDmg = dmg;
+    this.chargeStun = 500 * stunK;
+    this.chargeDir.copy(dir).normalize();
+    if (this.chargeDir.lengthSq() < 0.5) this.chargeDir.set(this.dir === 1 ? -1 : this.dir === 2 ? 1 : 0, this.dir === 0 ? 1 : this.dir === 3 ? -1 : 0);
+    this.trampled.clear();
+    this.dust(4);
+  }
+
+  private trample(time: number) {
+    const s = this.scene;
+    for (const e of s.hostiles) {
+      if (!e.targetable || this.trampled.has(e)) continue;
+      if (Phaser.Math.Distance.Between(this.fx, this.fy, e.fx, e.fy) > 16) continue;
+      this.trampled.add(e);
+      e.takeDamage(Math.max(1, Math.round(this.chargeDmg * this.dmgMul)), this.fx, this.fy, 260);
+      if (this.chargeStun) e.stun(this.chargeStun);
+      s.fx.impact(e.fx, e.fy - 8);
+    }
+    void time;
+  }
+
+  /** Habilidade da montaria. */
+  private mountSkill(K: MountSkill, aim: Phaser.Math.Vector2) {
+    const s = this.scene;
+    const p = K.power;
+    s.fx.floatText(this.x, this.y - 34, `${K.name}!`, '#' + K.color.toString(16).padStart(6, '0'));
+    switch (K.kind) {
+      case 'stomp':
+        this.effect({ kind: 'aoe', style: 'quake', at: 'self', radius: 30 + p * 8, damage: 2 + p * 2, knockback: 280, stun: 900 * p, color: K.color }, aim);
+        break;
+      case 'roar':
+        this.effect({ kind: 'buff', buff: 'war', ms: 6000 + p * 2000 }, aim);
+        this.effect({ kind: 'aoe', style: 'nova', at: 'self', radius: 44 + p * 6, damage: 1, knockback: 120, stun: 1400 * p, color: K.color }, aim);
+        // o exército perto também se anima: cura um pouco
+        for (const a of s.army.allies) if (Phaser.Math.Distance.Between(a.x, a.y, this.x, this.y) < 90) a.hp = Math.min(a.maxHp, a.hp + a.maxHp * 0.15);
+        break;
+      case 'heal': {
+        const k = Math.round(this.maxHp * 0.3 * p);
+        this.hp = Math.min(this.maxHp, this.hp + k);
+        inputState.hp = Math.ceil(this.hp);
+        s.fx.floatText(this.x, this.y - 22, `+${k}`, '#8aff9a');
+        this.ring(this.fx, this.fy - 6, 70, K.color, 600);
+        for (const a of s.army.allies)
+          if (Phaser.Math.Distance.Between(a.x, a.y, this.x, this.y) < 100) {
+            a.hp = Math.min(a.maxHp, a.hp + a.maxHp * 0.4 * p);
+            s.fx.burst(a.x, a.y - 10, K.color, 4);
+          }
+        s.fx.burst(this.x, this.y - 14, K.color, 20);
+        break;
+      }
+      case 'breath': {
+        // sopro em leque: chamas uma atrás da outra
+        const a0 = Math.atan2(aim.y, aim.x);
+        const n = Math.round(5 + p * 2);
+        for (let i = 0; i < n; i++)
+          s.time.delayedCall(i * 55, () => {
+            const a = a0 + (Math.random() - 0.5) * 0.5;
+            new Flame(s, this.fx + Math.cos(a) * 10, this.fy - 12 + Math.sin(a) * 6, a, this.dmgMul * (0.6 + p * 0.3));
+          });
+        break;
+      }
+      case 'frost':
+        this.effect({ kind: 'aoe', style: 'nova', at: 'self', radius: 46 + p * 8, damage: 2 * p, knockback: 60, stun: 2200 * p, color: K.color }, aim);
+        break;
+      case 'pounce':
+        // bote: disparada longa e forte, atordoa quem atropela
+        this.startCharge(s.time.now, aim, 300 + p * 80, 3, 3 + p * 2.5, 1.6 * p);
+        this.lastMountDash = s.time.now - MOUNT_DASH_CD;
+        break;
+      case 'gust':
+        this.effect({ kind: 'aoe', style: 'nova', at: 'front', radius: 40 + p * 6, damage: 2 + p, knockback: 480, color: K.color }, aim);
+        break;
+    }
   }
 
   // ---------------------------------------------------------------- esquiva

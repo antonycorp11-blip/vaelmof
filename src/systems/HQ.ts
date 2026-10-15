@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { TILE } from '../config';
-import { BUILDINGS, type BuildingKey } from '../data/buildings';
+import { HQ_ART } from '../data/hqArt';
 import { ITEMS } from '../data/items';
 import { SKIN_CELL, SKIN_COLS, SKIN_FOOT, SKINS } from '../data/skins';
 import { DEPTH } from '../entities/Creature';
@@ -29,8 +29,7 @@ interface Def {
   desc: string[];
   cost: Cost[];
   hp: number[];
-  /** Sprite (construções) e onde fica: tile do meio da base, relativo ao canto da sede. */
-  sprite?: BuildingKey;
+  /** Onde fica a construção: tile do meio da base, relativo ao canto da sede. */
   at?: [number, number];
 }
 
@@ -43,15 +42,13 @@ export const DEFS: Record<BuildId, Def> = {
     desc: ['', 'Coração da sede: cura os soldados, recebe os chamados dos Lordes e rende 5 de ouro/min. Se cair, o clã acaba.', 'Mais resistente; 12 de ouro/min; libera construções de nível 2.', 'Fortaleza; 25 de ouro/min; libera o nível 3.'],
     cost: [{}, { wood: 40, stone: 30 }, { wood: 120, stone: 120, gold: 300 }, { wood: 250, stone: 300, ore: 40, gold: 1200 }],
     hp: [0, 600, 1500, 3200],
-    sprite: 'green-l',
-    at: [15, 10],
+    at: [15, 9],
   },
   barracks: {
     name: 'Alojamento',
     desc: ['', 'Recrute na sede; até 15 soldados de guarda.', 'Até 40 de guarda.', 'Até 80 de guarda.'],
     cost: [{}, { wood: 50, stone: 20 }, { wood: 120, stone: 80, gold: 200 }, { wood: 200, stone: 200, gold: 600 }],
     hp: [0, 300, 700, 1200],
-    sprite: 'green-m',
     at: [6, 9],
   },
   arsenal: {
@@ -59,7 +56,6 @@ export const DEFS: Record<BuildId, Def> = {
     desc: ['', 'Treina ataque, defesa e vida dos soldados (até o nível 10).'],
     cost: [{}, { wood: 40, stone: 40, ore: 10 }],
     hp: [0, 450],
-    sprite: 'block-m',
     at: [24, 9],
   },
   infirmary: {
@@ -67,24 +63,21 @@ export const DEFS: Record<BuildId, Def> = {
     desc: ['', 'Cura 16% da vida por segundo (sem ela, 8%).', 'Cura 28% por segundo.'],
     cost: [{}, { wood: 30, fiber: 10 }, { wood: 80, stone: 40, crystal: 10, gold: 200 }],
     hp: [0, 250, 500],
-    sprite: 'snow-s',
-    at: [5, 19],
+    at: [4, 16],
   },
   treasury: {
     name: 'Tesouraria',
     desc: ['', '+20 de ouro/min.', '+50 de ouro/min.', '+110 de ouro/min.'],
     cost: [{}, { stone: 40, wood: 20 }, { stone: 120, ore: 20, gold: 200 }, { stone: 250, ore: 60, crystal: 20, gold: 800 }],
     hp: [0, 300, 600, 1000],
-    sprite: 'dust-s',
-    at: [9, 19],
+    at: [9, 16],
   },
   warehouse: {
     name: 'Armazém',
     desc: ['', 'Baú com 24 espaços para guardar o que não quer carregar.', 'Baú com 48 espaços.'],
     cost: [{}, { wood: 40 }, { wood: 80, stone: 60, gold: 150 }],
     hp: [0, 250, 500],
-    sprite: 'green-s',
-    at: [21, 19],
+    at: [22, 16],
   },
   ...(Object.fromEntries(
     SIDES.map((n, i) => [
@@ -116,7 +109,7 @@ export const TRAIN_MAX = 10;
 export type Train = 'atk' | 'def' | 'hp';
 export const MATERIALS: Material[] = ['wood', 'stone', 'fiber', 'ore', 'crystal'];
 /** Quanto cada coletor junta por minuto. */
-export const WORK_RATE: Record<Material, number> = { wood: 6, stone: 5, fiber: 6, ore: 3, crystal: 2 };
+export const WORK_RATE: Record<Material, number> = { wood: 15, stone: 12, fiber: 15, ore: 7, crystal: 4 };
 /** Coletores por nível do Salão e estoque por material por nível do Armazém. */
 const WORKER_CAP = [0, 6, 12, 20];
 const STOCK_CAP = [100, 300, 800];
@@ -436,8 +429,19 @@ export class HQ extends Phaser.Events.EventEmitter {
     const why = this.trainBlock(t);
     if (why) return why;
     this.pay(trainCost(this.st.train[t]));
+    const tierWas = this.scene.army.upTier;
     this.st.train[t]++;
     this.scene.army.setUpgrades(this.st.train);
+    // o exército mostra que ficou mais forte: brilho e número sobre cada soldado
+    const n = this.st.train[t];
+    const tag = t === 'atk' ? `+${n * 10}% dano` : t === 'def' ? `−${Math.min(50, n * 5)}% dano levado` : `+${n * 12}% vida`;
+    for (const s2 of this.scene.army.allies) {
+      this.scene.fx.burst(s2.x, s2.y - 10, t === 'atk' ? 0xff8a5a : t === 'def' ? 0x8ac8ff : 0x7aff8a, 6);
+      this.scene.fx.floatText(s2.x, s2.y - 22, t === 'atk' ? 'ATQ ▲' : t === 'def' ? 'DEF ▲' : 'VIDA ▲', t === 'atk' ? '#ff9a6a' : t === 'def' ? '#9ad0ff' : '#8aff9a');
+    }
+    const tier = this.scene.army.upTier;
+    if (tier > tierWas) this.scene.events.emit('area', 'EXÉRCITO PROMOVIDO', `Seus soldados agora são ${['Recrutas', 'Veteranos', 'Elite', 'Campeões'][tier]}: equipamento novo`);
+    else this.scene.events.emit('toast', `${TRAIN_NAME[t]} do exército nível ${n}: ${tag}`);
     this.save();
     this.emit('change');
     return '';
@@ -491,11 +495,11 @@ export class HQ extends Phaser.Events.EventEmitter {
   private walkers: { s: Phaser.GameObjects.Sprite; job: number; state: 'pile' | 'work' | 'store'; t: number; anim: number; tx: number; ty: number }[] = [];
   private piles: Phaser.GameObjects.Image[] = [];
   private static PILE: [number, number][] = [
-    [4, 14],
-    [25, 14],
-    [8, 16],
-    [22, 16],
-    [10, 7],
+    [5, 19],
+    [24, 19],
+    [9, 20],
+    [20, 20],
+    [8, 12],
   ];
   private pileAt(job: number) {
     const [x, y] = HQ.PILE[job];
@@ -503,7 +507,7 @@ export class HQ extends Phaser.Events.EventEmitter {
   }
   private storeAt() {
     const o = this.st;
-    const [x, y] = o.lv.warehouse > 0 ? [21, 20] : [15, 12];
+    const [x, y] = o.lv.warehouse > 0 ? [22, 17] : [15, 12];
     return { x: (o.ox + x) * TILE + 8, y: (o.oy + y) * TILE + 8 };
   }
   private makeWorkers() {
@@ -623,11 +627,15 @@ export class HQ extends Phaser.Events.EventEmitter {
         { x: o.ox * TILE, y: cy },
       ][k];
     }
-    const D = DEFS[b];
-    const B = BUILDINGS[D.sprite!];
-    const wt = B.w / TILE;
-    const [ax, ay] = D.at!;
+    const wt = this.footW(b);
+    const [ax, ay] = DEFS[b].at!;
     return { x: (o.ox + ax) * TILE + (wt % 2 ? 8 : 0), y: (o.oy + ay + 1) * TILE };
+  }
+
+  /** Largura (tiles) da base da construção no nível atual. */
+  private footW(b: BuildId): number {
+    const A = HQ_ART[b as keyof typeof HQ_ART];
+    return Math.ceil(A.widths[Math.max(0, Math.min(A.frames, this.st.lv[b] || 1) - 1)] / TILE);
   }
 
   /** Redesenha tudo (tiles da muralha, colisão, sprites, alvos) a partir do estado. */
@@ -645,10 +653,14 @@ export class HQ extends Phaser.Events.EventEmitter {
         // chão natural; só a estrada de terra do portão ao Salão e o largo em frente
         const lx = x - o.ox;
         const ly = y - o.oy;
-        const road = (Math.abs(lx + 0.5 - HQ_W / 2) <= GATE / 2 && ly >= 11 && ly < HQ_H) || (lx >= 11 && lx <= 18 && ly >= 11 && ly <= 13);
-        if (road) {
+        // pátio calçado: rua de pedras do portão ao Salão, largo na frente dele e calçadas das casas
+        const road = Math.abs(lx + 0.5 - HQ_W / 2) <= GATE / 2 && ly >= 10 && ly <= HQ_H;
+        const plaza = lx >= 10 && lx <= 19 && ly >= 10 && ly <= 13;
+        const walk = ly >= 1 && ly < HQ_H - 2 && lx >= 1 && lx < HQ_W - 1 && (ly === 10 || ly === 17);
+        const t = plaza ? T.PLAZA : road || walk ? T.COBBLE : -1;
+        if (t >= 0) {
           if (m.edge[i] >= 0) s.tiles.set('edge', x, y, -1);
-          if (m.ground[i] !== T.DIRT) s.tiles.set('ground', x, y, T.DIRT);
+          if (m.ground[i] !== t) s.tiles.set('ground', x, y, t);
         }
         s.setSolid(x, y, false);
         if (m.cliffs[i] >= 0) s.tiles.set('cliffs', x, y, -1);
@@ -691,18 +703,17 @@ export class HQ extends Phaser.Events.EventEmitter {
       if (b.startsWith('wall')) continue;
       const p = this.pos(b);
       const tower = b.startsWith('tower');
-      const key = tower ? 'tower' : `bld-${DEFS[b].sprite}`;
-      const frame = tower ? (lv >= 2 ? 2 : 0) : 0;
+      const key = tower ? 'hq-tower' : `hq-${b}`;
+      const A = HQ_ART[(tower ? 'tower' : b) as keyof typeof HQ_ART];
+      const frame = Math.min(A.frames, lv) - 1;
       if (!spr) {
         spr = s.add.image(p.x, p.y, key, frame).setOrigin(0.5, 1);
         this.sprites.set(b, spr);
       }
       spr.setTexture(key, frame).setPosition(p.x, p.y).setDepth(DEPTH.entities + p.y);
-      // nível: construções maiores (e tingidas na pedra) conforme melhora
-      if (!tower) spr.setScale(1 + (lv - 1) * 0.08);
-      // colisão na base
-      const wt = tower ? 2 : BUILDINGS[DEFS[b].sprite!].w / TILE;
-      const rows = tower ? 1 : BUILDINGS[DEFS[b].sprite!].solidRows;
+      // colisão na base (o telhado fica por cima de quem passa atrás)
+      const wt = tower ? 2 : this.footW(b);
+      const rows = tower ? 1 : b === 'hall' ? 3 : 2;
       const x0 = Math.round(p.x / TILE - wt / 2);
       const yb = Math.round(p.y / TILE) - 1;
       for (let y = yb - rows + 1; y <= yb; y++) for (let x = x0; x < x0 + wt; x++) s.setSolid(x, y, true);
@@ -711,13 +722,27 @@ export class HQ extends Phaser.Events.EventEmitter {
         lab = s.add.text(0, 0, '', { fontFamily: 'Tiny5, monospace', fontSize: '7px', color: '#ffe9a8', stroke: '#1e1a24', strokeThickness: 2 }).setOrigin(0.5).setResolution(4).setDepth(4240);
         this.labels.set(b, lab);
       }
-      lab.setText(`${DEFS[b].name}${lv > 1 ? ` ${lv}` : ''}`).setPosition(p.x, p.y - (spr.displayHeight + 6));
+      lab.setText(`${DEFS[b].name}${lv > 1 ? ` ${lv}` : ''}`).setPosition(p.x, p.y - (spr.displayHeight + 4));
     }
+    // guarita do portão (vem com a muralha sul): abre sozinha para o herói e o exército
+    const gateUp = o.lv.wall2 > 0 && o.hp.wall2 > 0;
+    if (!gateUp) {
+      this.gateSpr?.destroy();
+      this.gateSpr = undefined;
+    } else {
+      const gx = (o.ox + HQ_W / 2) * TILE;
+      const gy = (o.oy + HQ_H) * TILE;
+      if (!this.gateSpr) this.gateSpr = s.add.image(gx, gy, 'hq-gate', 0).setOrigin(0.5, 1);
+      this.gateSpr.setPosition(gx, gy).setDepth(DEPTH.entities + gy);
+    }
+    this.gateFrame = -1;
+    this.gateShut = null;
+    this.syncGate();
     // estandartes do clã no portão
     for (const g of this.banners) g.destroy();
     this.banners = [];
     const clan = s.clans.player;
-    for (const dx of [-GATE / 2 - 1, GATE / 2 + 1]) {
+    for (const dx of [-GATE / 2 - 1.5, GATE / 2 + 1.5]) {
       const x = (o.ox + HQ_W / 2 + dx) * TILE;
       const y = (o.oy + HQ_H - 3) * TILE;
       const pole = s.add.rectangle(x, y, 2, 30, 0x6e4426).setOrigin(0.5, 1).setDepth(DEPTH.entities + y);
@@ -743,12 +768,60 @@ export class HQ extends Phaser.Events.EventEmitter {
         if (k === 2 && Math.abs(t - HQ_W / 2) < GATE) continue;
         this.targets.push(new Target(this, b, x, y));
       }
+      // o portão fechado também é alvo (é parte da muralha sul)
+      if (k === 2) this.targets.push(new Target(this, b, (o.ox + HQ_W / 2) * TILE, (o.oy + HQ_H) * TILE + 4));
     }
     // o herói renasce na sede
     const g = this.gate;
     s.player.spawnX = g.x;
     s.player.spawnY = g.y - 3 * TILE;
     s.army.assignPosts();
+  }
+
+  // ------------------------------------------------------------ portão
+  private gateSpr?: Phaser.GameObjects.Image;
+  /** 0 = fechado … 1 = aberto. */
+  private gateK = 0;
+  private gateFrame = -1;
+  private gateShut: boolean | null = null;
+
+  /** Quadro e colisão do portão a partir de gateK. */
+  private syncGate() {
+    const o = this.st;
+    const up = !!this.gateSpr;
+    const f = up ? (o.lv.wall2 >= 2 ? 4 : 0) + Math.round(this.gateK * 3) : -1;
+    if (up && f !== this.gateFrame) this.gateSpr!.setFrame(f);
+    this.gateFrame = f;
+    // fechado (ou quase): o vão vira parede
+    const shut = up && this.gateK < 0.5;
+    if (shut === this.gateShut) return;
+    this.gateShut = shut;
+    for (let y = HQ_H - 2; y < HQ_H; y++)
+      for (let x = 0; x < HQ_W; x++) if (Math.abs(x + 0.5 - HQ_W / 2) < GATE / 2 + 0.5) this.scene.setSolid(o.ox + x, o.oy + y, shut);
+  }
+
+  /** Abre quando o herói ou um soldado aliado chega perto; fecha com inimigos na porta. */
+  private updateGate(delta: number) {
+    if (!this.gateSpr) return;
+    const s = this.scene;
+    const gx = (this.st.ox + HQ_W / 2) * TILE;
+    const gy = (this.st.oy + HQ_H - 1) * TILE;
+    const near = (x: number, y: number, r: number) => Math.abs(x - gx) < r * TILE && Math.abs(y - gy) < r * TILE;
+    let want = near(s.player.x, s.player.y, 4);
+    if (!want) for (const a of s.army.allies) if (near(a.x, a.y, 3.5)) {
+      want = true;
+      break;
+    }
+    if (want && s.army.war) for (const f of s.army.soldiers) if (f.team === 1 && f.targetable && near(f.x, f.y, 5)) {
+      want = false;
+      break;
+    }
+    const k = Phaser.Math.Clamp(this.gateK + ((want ? 1 : -1) * delta) / 450, 0, 1);
+    if (k === this.gateK) return;
+    // rangido ao começar a abrir/fechar
+    if ((this.gateK === 0 || this.gateK === 1) && near(s.player.x, s.player.y, 10)) s.fx.burst(gx, gy + 10, 0x8a6a4a, 4);
+    this.gateK = k;
+    this.syncGate();
   }
 
   private clear() {
@@ -762,6 +835,8 @@ export class HQ extends Phaser.Events.EventEmitter {
     for (const spr of this.sprites.values()) spr.destroy();
     for (const l of this.labels.values()) l.destroy();
     for (const g of this.banners) g.destroy();
+    this.gateSpr?.destroy();
+    this.gateSpr = undefined;
     this.sprites.clear();
     this.labels.clear();
     this.banners = [];
@@ -906,10 +981,19 @@ export class HQ extends Phaser.Events.EventEmitter {
     this.emit('fall', name);
   }
 
+  /** Minutos fora do jogo contados na última abertura (para avisar). */
+  awayMin = 0;
+  private saveAt = 0;
+
   // ------------------------------------------------------------ tempo
   update(time: number, delta: number) {
     if (!this.founded) return;
     const s = this.scene;
+    // o estoque dos coletores e o ouro vão para o save de tempos em tempos
+    if (time > this.saveAt) {
+      this.saveAt = time + 10000;
+      this.save();
+    }
     // receita
     this.incomeFrac += (this.incomePerMin * delta) / 60000;
     if (this.incomeFrac >= 1) {
@@ -951,11 +1035,11 @@ export class HQ extends Phaser.Events.EventEmitter {
           w.ty = p.y + 8 + Math.random() * 6;
         } else {
           w.state = 'work';
-          w.t = 2500 + Math.random() * 2500;
+          w.t = 1200 + Math.random() * 1200;
         }
         continue;
       }
-      const v = (24 * delta) / 1000;
+      const v = (62 * delta) / 1000;
       // contorna o que estiver no caminho de um jeito simples: tenta de lado
       let ux = dx / d;
       let uy = dy / d;
@@ -969,8 +1053,9 @@ export class HQ extends Phaser.Events.EventEmitter {
       w.s.x += ux * v;
       w.s.y += uy * v;
       const dir = Math.abs(ux) > Math.abs(uy) ? (ux < 0 ? 1 : 2) : uy < 0 ? 3 : 0;
-      w.s.setFrame(dir * SKIN_COLS + 1 + (Math.floor(w.anim / 110) % 8)).setDepth(DEPTH.entities + w.s.y);
+      w.s.setFrame(dir * SKIN_COLS + 1 + (Math.floor(w.anim / 75) % 8)).setDepth(DEPTH.entities + w.s.y);
     }
+    this.updateGate(delta);
     // torres
     const foes = s.army.war ? s.army.soldiers : null;
     for (let k = 0; k < 4; k++) {
@@ -1043,7 +1128,7 @@ export class HQ extends Phaser.Events.EventEmitter {
   // ------------------------------------------------------------ salvar
   save() {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(this.st));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ ...this.st, savedAt: Date.now() }));
     } catch {
       /* sem espaço */
     }
@@ -1062,7 +1147,16 @@ export class HQ extends Phaser.Events.EventEmitter {
       st.workers = { ...fresh().workers, ...(d.workers ?? {}) };
       st.stock = { ...fresh().stock, ...(d.stock ?? {}) };
       st.chest = Array.isArray(d.chest) ? d.chest.map((c: ItemStack | null) => (c && ITEMS[c.id] ? c : null)) : [];
+      delete (st as { savedAt?: number }).savedAt;
       this.st = st;
+      // fora do jogo os coletores continuam (até 4 h) e a sede rende metade do ouro
+      const away = Math.min(4 * 3600000, Math.max(0, Date.now() - (Number(d.savedAt) || Date.now())));
+      if (st.founded && away > 60000) {
+        const cap = this.stockCap;
+        for (const m of MATERIALS) if (st.workers[m]) st.stock[m] = Math.min(cap, (st.stock[m] ?? 0) + (st.workers[m] * WORK_RATE[m] * away) / 60000);
+        st.gold += Math.floor((this.incomePerMin * away) / 60000 / 2);
+        this.awayMin = Math.round(away / 60000);
+      }
     } catch {
       /* começa sem sede */
     }

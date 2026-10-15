@@ -16,6 +16,7 @@ import { drawBuildings, drawCityTiles, drawEdges, drawRankIcons } from './world-
 import { drawUiKit } from './ui-art.mjs';
 import { drawMounts } from './mount-art.mjs';
 import { drawWorkers } from './worker-art.mjs';
+import { drawHQ } from './hq-art.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'public');
@@ -2497,6 +2498,13 @@ drawBuildings({ Img, rng, save, composite, PAL }, ROOT);
 drawRankIcons({ Img, save });
 drawUiKit({ Img, save, composite });
 drawWorkers({ Img, save, composite });
+{
+  const hq = drawHQ({ Img, save, composite });
+  writeFileSync(
+    new URL('../src/data/hqArt.ts', import.meta.url),
+    `// Gerado por scripts/hq-art.mjs — não editar à mão.\n/** Folhas da sede do clã: um quadro por nível (o pé do prédio é a base do quadro). */\nexport const HQ_ART = ${JSON.stringify(hq)} as const;\n`,
+  );
+}
 {
   const mounts = drawMounts({ Img, save, composite });
   writeFileSync(

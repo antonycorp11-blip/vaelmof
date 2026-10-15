@@ -23,6 +23,10 @@ export const inputState = {
   mouseAim: null as { x: number; y: number } | null,
   /** Há um recurso ao alcance: mostra o botão COLETAR. */
   canGather: false,
+  /** Montado: habilidade da montaria no botão de coletar (longe de recursos). */
+  mountSkill: null as { label: string; icon: number; cd: number } | null,
+  /** Perto de alguém (mercador…): o botão de golpe vira AÇÃO e abre o painel `id`. */
+  action: null as { id: string; label: string; icon: number } | null,
   /** Cooldowns normalizados (0 = pronto, 1 = recém-usado) para o HUD. */
   cooldowns: { attack: 0, dodge: 0, flame: 0, skill2: 0, skill3: 0 },
   hp: 10,

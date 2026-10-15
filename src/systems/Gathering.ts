@@ -98,6 +98,7 @@ export class Gathering {
   update(time: number) {
     const p = this.scene.player;
     this.findTarget();
+    if (p.mountCombat) this.target = null;
     inputState.canGather = !!this.target && !p.dead;
     this.drawMarker(time);
     if (this.target && p.wantsGather(time) && !p.busy) {

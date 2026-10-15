@@ -3,7 +3,7 @@ import { DEBUG, FORCE_TOUCH } from '../config';
 import type { WeaponDef } from '../data/weapons';
 import { inputState } from '../input/InputState';
 import { VirtualControls } from '../input/VirtualControls';
-import type { ArmyMode, War } from '../systems/Army';
+import { FORMATION_ORDER, FORMATIONS, type ArmyMode, type Formation, type War } from '../systems/Army';
 import type { Rank } from '../systems/Ranks';
 import { ArmyPanel } from '../ui/ArmyPanel';
 import { ClanCreate } from '../ui/ClanCreate';
@@ -66,6 +66,7 @@ export class UIScene extends Phaser.Scene {
   private rankText!: Phaser.GameObjects.Text;
   private armyText!: Phaser.GameObjects.Text;
   private orders: { mode: ArmyMode | 'camp'; b: Button }[] = [];
+  private formBtn!: Button;
   private menu: { id: PanelId; b: Button }[] = [];
   private pointsBadge!: Phaser.GameObjects.Text;
   private clock!: Phaser.GameObjects.Text;
@@ -131,6 +132,22 @@ export class UIScene extends Phaser.Scene {
       }).setDepth(1400);
       this.orders.push({ mode, b });
     }
+
+    // formação: toque troca (linha → cunha → flancos → anel)
+    this.formBtn = new Button(this, {
+      label: FORMATIONS[army.formation].name,
+      color: 'dark',
+      size: 8,
+      onTap: () => {
+        const i = FORMATION_ORDER.indexOf(army.formation);
+        const f = FORMATION_ORDER[(i + 1) % FORMATION_ORDER.length];
+        army.setFormation(f);
+        this.formBtn.setLabel(FORMATIONS[f].name);
+        this.showToast(`Formação ${FORMATIONS[f].name}: ${FORMATIONS[f].desc}`, 3200);
+        this.layout();
+      },
+    }).setDepth(1400);
+    army.on('formation', (f: Formation) => this.formBtn.setLabel(FORMATIONS[f].name));
 
     // montar / desmontar (sempre à mão)
     this.rideBtn = new Button(this, {
@@ -199,7 +216,7 @@ export class UIScene extends Phaser.Scene {
       Object.values(this.panels).some((p) => p.open && p.contains(x, y)) ||
       this.minimap.contains(x, y) ||
       this.menuBar.getBounds().contains(x, y) ||
-      [...this.menu.map((m) => m.b), ...this.orders.map((o) => o.b), this.rideBtn].some((b) => b.contains(x, y));
+      [...this.menu.map((m) => m.b), ...this.orders.map((o) => o.b), this.rideBtn, this.formBtn].some((b) => b.contains(x, y));
 
     // --- eventos do mundo
     army.on('mode', () => this.updateHud());
@@ -221,9 +238,17 @@ export class UIScene extends Phaser.Scene {
     world.events.on('area', (name: string, sub?: string) => this.showArea(name, sub));
     world.events.on('player-died', () => this.showToast('Teren caiu... retornando a Brumavale'));
     const onWeapon = (w: WeaponDef) => {
+      this.lastAction = null;
       this.controls.setButton('attack', w.attackLabel, w.attackIcon);
       (['flame', 'skill2', 'skill3'] as const).forEach((id, i) => this.controls.setButton(id, w.skills[i].label, w.skills[i].icon));
     };
+    // montado: a esquiva vira disparada (atropela quem estiver no caminho)
+    world.events.on('mount', (def: unknown) => this.controls.setButton('dodge', def ? 'DISPARADA' : 'ESQUIVA', def ? 9 : 1));
+    if (world.player.mount) this.controls.setButton('dodge', 'DISPARADA', 9);
+    // ação de contexto (mercador…): o botão de golpe muda de nome e abre o painel
+    world.events.on('action', (id: PanelId) => {
+      if (!this.panels[id]?.open) this.togglePanel(id);
+    });
     world.events.on('weapon', (w: WeaponDef) => {
       onWeapon(w);
       this.showToast(`Agora você é ${w.className} (${w.name})`);
@@ -268,11 +293,15 @@ export class UIScene extends Phaser.Scene {
     this.layout();
     this.scale.on('resize', this.layout, this);
     this.events.once('shutdown', () => this.scale.off('resize', this.layout, this));
+    // de volta ao jogo: o que a sede produziu enquanto isso
+    if (world.hq.awayMin > 0) this.time.delayedCall(3200, () => this.showToast(`Fora por ${world.hq.awayMin} min: os coletores encheram o estoque da sede`, 3600));
     // começo do jogo: fundar o clã
     if (!world.clans.founded) this.clanCreate.setOpen(true);
     else this.time.delayedCall(600, () => this.showArea('Brumavale', 'Capital de Greenland'));
     if (!touch) this.time.delayedCall(2600, () => this.showToast('WASD mover · J golpe · K esquiva · L/U/I habilidades · B C G M menus · 1–4 ordens', 4600));
   }
+
+  private lastAction: typeof inputState.action = null;
 
   /** Um painel por vez. */
   private togglePanel(which: PanelId) {
@@ -336,6 +365,7 @@ export class UIScene extends Phaser.Scene {
       o.b.place(ox, oy + 18 * u, u, 34 * u, 30 * u);
       ox += o.b.w + 4 * u;
     }
+    this.formBtn.place(ox, oy + 18 * u, u, undefined, 30 * u);
     fit(this.missionText, 9, u).setPosition(m, oy + 54 * u);
     fit(this.objText, 9, u).setPosition(m, oy + 54 * u);
     // --- direita
@@ -402,6 +432,7 @@ export class UIScene extends Phaser.Scene {
     this.armyText.setVisible(show).setText(
       a.garrison.length && !field ? `Exército aquartelado (${a.garrison.length})` : `Exército ${field}/${P.armyCap}${a.war ? ` · inimigos ${a.foes.length}` : ''}`,
     );
+    this.formBtn.setVisible(show && field > 1);
     for (const o of this.orders) {
       o.b.setVisible(show);
       if (o.mode === 'camp') o.b.setIcon(a.garrison.length ? 11 : 10).setColor(a.garrison.length ? 'gold' : 'dark');
@@ -457,6 +488,14 @@ export class UIScene extends Phaser.Scene {
     const now = this.time.now;
     this.clock.setText(`${this.registry.get('clock') ?? ''} · ${this.registry.get('weather') ?? ''}`);
     this.minimap.update(now);
+    // botão de golpe ↔ ação de contexto (COMPRAR perto do mercador…)
+    const act = inputState.action;
+    if (act !== this.lastAction) {
+      this.lastAction = act;
+      const w = this.world.player.weapon;
+      if (act) this.controls.setButton('attack', act.label, act.icon);
+      else this.controls.setButton('attack', w.attackLabel, w.attackIcon);
+    }
     this.controls.update();
     this.debug.update();
     this.attrs.update(now);

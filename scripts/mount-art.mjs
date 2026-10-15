@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 // Montarias em pixel art, esculpidas por código.
 //
 // Cada parte do bicho (tronco+pescoço+cabeça, cada perna, cauda, crina, asas)
@@ -1719,23 +1721,65 @@ export function renderFrame(mi, dir, f) {
 }
 
 export function drawMounts({ Img, save }) {
+  // cada montaria num atlas pequeno (quadros recortados ao desenho), carregado
+  // só quando ela é usada; e uma folha de retratos (de lado) para o estábulo
   const N = MOUNT_DEFS.length;
-  const sheet = new Img(FW * NF * 4, FH * N);
-  MOUNT_DEFS.forEach((_, mi) => {
+  const icons = new Img(FW * N, FH);
+  const dir = fileURLToPath(new URL('../public/assets/sprites/mounts/', import.meta.url));
+  mkdirSync(dir, { recursive: true });
+  MOUNT_DEFS.forEach(([id], mi) => {
+    const cells = [];
     // ordem das direções igual à do herói: baixo, esquerda, direita, cima
-    for (let dir = 0; dir < 4; dir++)
+    for (let d = 0; d < 4; d++)
       for (let f = 0; f < NF; f++) {
-        const px = renderFrame(mi, dir, f);
-        const ox = (dir * NF + f) * FW;
-        const oy = mi * FH;
+        const px = renderFrame(mi, d, f);
+        let x0 = W, y0 = H, x1 = -1, y1 = -1;
         for (let y = 0; y < H; y++)
-          for (let x = 0; x < W; x++) {
-            const i = (y * W + x) * 4;
-            if (px[i + 3]) sheet.put(ox + x, oy + y, px[i], px[i + 1], px[i + 2], px[i + 3]);
-          }
+          for (let x = 0; x < W; x++)
+            if (px[(y * W + x) * 4 + 3]) {
+              if (x < x0) x0 = x;
+              if (x > x1) x1 = x;
+              if (y < y0) y0 = y;
+              if (y > y1) y1 = y;
+            }
+        if (x1 < 0) x0 = y0 = x1 = y1 = 0;
+        cells.push({ k: d * NF + f, px, x0, y0, w: x1 - x0 + 1, h: y1 - y0 + 1 });
+        if (d === 2 && f === 0)
+          for (let y = 0; y < H; y++)
+            for (let x = 0; x < W; x++) {
+              const i = (y * W + x) * 4;
+              if (px[i + 3]) icons.put(mi * FW + x, y, px[i], px[i + 1], px[i + 2], px[i + 3]);
+            }
       }
+    // prateleiras
+    const AW = 512;
+    let x = 0, y = 0, rowh = 0;
+    const order = [...cells].sort((a, b) => b.h - a.h);
+    for (const c of order) {
+      if (x + c.w > AW) {
+        x = 0;
+        y += rowh + 1;
+        rowh = 0;
+      }
+      c.ax = x;
+      c.ay = y;
+      x += c.w + 1;
+      rowh = Math.max(rowh, c.h);
+    }
+    const atlas = new Img(AW, y + rowh);
+    const frames = {};
+    for (const c of cells) {
+      for (let yy = 0; yy < c.h; yy++)
+        for (let xx = 0; xx < c.w; xx++) {
+          const i = ((c.y0 + yy) * W + c.x0 + xx) * 4;
+          if (c.px[i + 3]) atlas.put(c.ax + xx, c.ay + yy, c.px[i], c.px[i + 1], c.px[i + 2], c.px[i + 3]);
+        }
+      frames[String(c.k)] = { frame: { x: c.ax, y: c.ay, w: c.w, h: c.h }, rotated: false, trimmed: true, spriteSourceSize: { x: c.x0, y: c.y0, w: c.w, h: c.h }, sourceSize: { w: W, h: H } };
+    }
+    save(`assets/sprites/mounts/mount-${id}.png`, atlas);
+    writeFileSync(dir + `mount-${id}.json`, JSON.stringify({ frames, meta: { image: `mount-${id}.png`, size: { w: AW, h: y + rowh }, scale: '1' } }));
   });
-  save('assets/sprites/mounts.png', sheet);
+  save('assets/sprites/mount-icons.png', icons);
   // altura da sela em px do mundo (a arte é exibida a 0,5)
   return MOUNT_DEFS.map(([id, name, sp, , o]) => ({ id, name, kind: sp, seat: Math.round((GROUND - (saddleTop(sp) + 5)) / 2), glow: o.glow ?? 0, ghost: !!o.ghost }));
 }

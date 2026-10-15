@@ -127,7 +127,7 @@ def hero_weapons():
             crop_walk_into(fg, wf, 128)
         for side, im in (('bg', bg), ('fg', fg)):
             if im.getbbox():
-                save(im, os.path.join(SPR, f'wpn-{wid}-{side}.png'))
+                save_grid(im, 64, 13, 21, f'wpn-{wid}-{side}')
                 entry[side] = True
         bigs = {}
 
@@ -137,7 +137,7 @@ def hero_weapons():
             e = {'frame': F, 'frames': n, 'footY': (F - 64) // 2 + 61, 'cols': cols, 'row': row, 'bg': False, 'fg': False}
             for side, im in (('bg', b), ('fg', f)):
                 if im is not None and im.getbbox():
-                    save(im, os.path.join(SPR, f'wpn-{wid}-{anim}-{side}.png'))
+                    save_grid(im, F, n, 4, f'wpn-{wid}-{anim}-{side}')
                     e[side] = True
             bigs[anim] = e
 
@@ -189,9 +189,9 @@ def hero_outfits():
         front = lpc.universal(parts, body, zmin=BACK_Z)
         back = lpc.universal(parts, body, zmax=BACK_Z)
         has_back = back.getbbox() is not None
-        save(front, os.path.join(SPR, f'outfit-{oid}.png'))
+        save_grid(front, 64, 13, 21, f'outfit-{oid}')
         if has_back:
-            save(back, os.path.join(SPR, f'outfit-{oid}-back.png'))
+            save_grid(back, 64, 13, 21, f'outfit-{oid}-back')
         # retrato: de frente, parado, com a capa
         p = Image.new('RGBA', (64, 64))
         if has_back:
@@ -283,14 +283,20 @@ def bake(sid, body, parts, weapon, kind):
     pack(sid, cells)
 
 
-def pack(sid, cells):
-    """Recorta cada célula ao desenho e empacota em prateleiras (atlas JSON do Phaser)."""
+def pack(sid, cells, cell=CELL, outdir=None):
+    """Recorta cada célula ao desenho e empacota em prateleiras (atlas JSON do Phaser).
+    Só o desenho vai para a memória de vídeo (as folhas cheias de vazio pesavam
+    4,5 MB cada no celular)."""
     items = []
     for k, im in cells.items():
         bb = im.getbbox() or (0, 0, 1, 1)
         items.append((k, bb, im.crop(bb)))
     items.sort(key=lambda t: -(t[1][3] - t[1][1]))
-    W = 512
+    area = sum((t[2].size[0] + 1) * (t[2].size[1] + 1) for t in items)
+    W = 256
+    while W < 2048 and W * W < area * 1.3:
+        W *= 2
+    W = max(W, max(t[2].size[0] for t in items) + 1)
     x = y = rowh = 0
     pos = {}
     for k, bb, im in items:
@@ -314,11 +320,22 @@ def pack(sid, cells):
             'rotated': False,
             'trimmed': True,
             'spriteSourceSize': {'x': bb[0], 'y': bb[1], 'w': w, 'h': h},
-            'sourceSize': {'w': CELL, 'h': CELL},
+            'sourceSize': {'w': cell, 'h': cell},
         }
-    write_png(atlas, os.path.join(SKN, f'sk-{sid}.png'))
-    with open(os.path.join(SKN, f'sk-{sid}.json'), 'w') as f:
-        json.dump({'frames': frames, 'meta': {'image': f'sk-{sid}.png', 'size': {'w': W, 'h': H}, 'scale': '1'}}, f, separators=(',', ':'))
+    out = outdir or SKN
+    name = sid if outdir else f'sk-{sid}'
+    write_png(atlas, os.path.join(out, f'{name}.png'))
+    with open(os.path.join(out, f'{name}.json'), 'w') as f:
+        json.dump({'frames': frames, 'meta': {'image': f'{name}.png', 'size': {'w': W, 'h': H}, 'scale': '1'}}, f, separators=(',', ':'))
+
+
+def save_grid(sheet, F, cols, rows, name):
+    """Folha em grade (universal 64 px, ou animação grande) → atlas recortado `name`.png/.json."""
+    cells = {}
+    for r in range(rows):
+        for c in range(cols):
+            cells[r * cols + c] = sheet.crop((c * F, r * F, c * F + F, r * F + F))
+    pack(name, cells, F, SPR)
 
 
 ROLE = {'sword': 'warrior', 'greatsword': 'warrior', 'bow': 'archer', 'staff': 'mage'}

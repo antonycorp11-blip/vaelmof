@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { RARITY } from '../data/gear';
 import { ITEMS, type ItemDef } from '../data/items';
 import type { WorldScene } from '../scenes/WorldScene';
+import { HQ_ART } from '../data/hqArt';
 import { BUILD_ORDER, DEFS, HQ, hireCost, MATERIAL_NAME, MATERIALS, TRAIN_MAX, TRAIN_NAME, trainCost, WORK_RATE, type BuildId, type Material, type Train } from '../systems/HQ';
 import { Inventory } from '../systems/Inventory';
 import { Button, COLOR, drawBar, fit, frame, label, sizeFrame, Window } from './kit';
@@ -9,15 +10,28 @@ import { Button, COLOR, drawBar, fit, frame, label, sizeFrame, Window } from './
 type Txt = Phaser.GameObjects.Text;
 type Tab = 'build' | 'work' | 'troops' | 'chest';
 
+/** Cartão de uma construção: miniatura, nome, níveis, vida, custo em ícones e botão. */
 interface BRow {
   id: BuildId;
   box: Phaser.GameObjects.NineSlice;
+  thumb: Phaser.GameObjects.Image;
   name: Txt;
-  desc: Txt;
-  cost: Txt;
+  /** Pontos de nível e barra de vida. */
   bar: Phaser.GameObjects.Graphics;
+  chips: { icon: Phaser.GameObjects.Image; n: Txt }[];
   btn: Button;
 }
+
+type Res = Material | 'gold';
+const RES_ICON: Record<Res, [string, number]> = { wood: ['items', 0], stone: ['items', 4], fiber: ['items', 10], ore: ['items', 7], crystal: ['items', 8], gold: ['ui-menu', 22] };
+const RES_ORDER: Res[] = ['wood', 'stone', 'fiber', 'ore', 'crystal', 'gold'];
+/** Miniatura de cada construção: folha e quadro (por nível). */
+const thumbOf = (id: BuildId, lv: number): [string, number] => {
+  if (id.startsWith('tower')) return ['hq-tower', lv >= 2 ? 1 : 0];
+  if (id.startsWith('wall')) return ['hq-gate', lv >= 2 ? 4 : 0];
+  const n = HQ_ART[id as keyof typeof HQ_ART].frames;
+  return [`hq-${id}`, Math.min(n, Math.max(1, lv)) - 1];
+};
 
 interface TRow {
   id: Train;
@@ -55,6 +69,14 @@ export class HQPanel {
   private foundBtn: Button;
   // construir
   private rows: BRow[] = [];
+  private sel: BuildId = 'hall';
+  private resBox: Phaser.GameObjects.NineSlice;
+  private res: { k: Res; icon: Phaser.GameObjects.Image; n: Txt }[] = [];
+  private detBox: Phaser.GameObjects.NineSlice;
+  /** Moldura acesa sobre o cartão escolhido. */
+  private hl: Phaser.GameObjects.NineSlice;
+  private detName: Txt;
+  private detText: Txt;
   // soldados
   private trows: TRow[] = [];
   private guardTitle: Txt;
@@ -100,20 +122,53 @@ export class HQPanel {
     this.intro = label(scene, '', 10, COLOR.text, 1, false).setLineSpacing(4);
     this.foundBtn = new Button(scene, { label: 'ERGUER A SEDE AQUI', icon: 23, color: 'gold', size: 12, onTap: () => this.found() }).addTo(w.root);
     w.add(this.status, this.intro);
+    // barra de recursos (estoque + baú + mochila; ouro do cofre)
+    this.resBox = frame(scene, 'frame-inner');
+    w.add(this.resBox);
+    for (const k of RES_ORDER) {
+      const [sh, f] = RES_ICON[k];
+      const icon = scene.add.image(0, 0, sh, f);
+      const n = label(scene, '', 10, COLOR.text).setOrigin(0, 0.5);
+      w.add(icon, n);
+      this.res.push({ k, icon, n });
+    }
+    // a moldura acesa fica atrás do cartão escolhido (aparece como borda)
+    this.hl = frame(scene, 'frame-hl');
+    w.add(this.hl);
     for (const id of BUILD_ORDER) {
+      const box = frame(scene, 'frame-inner').setInteractive({ useHandCursor: true });
+      box.on('pointerdown', () => {
+        this.sel = id;
+        this.status.setText('');
+        this.refresh();
+      });
       const r: BRow = {
         id,
-        box: frame(scene, 'frame-inner'),
-        name: label(scene, '', 9, COLOR.gold),
-        desc: label(scene, '', 7.5, COLOR.dim, 1, false),
-        cost: label(scene, '', 7.5, COLOR.text, 1, false),
+        box,
+        thumb: scene.add.image(0, 0, 'hq-hall', 0).setOrigin(0.5, 1),
+        name: label(scene, '', 8, COLOR.gold).setOrigin(0.5, 0),
         bar: scene.add.graphics(),
-        btn: new Button(scene, { label: '', color: 'green', size: 8, onTap: () => this.say(world.hq.build(id)) }),
+        chips: [0, 1, 2, 3].map(() => ({ icon: scene.add.image(0, 0, 'items', 0), n: label(scene, '', 8, COLOR.text).setOrigin(0, 0.5) })),
+        btn: new Button(scene, {
+          label: '',
+          color: 'green',
+          size: 8,
+          onTap: () => {
+            this.sel = id;
+            const why = world.hq.build(id);
+            this.say(why || `${DEFS[id].name}: pronto!`, !why);
+          },
+        }),
       };
-      w.add(r.box, r.bar, r.name, r.desc, r.cost);
+      w.add(r.box, r.thumb, r.bar, r.name);
+      for (const c of r.chips) w.add(c.icon, c.n);
       r.btn.addTo(w.root);
       this.rows.push(r);
     }
+    this.detBox = frame(scene, 'frame-inner');
+    this.detName = label(scene, '', 9, COLOR.gold);
+    this.detText = label(scene, '', 8, COLOR.text, 1, false);
+    w.add(this.detBox, this.detName, this.detText);
     for (const id of ['atk', 'def', 'hp'] as Train[]) {
       const r: TRow = {
         id,
@@ -262,36 +317,84 @@ export class HQPanel {
       this.foundBtn.setEnabled(!why);
     }
     const tab = founded ? this.tab : null;
-    // construir
+    // construir: cartões
     const u = this.u;
+    const on = tab === 'build';
+    for (const o of [this.resBox, this.detBox, this.detName, this.detText, this.hl]) o.setVisible(on);
+    for (const r of this.res) {
+      r.icon.setVisible(on);
+      r.n.setVisible(on);
+      if (on) r.n.setText(String(Math.min(99999, hq.have(r.k))));
+    }
     for (const r of this.rows) {
-      const on = tab === 'build';
-      for (const o of [r.box, r.name, r.desc, r.cost, r.bar]) o.setVisible(on);
+      for (const o of [r.box, r.thumb, r.name, r.bar]) o.setVisible(on);
       r.btn.setVisible(on);
-      if (!on) continue;
+      if (!on) {
+        for (const c of r.chips) c.icon.setVisible(false), c.n.setVisible(false);
+        continue;
+      }
       const D = DEFS[r.id];
       const lv = hq.level(r.id);
       const max = D.hp.length - 1;
       const hp = hq.st.hp[r.id];
       const broken = lv > 0 && hp < D.hp[lv];
-      r.name.setText(`${D.name}  ${lv ? `nível ${lv}/${max}` : 'não construída'}`).setColor(lv ? (hp > 0 ? COLOR.gold : COLOR.red) : COLOR.dim);
-      r.desc.setText(D.desc[Math.min(max, lv + (lv < max ? 1 : 0))] || D.desc[lv] || '');
       const next = hq.nextCost(r.id);
       const cost = broken ? hq.repairCost(r.id) : next;
       const why = broken ? '' : hq.buildBlock(r.id);
-      // custo com o que você tem (estoque dos coletores + baú + mochila) e o motivo se não der
-      const parts = cost ? (Object.entries(cost) as [keyof typeof MATERIAL_NAME, number][]).map(([k, n]) => `${MATERIAL_NAME[k]} ${Math.min(hq.have(k), 9999)}/${n}`) : [];
-      const short = cost ? hq.missing(cost) : '';
-      const reason = why && !why.startsWith('Faltam') ? ` — ${why}` : '';
-      r.cost
-        .setText(cost ? `${broken ? 'reparar' : 'custo'}: ${parts.join(' · ')}${reason}` : 'nível máximo')
-        .setColor(!cost ? COLOR.dim : short || reason ? COLOR.red : COLOR.green);
+      const sel = r.id === this.sel;
+      if (lv && hp <= 0) r.box.setTint(0xff9a8a);
+      else r.box.clearTint();
+      if (sel) sizeFrame(this.hl, r.box.x - 3 * u, r.box.y - 3 * u, r.box.displayWidth + 6 * u, r.box.displayHeight + 6 * u, u);
+      // miniatura: do nível atual (ou do próximo, apagada, se ainda não existe)
+      const [sh, f] = thumbOf(r.id, lv || 1);
+      r.thumb.setTexture(sh, f);
+      const tw = r.box.displayWidth - 12 * u;
+      const th = r.box.displayHeight * 0.4;
+      r.thumb.setScale(Math.min(tw / r.thumb.width, th / r.thumb.height));
+      if (lv && hp > 0) r.thumb.clearTint().setAlpha(1);
+      else r.thumb.setTint(lv ? 0x8a4a40 : 0x3a3a48).setAlpha(lv ? 1 : 0.8);
+      r.name.setText(D.name.replace('Muralha ', 'Muro ').replace('Torre ', 'Torre ')).setColor(lv ? (hp > 0 ? COLOR.gold : COLOR.red) : COLOR.dim);
+      // pontos de nível e vida
+      const g = r.bar.clear();
+      const bx = r.box.x;
+      const bw = r.box.displayWidth;
+      const py = r.name.y + 12 * u;
+      const pw = 9 * u;
+      const pg = 3 * u;
+      const px0 = bx + bw / 2 - (max * pw + (max - 1) * pg) / 2;
+      for (let i = 0; i < max; i++) {
+        g.fillStyle(0x0b0d14, 1).fillRect(px0 + i * (pw + pg) - u, py - u, pw + 2 * u, 5 * u);
+        g.fillStyle(i < lv ? 0xffc850 : 0x3a3446, 1).fillRect(px0 + i * (pw + pg), py, pw, 3 * u);
+      }
+      if (lv) drawBar(g, bx + 8 * u, py + 7 * u, bw - 16 * u, 3 * u, hp / D.hp[lv], hp / D.hp[lv] > 0.4 ? 0x5fbf52 : 0xd83c3c, u);
+      // custo em ícones: verde se tem, vermelho se falta
+      const parts = cost ? (Object.entries(cost) as [Res, number][]) : [];
+      const cw = (bw - 12 * u) / 2;
+      const cy0 = py + 18 * u;
+      r.chips.forEach((c, i) => {
+        const e = parts[i];
+        c.icon.setVisible(!!e);
+        c.n.setVisible(!!e);
+        if (!e) return;
+        const [k, n] = e;
+        const [ish, ifr] = RES_ICON[k];
+        const x = bx + 8 * u + (i % 2) * cw;
+        const y = cy0 + Math.floor(i / 2) * 13 * u;
+        c.icon.setTexture(ish, ifr).setScale((11 * u) / 16).setPosition(x + 5 * u, y);
+        fit(c.n, 8, u).setPosition(x + 12 * u, y).setText(n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)).setColor(hq.have(k) >= n ? COLOR.green : COLOR.red);
+      });
       r.btn
         .setLabel(broken ? 'REPARAR' : !next ? 'MÁXIMO' : lv ? 'MELHORAR' : 'CONSTRUIR')
-        .setColor(broken ? 'gold' : why ? 'dark' : 'green')
+        .setColor(broken ? 'gold' : !next ? 'dark' : why ? 'dark' : 'green')
         .setEnabled(broken || !!next);
-      r.bar.clear();
-      if (lv) drawBar(r.bar, r.box.x + 8 * u, r.box.y + r.box.displayHeight - 7 * u, r.box.displayWidth - 100 * u, 3 * u, hp / D.hp[lv], hp / D.hp[lv] > 0.4 ? 0x5fbf52 : 0xd83c3c, u);
+      if (sel) {
+        const lvTxt = lv ? `nível ${lv}/${max}${hp <= 0 ? ' · DESTRUÍDA' : broken ? ` · vida ${hp}/${D.hp[lv]}` : ''}` : 'não construída';
+        this.detName.setText(`${D.name.toUpperCase()} · ${lvTxt}`);
+        const desc = D.desc[Math.min(max, lv + (lv < max ? 1 : 0))] || D.desc[lv] || '';
+        const nextTxt = !next && !broken ? 'Nível máximo.' : `${lv && !broken ? 'Próximo nível: ' : ''}${desc}`;
+        const block = why && !broken && next ? `  ▸ ${why}` : '';
+        this.detText.setText(`${nextTxt}${block}`).setColor(block ? COLOR.red : COLOR.text);
+      }
     }
     // trabalho: coletores enchendo o estoque
     const wk = tab === 'work';
@@ -380,18 +483,31 @@ export class HQPanel {
     fit(this.intro, 9.5, u).setPosition(pad, top).setWordWrapWidth(win.W - pad * 2);
     this.foundBtn.place(win.W / 2 - 120 * u, win.H - pad - 34 * u, u, 240 * u, 32 * u);
     if (!founded) fit(this.status, 9, u).setPosition(pad, win.H - pad - 50 * u).setWordWrapWidth(win.W - pad * 2);
-    // construir: 2 colunas × 7
-    const L = (win.W - pad * 2 - 6 * u) / 2;
-    const rh = (win.H - top - pad) / 7;
-    this.rows.forEach((r, i) => {
-      const x = pad + Math.floor(i / 7) * (L + 6 * u);
-      const y = top + (i % 7) * rh;
-      sizeFrame(r.box, x, y, L, rh - 3 * u, u);
-      fit(r.name, 9, u).setPosition(x + 8 * u, y + 5 * u);
-      fit(r.desc, 7.5, u).setPosition(x + 8 * u, y + 16 * u).setWordWrapWidth(L - 104 * u);
-      fit(r.cost, 7.5, u).setPosition(x + 8 * u, y + 27 * u).setOrigin(0, 0).setWordWrapWidth(L - 104 * u);
-      r.btn.place(x + L - 92 * u, y + (rh - 3 * u) / 2 - 11 * u, u, 84 * u, 22 * u);
+    // construir: barra de recursos, 7 × 2 cartões e o detalhe do escolhido
+    const rw = win.W - pad * 2;
+    sizeFrame(this.resBox, pad, top, rw, 22 * u, u);
+    const step = rw / RES_ORDER.length;
+    this.res.forEach((r, i) => {
+      const x = pad + i * step + 14 * u;
+      r.icon.setPosition(x, top + 11 * u).setScale((14 * u) / 16);
+      fit(r.n, 10, u).setPosition(x + 11 * u, top + 11 * u);
     });
+    const detH = 30 * u;
+    const ctop = top + 26 * u;
+    const ch = (win.H - ctop - pad - detH - 4 * u) / 2;
+    const cw = (rw - 6 * 4 * u) / 7;
+    this.rows.forEach((r, i) => {
+      const x = pad + (i % 7) * (cw + 4 * u);
+      const y = ctop + Math.floor(i / 7) * (ch + 4 * u);
+      sizeFrame(r.box, x, y, cw, ch, u);
+      r.thumb.setPosition(x + cw / 2, y + 6 * u + ch * 0.4);
+      fit(r.name, 8, u).setPosition(x + cw / 2, y + 8 * u + ch * 0.4).setWordWrapWidth(cw - 6 * u);
+      r.btn.place(x + 5 * u, y + ch - 25 * u, u, cw - 10 * u, 20 * u);
+    });
+    const dy = win.H - pad - detH;
+    sizeFrame(this.detBox, pad, dy, rw, detH, u);
+    fit(this.detName, 9, u).setPosition(pad + 8 * u, dy + 4 * u);
+    fit(this.detText, 8, u).setPosition(pad + 8 * u, dy + 16 * u).setWordWrapWidth(rw - 16 * u);
     // trabalho
     fit(this.workTitle, 9, u).setPosition(pad, top).setWordWrapWidth(win.W - pad * 2);
     const wh = (win.H - top - pad - 30 * u) / MATERIALS.length;

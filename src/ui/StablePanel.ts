@@ -40,7 +40,7 @@ export class StablePanel {
       const c: Card = {
         m,
         box: frame(scene, 'frame-inner').setInteractive({ useHandCursor: true }),
-        img: scene.add.image(0, 0, 'mounts', m.row * 24 + 12),
+        img: scene.add.image(0, 0, 'mount-icons', m.row),
         name: label(scene, m.name, 7, COLOR.text, 1, false).setOrigin(0.5, 0).setAlign('center'),
       };
       c.box.on('pointerdown', () => {

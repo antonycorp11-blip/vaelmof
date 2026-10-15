@@ -65,6 +65,20 @@ const STEP_MS = 80;
 
 export type ArmyMode = 'follow' | 'attack' | 'hold';
 
+/**
+ * Formações: onde cada tipo de soldado fica em volta do herói (frente = para
+ * onde o herói anda). Arqueiros atrás, quebra-escudos na frente, arcanos nos
+ * flancos — e variações.
+ */
+export type Formation = 'line' | 'wedge' | 'flank' | 'ring';
+export const FORMATIONS: Record<Formation, { name: string; desc: string }> = {
+  line: { name: 'LINHA', desc: 'quebra-escudos na frente, espadas logo atrás, arqueiros na retaguarda, arcanos nos flancos' },
+  wedge: { name: 'CUNHA', desc: 'ponta de lança: quebra-escudos na ponta, espadas nas asas, atiradores no miolo' },
+  flank: { name: 'FLANCOS', desc: 'espadas e quebra-escudos pelos lados, arqueiros e arcanos atrás do herói' },
+  ring: { name: 'ANEL', desc: 'defesa em círculo: corpo a corpo por fora, atiradores protegidos por dentro' },
+};
+export const FORMATION_ORDER: Formation[] = ['line', 'wedge', 'flank', 'ring'];
+
 /** Cura dos soldados fora de combate (fração da vida por segundo): no campo e dentro de uma cidade. */
 /** Sem levar dano por este tempo (ms), o soldado começa a se curar. */
 const HEAL_DELAY = 4000;
@@ -509,6 +523,26 @@ export class Army extends Phaser.Events.EventEmitter {
     else this.need([key], apply);
   }
 
+  private gcAt = 0;
+  /**
+   * Libera da memória de vídeo as peles que ninguém está usando (povos de
+   * biomas que ficaram para trás). Se voltarem, carregam de novo do cache.
+   */
+  gcSkins(now: number) {
+    if (now < this.gcAt) return;
+    this.gcAt = now + 20000;
+    const tm = this.scene.textures;
+    const busy = new Set<string>([FALLBACK, ...this.loading.keys()]);
+    for (const o of this.scene.children.list) {
+      const k = (o as Phaser.GameObjects.Sprite).texture?.key;
+      if (k && k.startsWith('sk-')) busy.add(k);
+    }
+    for (const t of ['sword', 'greatsword', 'bow', 'staff'] as SoldierType[]) for (const k of SKINS.ally[this.upTier][t]) busy.add(`sk-${k}`);
+    const near = SKINS.factions[String(this.scene.biome) as keyof typeof SKINS.factions];
+    if (near) for (const tier of near.tiers) for (const list of Object.values(tier)) for (const k of list as readonly string[]) busy.add(`sk-${k}`);
+    for (const k of tm.getTextureKeys()) if (k.startsWith('sk-') && !busy.has(k)) tm.remove(k);
+  }
+
   /** Adianta as peles de um povo (ao entrar no bioma ou quando um bando se aproxima). */
   preloadFaction(f: number) {
     const F = SKINS.factions[String(Math.max(0, Math.min(5, f))) as keyof typeof SKINS.factions];
@@ -792,23 +826,94 @@ export class Army extends Phaser.Events.EventEmitter {
     const p = this.scene.player;
     this.faceX = p.facing.x;
     this.faceY = p.facing.y;
-    this.field.forEach((s, i) => {
-      s.slot = i;
+    const tn = { sword: 0, greatsword: 0, bow: 0, staff: 0 };
+    for (const s of this.field) tn[s.type]++;
+    this.typeN = tn;
+    const k = { sword: 0, greatsword: 0, bow: 0, staff: 0 };
+    this.field.forEach((s) => {
+      s.slot = k[s.type]++;
       if (!all) return;
-      const [x, y] = this.slotPos(i, p.x, p.y);
+      const [x, y] = this.slotPos(s, p.x, p.y);
       s.x = x;
       s.y = y;
       s.vx = s.vy = 0;
     });
   }
 
-  private slotPos(i: number, ox: number, oy: number): [number, number] {
-    const per = 10;
-    const row = Math.floor(i / per);
-    const col = (i % per) - (per - 1) / 2;
-    const bx = -this.faceX;
-    const by = -this.faceY;
-    return [ox + bx * (26 + row * 13) - by * col * 13, oy + by * (26 + row * 13) + bx * col * 13];
+  formation: Formation = 'line';
+  /** Quantos de cada tipo há na formação (contados a cada quadro). */
+  private typeN: Record<SoldierType, number> = { sword: 0, greatsword: 0, bow: 0, staff: 0 };
+
+  setFormation(f: Formation) {
+    this.formation = f;
+    for (const s of this.soldiers) if (s.team === 0) s.thinkAt = 0;
+    this.save();
+    this.emit('formation', f);
+  }
+
+  /**
+   * Lugar do soldado na formação: (frente, lado) no referencial do herói,
+   * convertido para o mapa. `i` é a ordem dele entre os do mesmo tipo.
+   */
+  private slotPos(s: Soldier | number, ox: number, oy: number): [number, number] {
+    const type: SoldierType = typeof s === 'number' ? 'sword' : s.type;
+    const i = typeof s === 'number' ? s : s.slot;
+    const n = Math.max(1, typeof s === 'number' ? 10 : this.typeN[type]);
+    const G = 13;
+    const fx = this.faceX;
+    const fy = this.faceY;
+    // fileiras centradas: `per` por fileira, a partir de `f0` (frente) indo para `dir`
+    const rows = (per: number, f0: number, dir: number, side = 0): [number, number] => {
+      const row = Math.floor(i / per);
+      const inRow = Math.min(per, n - row * per);
+      const col = (i % per) - (inRow - 1) / 2;
+      return [f0 + dir * row * G, side + col * G];
+    };
+    let f = 0;
+    let r = 0;
+    const F = this.formation;
+    const melee = type === 'sword' || type === 'greatsword';
+    if (F === 'line') {
+      if (type === 'greatsword') [f, r] = rows(10, 40, 1);
+      else if (type === 'sword') [f, r] = rows(10, 26, -1);
+      else if (type === 'bow') [f, r] = rows(10, -26, -1);
+      else {
+        // arcanos divididos nos dois flancos
+        const half = i % 2 ? 1 : -1;
+        const k = Math.floor(i / 2);
+        f = 12 - Math.floor(k / 2) * G;
+        r = half * (78 + (k % 2) * G);
+      }
+    } else if (F === 'wedge') {
+      if (melee) {
+        // V aberto para trás; quebra-escudos na ponta
+        const k = type === 'greatsword' ? i : i + this.typeN.greatsword;
+        const arm = k % 2 ? 1 : -1;
+        const d = Math.ceil(k / 2);
+        f = 46 - d * 9;
+        r = arm * d * 10;
+      } else if (type === 'bow') [f, r] = rows(5, -10, -1);
+      else [f, r] = rows(4, -34, -1);
+    } else if (F === 'flank') {
+      if (melee) {
+        const k = type === 'greatsword' ? i : i + this.typeN.greatsword;
+        const sideK = k % 2 ? 1 : -1;
+        const j = Math.floor(k / 2);
+        f = 18 - Math.floor(j / 3) * G;
+        r = sideK * (34 + (j % 3) * G);
+      } else if (type === 'bow') [f, r] = rows(6, -26, -1);
+      else [f, r] = rows(4, -14, -1);
+    } else {
+      // anel: corpo a corpo por fora, atiradores por dentro
+      const total = melee ? this.typeN.sword + this.typeN.greatsword : this.typeN.bow + this.typeN.staff;
+      const k = type === 'greatsword' ? i : type === 'sword' ? i + this.typeN.greatsword : type === 'bow' ? i : i + this.typeN.bow;
+      const R = melee ? Math.max(34, (total * G) / (Math.PI * 2)) : Math.max(18, (total * G * 0.8) / (Math.PI * 2));
+      const a = (k / Math.max(1, total)) * Math.PI * 2;
+      f = Math.cos(a) * R;
+      r = Math.sin(a) * R;
+    }
+    // frente = (fx, fy); direita = (-fy, fx)
+    return [ox + fx * f - fy * r, oy + fy * f + fx * r];
   }
 
   /**
@@ -984,6 +1089,7 @@ export class Army extends Phaser.Events.EventEmitter {
   }
 
   update(time: number, delta: number) {
+    this.gcSkins(time);
     if (!this.ready || !this.soldiers.length) {
       this.regenPool(delta);
       return;
@@ -1028,11 +1134,15 @@ export class Army extends Phaser.Events.EventEmitter {
     }
     const view = this.scene.cameras.main.worldView;
     this.buildFlow(time);
-    let slot = 0;
+    // quantos de cada tipo na formação (e a ordem de cada um entre os seus)
+    const cnt = { sword: 0, greatsword: 0, bow: 0, staff: 0 };
+    for (const s of this.soldiers) if (!s.dead && s.team === 0 && !s.station) cnt[s.type]++;
+    this.typeN = cnt;
+    const tn = { sword: 0, greatsword: 0, bow: 0, staff: 0 };
     for (const s of this.soldiers) {
       if (s.dead) continue;
       const D = SOLDIERS[s.type];
-      if (s.team === 0 && !s.station) s.slot = slot++;
+      if (s.team === 0 && !s.station) s.slot = tn[s.type]++;
       // fora da tela: anda em quadros alternados, com passo dobrado (metade do custo)
       const off = !s.sprite.visible;
       if (off && ((this.frameN + s.parity) & 1)) continue;
@@ -1057,7 +1167,7 @@ export class Army extends Phaser.Events.EventEmitter {
         s.healRate = s.team === 0 ? this.healAt(s.x, s.y) : 0;
         // longe demais do herói: alcança a formação
         if (s.team === 0 && !s.station && Math.hypot(s.x - p.x, s.y - p.y) > 520) {
-          const [x, y] = this.slotPos(s.slot, p.x, p.y);
+          const [x, y] = this.slotPos(s, p.x, p.y);
           s.x = x;
           s.y = y;
         }
@@ -1084,7 +1194,7 @@ export class Army extends Phaser.Events.EventEmitter {
         gx = s.postX;
         gy = s.postY;
       } else if (s.team === 0) {
-        const [x, y] = this.mode === 'hold' ? this.slotPos(s.slot, this.holdX, this.holdY) : this.slotPos(s.slot, p.x, p.y);
+        const [x, y] = this.mode === 'hold' ? this.slotPos(s, this.holdX, this.holdY) : this.slotPos(s, p.x, p.y);
         gx = x;
         gy = y;
       } else if (s.champion && s.home && !this.war) {
@@ -1332,7 +1442,7 @@ export class Army extends Phaser.Events.EventEmitter {
   save() {
     try {
       const roster = this.soldiers.filter((s) => s.team === 0 && !s.dead).map((s) => ({ t: s.type, k: s.kills, st: s.station || undefined }));
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ roster: [...roster, ...this.pending], garrison: this.garrison, pool: this.pool }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ roster: [...roster, ...this.pending], garrison: this.garrison, pool: this.pool, formation: this.formation }));
     } catch {
       /* sem armazenamento */
     }
@@ -1344,6 +1454,7 @@ export class Army extends Phaser.Events.EventEmitter {
       if (!raw) return;
       const d = JSON.parse(raw);
       if (typeof d.pool === 'number') this.pool = Phaser.Math.Clamp(d.pool, 0, this.poolMax);
+      if (d.formation in FORMATIONS) this.formation = d.formation;
       if (Array.isArray(d.roster)) for (const r of d.roster) if (SOLDIER_TYPES.includes(r.t)) this.pending.push({ t: r.t, k: Number(r.k) || 0, st: !!r.st });
       if (Array.isArray(d.garrison)) for (const r of d.garrison) if (SOLDIER_TYPES.includes(r.t)) this.garrison.push({ t: r.t, k: Number(r.k) || 0 });
     } catch {

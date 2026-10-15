@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import { BUILDINGS } from '../data/buildings';
-import { HERO } from '../entities/heroSheet';
-import { HERO_SHEETS } from '../entities/heroSheets';
+import { HQ_ART } from '../data/hqArt';
 import { WRAITH_SHEET } from '../entities/wraithSheet';
 
 const S = 'assets/sprites/';
@@ -23,10 +22,9 @@ export class BootScene extends Phaser.Scene {
 
     this.load.image('tiles', 'assets/tilesets/vaelmor-tiles.png');
     const sheet = (key: string, file: string, w = 16, h = 16) => this.load.spritesheet(key, S + file, { frameWidth: w, frameHeight: h });
-    // Teren: camadas LPC montadas por scripts/hero; Errante: scripts/wraith
-    // Teren em camadas: traje inicial e espada (os outros carregam ao equipar)
-    for (const k of ['outfit-squire', 'outfit-leather-back', 'wpn-sword-bg', 'wpn-sword-fg']) sheet(k, `${k}.png`, HERO.frame, HERO.frame);
-    for (const side of ['bg', 'fg']) sheet(`wpn-sword-slash-${side}`, `wpn-sword-slash-${side}.png`, HERO_SHEETS.sword.big.slash.frame, HERO_SHEETS.sword.big.slash.frame);
+    // Teren: peças LPC montadas por scripts/chars (atlas recortados); Errante: scripts/wraith
+    // traje inicial e espada (os outros carregam ao equipar e saem da memória ao trocar)
+    for (const k of ['outfit-squire', 'outfit-leather-back', 'wpn-sword-bg', 'wpn-sword-fg', 'wpn-sword-slash-bg', 'wpn-sword-slash-fg']) this.load.atlas(k, `${S}${k}.png`, `${S}${k}.json`);
     sheet('armor-icons', 'armor-icons.png', 40, 54);
     sheet('arrow', 'arrow.png');
     sheet('bolt', 'bolt.png');
@@ -56,7 +54,8 @@ export class BootScene extends Phaser.Scene {
     // brasões dos clãs: escudo tingível e emblemas 12×12
     this.load.image('crest-shield', 'assets/ui/crest-shield.png');
     // montarias: 21 × (4 direções × 4 quadros), 48×40
-    this.load.spritesheet('mounts', 'assets/sprites/mounts.png', { frameWidth: 112, frameHeight: 80 });
+    // retratos das montarias (estábulo); cada uma anda com o seu atlas, carregado ao montar
+    this.load.spritesheet('mount-icons', 'assets/sprites/mount-icons.png', { frameWidth: 112, frameHeight: 80 });
     // coletores da sede (5 ofícios × 18 quadros) e as pilhas de cada ofício
     this.load.spritesheet('workers-props', 'assets/sprites/workers-props.png', { frameWidth: 32, frameHeight: 24 });
     this.load.spritesheet('crests', 'assets/ui/crests.png', { frameWidth: 12, frameHeight: 12 });
@@ -64,6 +63,8 @@ export class BootScene extends Phaser.Scene {
     // construções das cidades (variantes × janelas apagadas/acesas), torres, fonte e barracas
     for (const [k, B] of Object.entries(BUILDINGS)) this.load.spritesheet(`bld-${k}`, `assets/tiles/bld-${k}.png`, { frameWidth: B.w, frameHeight: B.h });
     this.load.spritesheet('tower', 'assets/tiles/tower.png', { frameWidth: 32, frameHeight: 48 });
+    // sede do clã: um quadro por nível, torres e a guarita do portão (fechado → aberto)
+    for (const [k, A] of Object.entries(HQ_ART)) this.load.spritesheet(`hq-${k}`, `assets/tiles/hq-${k}.png`, { frameWidth: A.w, frameHeight: A.h });
     this.load.spritesheet('stall', 'assets/tiles/stall.png', { frameWidth: 32, frameHeight: 32 });
     this.load.image('fountain', 'assets/tiles/fountain.png');
   }

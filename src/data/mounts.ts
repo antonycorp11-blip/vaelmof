@@ -21,7 +21,46 @@ export interface MountDef {
   /** Biomas cujas cidades vendem (vazio = todas). */
   biomes: number[];
   desc: string;
+  /** Habilidade da montaria (botão ao lado da esquiva, montado). */
+  skill: MountSkill;
 }
+
+/** Habilidades das montarias: pisotear, rugir, curar, sopro de fogo, gelo, bote, rajada. */
+export interface MountSkill {
+  name: string;
+  /** Ícone em ui-icons. */
+  icon: number;
+  cooldown: number;
+  kind: 'stomp' | 'roar' | 'heal' | 'breath' | 'frost' | 'pounce' | 'gust';
+  /** Força (escala dano, raio e duração). */
+  power: number;
+  color: number;
+}
+
+const SK = (name: string, icon: number, cooldown: number, kind: MountSkill['kind'], power: number, color: number): MountSkill => ({ name, icon, cooldown, kind, power, color });
+/** Por espécie; algumas montarias mágicas têm a sua. */
+const SKILL_BY_KIND: Record<string, MountSkill> = {
+  horse: SK('COICE', 14, 8000, 'stomp', 1, 0xc8a070),
+  stag: SK('BÊNÇÃO', 3, 16000, 'heal', 1, 0x8ef0ff),
+  bear: SK('RUGIDO', 13, 12000, 'roar', 1.2, 0xffd34a),
+  wolf: SK('UIVO', 13, 12000, 'roar', 1, 0xc8d8ff),
+  rhino: SK('ESTOURO', 9, 9000, 'pounce', 1.6, 0xd8c8a8),
+  boar: SK('INVESTIDA', 9, 8000, 'pounce', 1.1, 0xc89a70),
+  cat: SK('BOTE', 9, 7000, 'pounce', 1.3, 0xffb050),
+  raptor: SK('BOTE', 9, 6500, 'pounce', 1.1, 0xe8c070),
+  lizard: SK('LAVA', 2, 10000, 'breath', 1, 0xff7a2a),
+  griffin: SK('RAJADA', 4, 9000, 'gust', 1.3, 0xf0e0b0),
+  dragon: SK('SOPRO', 2, 10000, 'breath', 1.5, 0xff6a2a),
+};
+const SKILL_BY_ID: Partial<Record<string, MountSkill>> = {
+  unicorn: SK('LUZ CURATIVA', 3, 15000, 'heal', 1.4, 0xd8c8ff),
+  nightmare: SK('CHAMAS', 2, 9000, 'breath', 1.1, 0xff7a2a),
+  polar: SK('GELO', 16, 11000, 'frost', 1.2, 0x9ad8ff),
+  frostwolf: SK('GELO', 16, 11000, 'frost', 1, 0xbfe6ff),
+  panther: SK('BOTE SOMBRIO', 9, 6000, 'pounce', 1.5, 0xb070ff),
+  emerald: SK('SOPRO', 2, 10000, 'breath', 1.4, 0x7aff8a),
+  war: SK('ATROPELAR', 14, 8000, 'stomp', 1.5, 0xc8c8d8),
+};
 
 // [velocidade, defesa, dano, preço, biomas, descrição]
 const STATS: Record<MountId, [number, number, number, number, number[], string]> = {
@@ -51,7 +90,7 @@ const STATS: Record<MountId, [number, number, number, number, number[], string]>
 export const MOUNTS: Record<string, MountDef> = {};
 MOUNT_ART.forEach((a, row) => {
   const [speed, guard, power, price, biomes, desc] = STATS[a.id];
-  MOUNTS[a.id] = { id: a.id, name: a.name, row, seat: a.seat, glow: a.glow, ghost: a.ghost, speed, guard, power, price, biomes, desc };
+  MOUNTS[a.id] = { id: a.id, name: a.name, row, seat: a.seat, glow: a.glow, ghost: a.ghost, speed, guard, power, price, biomes, desc, skill: SKILL_BY_ID[a.id] ?? SKILL_BY_KIND[a.kind] ?? SKILL_BY_KIND.horse };
 });
 
 /** Montarias raras que caem de personagens (líderes de clã, procurados fortes). */

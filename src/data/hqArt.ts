@@ -1,0 +1,3 @@
+// Gerado por scripts/hq-art.mjs — não editar à mão.
+/** Folhas da sede do clã: um quadro por nível (o pé do prédio é a base do quadro). */
+export const HQ_ART = {"hall":{"w":144,"h":112,"frames":3,"widths":[112,128,144]},"barracks":{"w":96,"h":72,"frames":3,"widths":[80,88,96]},"arsenal":{"w":84,"h":66,"frames":1,"widths":[84]},"infirmary":{"w":76,"h":64,"frames":2,"widths":[64,76]},"treasury":{"w":80,"h":70,"frames":3,"widths":[64,72,80]},"warehouse":{"w":92,"h":70,"frames":2,"widths":[80,92]},"tower":{"w":34,"h":66,"frames":2,"widths":[34,34]},"gate":{"w":104,"h":72,"frames":8,"widths":[104,104,104,104,104,104,104,104]}} as const;

@@ -231,7 +231,19 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   Lava, Grifo Real, Dragão Esmeralda e Dragão Rubro.
 - Velocidade de ×1,5 a ×2,6; as de batalha dão defesa e/ou dano. As mágicas
   têm aura. O herói vai sentado na sela (pernas recortadas); o exército
-  acompanha em marcha forçada. Não dá para esquivar montado; coletar desmonta.
+  acompanha em marcha forçada. Coletar desmonta.
+- **Galope:** andando montado por ~1,5 s a montaria acelera (+35%, com poeira).
+- **Disparada** (o botão de esquiva vira DISPARADA): arrancada forte que
+  atropela e derruba quem estiver no caminho (espera de 2,6 s).
+- **Habilidade da montaria** (o botão de coletar, longe de recursos ou com
+  inimigos perto): cada espécie tem a sua — **Coice/Atropelar** (cavalos,
+  corcel de guerra: tremor em volta que atordoa), **Rugido/Uivo** (ursos,
+  lobo gigante: ânimo de guerra e o exército perto se cura um pouco),
+  **Bênção/Luz curativa** (cervo, unicórnio: cura o herói e o exército),
+  **Sopro/Chamas/Lava** (dragões, pesadelo, salamandra: leque de fogo),
+  **Gelo** (urso polar, lobo da geada: congela em volta), **Estouro/Investida/
+  Bote** (rinoceronte, javali, tigre, pantera, raptor: disparada longa que
+  atordoa) e **Rajada** (grifo: empurra para longe).
 - **Como conseguir:** o estábulo de cada cidade vende as comuns e as da região
   (urso em Greenland, lobo em Snowland, rinoceronte em Blockland, raptor e
   tigre em Dustland, salamandra em Blackland…). As raras e lendárias só caem:
@@ -266,6 +278,7 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   Ancestral 700, Lendária 2000) e saque. Vende 15 recrutas e mercenários que
   entram no exército na hora (dentro do limite da patente) — o jeito de se
   refazer depois de perder o exército.
+- Perto do mercador o **botão de golpe vira COMPRAR** e abre a loja.
 - Cada mercador tem um **caixa** (2.500, renova 80/min): dá para ganhar ouro,
   mas não à vontade. Bandidos também deixam 1–4 moedas.
 
@@ -329,19 +342,32 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 ### Coletores da sede
 - Aba **TRABALHO** da sede: contrate coletores (ouro; o Salão comporta 6/12/20)
   para madeira, pedra, fibra, minério e cristal. Eles enchem o **estoque do
-  Armazém** (100/300/800 de cada) sozinhos (minério 3/min, cristal 2/min por
-  coletor), e o estoque conta para construir, melhorar, reparar e treinar —
+  Armazém** (100/300/800 de cada) sozinhos (por coletor: madeira e fibra
+  15/min, pedra 12, minério 7, cristal 4) — **também com o jogo fechado** (até
+  4 h; a sede rende metade do ouro nesse tempo) — e o estoque conta para construir, melhorar, reparar e treinar —
   junto com o **baú da sede** e a mochila (gasta primeiro o estoque, depois o
   baú, por fim a mochila). Alguns andam pela sede.
-- Cada construção mostra o custo com **o que você tem** ("madeira 20/50") em
-  verde ou vermelho e o motivo quando não dá (ex.: precisa estar na sede, ou o
-  Salão no nível certo); tocar no botão apagado diz o que falta.
+- Aba **CONSTRUIR** em cartões de jogo: barra com o que você tem de cada
+  material e ouro, um cartão por construção com a **miniatura do prédio no
+  nível atual**, pontos de nível, vida e o custo em ícones (verde = tem,
+  vermelho = falta); tocar num cartão mostra embaixo o que o próximo nível faz
+  e o motivo quando não dá (precisa estar na sede, Salão no nível certo…).
 
 ### Sede do clã (`src/systems/HQ.ts`, `src/ui/HQPanel.ts`, ícone da casa, tecla H)
 - **Erguer:** só um **Clã** (600 de Glória, não um Bando), num terreno plano
   e seco a até 60 tiles de uma cidade (fora dos muros), com 40 madeira e 30
   pedra. A sede (30×24 tiles) é erguida em volta do herói; árvores e pedras do
-  lugar somem e uma estrada de terra liga o portão (ao sul) ao Salão.
+  lugar somem; uma rua de pedras liga o portão (ao sul) ao largo calçado em
+  frente ao Salão.
+- **Arte própria** (`scripts/hq-art.mjs`): cada prédio muda a cada nível —
+  Salão de toras com telhado de palha → casa enxaimel de telhas → fortaleza de
+  pedra com torreões; Alojamento com armeiro de lanças; Arsenal com forja
+  acesa; Enfermaria caiada com cruz; Tesouraria com colunas e ouro; Armazém de
+  tábuas com caixotes e sacos. Torres de vigia de madeira → de pedra.
+- **Portão com abertura automática:** a muralha sul ganha uma guarita
+  (paliçada ou pedra) com folhas que se abrem quando o herói ou um soldado
+  aliado chega perto e se fecham sozinhas — com inimigos na porta ele não abre,
+  e fechado o vão vira parede (os rivais precisam derrubá-lo).
 - **Construções** (com o que se coleta + ouro; nível 2/3 pede o Salão no mesmo
   nível): **Salão** (coração: cura, chamados dos Lordes, ouro; se cair, o clã
   acaba), **muralhas** por lado (paliçada → pedra), **4 torres** (atiram em
@@ -417,6 +443,17 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   salvo no aparelho.
 - **Ordens:** SEGUIR (formação atrás do herói), ATACAR (cada soldado busca o
   inimigo mais próximo), SEGURAR (fica onde o herói estava).
+- **Formações** (botão no HUD ao lado das ordens, ou na tela do quartel), cada
+  tipo de soldado no seu lugar em relação a para onde o herói anda:
+  **LINHA** (quebra-escudos na frente, espadas logo atrás, arqueiros na
+  retaguarda, arcanos nos flancos), **CUNHA** (ponta de lança: quebra-escudos
+  na ponta, espadas nas asas, atiradores no miolo), **FLANCOS** (corpo a corpo
+  pelos lados, atiradores atrás do herói) e **ANEL** (defesa em círculo,
+  atiradores protegidos por dentro). Fica salva.
+- O quartel mostra cada soldado com o **equipamento do treino atual** e os
+  números já com o treino do Arsenal ("vida 17,4 (+24%)", "defesa −15%"); ao
+  treinar, cada soldado brilha com ATQ ▲/DEF ▲/VIDA ▲ e, ao subir de escalão,
+  aparece EXÉRCITO PROMOVIDO.
 - Os soldados **sobem de patente** com abates (Miliciano → Escudeiro →
   Lâmina Jurada → Guardião de Ferro), ganhando vida e dano. Quem morre se
   perde (e custa Glória).
@@ -697,6 +734,14 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - Tilemap com culling nativo do Phaser; animação de água troca índices de
   tiles a cada 85–190 ms (sem shaders).
 - `pixelArt: true`, sem antialias, resolução interna limitada a 2× DPR.
+- **Memória de vídeo:** roupas e armas do herói são atlas recortados (só os
+  quadros com pixel), carregados quando equipados e liberados ao trocar; cada
+  montaria tem o seu atlas (só o da montaria em uso fica na memória); as peles
+  dos povos são carregadas por bioma e as que ninguém usa saem a cada 20 s.
+  ~13 MB de texturas no começo (antes eram 48 MB, crescendo a cada troca de
+  arma — o que travava o jogo depois de 15–20 min no iPhone).
+- **Onde parou:** a posição do herói é salva a cada 4 s e ao sair do app;
+  reabrindo, ele volta para onde estava (sem save, na sede).
 
 ---
 

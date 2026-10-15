@@ -67,6 +67,13 @@ export const OFFERS: Offer[] = [
 export class Market extends Phaser.Events.EventEmitter {
   private purse = new Map<string, number>();
   private sprites: Phaser.GameObjects.GameObject[] = [];
+  /** Onde fica cada mercador (para o botão de ação). */
+  private spots: { x: number; y: number }[] = [];
+
+  /** Há um mercador a até `r` px? */
+  merchantNear(x: number, y: number, r = 30): boolean {
+    return this.spots.some((p) => Math.abs(p.x - x) < r && Math.abs(p.y - y) < r);
+  }
 
   constructor(private scene: WorldScene) {
     super();
@@ -143,6 +150,7 @@ export class Market extends Phaser.Events.EventEmitter {
     const s = this.scene;
     for (const o of this.sprites) o.destroy();
     this.sprites = [];
+    this.spots = this.scene.map.cities.map((c) => ({ x: (c.cx + 3) * TILE + 8, y: (c.cy + 3) * TILE + 8 }));
     // cada cidade com o seu mercador (roupa, rosto e chapéu próprios)
     const keys = SKINS.merchants.map((k) => `sk-${k}`);
     s.army.need(keys, () => {

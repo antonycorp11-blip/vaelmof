@@ -153,7 +153,7 @@ export class VirtualControls {
 
   private hitButton(x: number, y: number): Button | undefined {
     // área de toque 15% maior que o desenho (o de coletar só existe perto de um recurso)
-    return this.buttons.find((b) => (b.id !== 'gather' || inputState.canGather) && Phaser.Math.Distance.Between(x, y, b.x, b.y) <= b.radius * this.u * 1.15);
+    return this.buttons.find((b) => (b.id !== 'gather' || inputState.canGather || !!inputState.mountSkill) && Phaser.Math.Distance.Between(x, y, b.x, b.y) <= b.radius * this.u * 1.15);
   }
 
   private onDown(p: Phaser.Input.Pointer) {
@@ -256,11 +256,17 @@ export class VirtualControls {
       // segurar o botão de golpe repete o ataque
       if (b.id === 'attack' && b.pointerId !== null) inputState.attack = true;
       if (b.id === 'gather') {
-        const on = inputState.canGather;
+        // coletar perto de recurso; montado e longe deles, a habilidade da montaria
+        const on = inputState.canGather || !!inputState.mountSkill;
         for (const o of [b.bg, b.ring, b.img, b.text]) o.setVisible(on);
-        if (!on) continue;
+        if (!on) {
+          b.cd.clear();
+          continue;
+        }
+        const want = inputState.canGather ? { label: 'COLETAR', icon: 10 } : inputState.mountSkill!;
+        if (b.label !== want.label) this.setButton('gather', want.label, want.icon);
       }
-      const cd = b.id === 'gather' ? 0 : inputState.cooldowns[b.id];
+      const cd = b.id === 'gather' ? (inputState.canGather ? 0 : (inputState.mountSkill?.cd ?? 0)) : inputState.cooldowns[b.id];
       b.cd.clear();
       const r = b.radius * this.u;
       if (cd > 0) {

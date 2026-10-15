@@ -60,6 +60,9 @@ const KILL_POINTS: Partial<Record<SpawnKind, number>> = { slime: 0.5, wolf: 0.5,
 const BIOME_WEATHER: Partial<Record<Biome, string>> = { [Biome.SNOW]: 'Neve', [Biome.BLACK]: 'Cinzas', [Biome.DUST]: 'Seco' };
 
 /** Mundo: mapa, entidades, ciclo de dia/noite, clima e câmera. */
+const POS_KEY = 'vaelmor.pos.v1';
+const MERCHANT_ACTION = { id: 'market', label: 'COMPRAR', icon: 11 };
+
 export class WorldScene extends Phaser.Scene {
   map!: WorldData;
   /** Bioma predominante em volta do jogador. */
@@ -169,6 +172,7 @@ export class WorldScene extends Phaser.Scene {
     this.events.on('player-died', () => this.time.delayedCall(2400, () => this.army.regroup()));
     this.spots = new SpawnSpots(this, map);
     this.setupProgress();
+    this.restorePosition();
 
     // câmera
     const cam = this.cameras.main;
@@ -630,6 +634,8 @@ export class WorldScene extends Phaser.Scene {
     H.length = 0;
     for (const e of this.enemies) H.push(e);
     for (const s of this.army.soldiers) if (s.team === 1 && !s.dead) H.push(s);
+    // ação de contexto: perto do mercador o golpe vira COMPRAR
+    inputState.action = !this.army.war && this.market.merchantNear(this.player.x, this.player.y) ? MERCHANT_ACTION : null;
     this.player.update(time);
     this.army.update(time, dt);
     this.champions.update(time);
@@ -752,6 +758,36 @@ export class WorldScene extends Phaser.Scene {
 
   // ------------------------------------------------------------------ debug
   /** Leva o jogador para (x, y) — ou para o chão livre mais próximo. */
+  // ------------------------------------------------------------------ onde parou
+  /** Volta para onde estava ao fechar o jogo (sem save: para a sede, se houver). */
+  private restorePosition() {
+    let at: { x: number; y: number } | null = null;
+    try {
+      const d = JSON.parse(localStorage.getItem(POS_KEY) ?? 'null');
+      if (d && Number.isFinite(d.x) && Number.isFinite(d.y)) at = d;
+    } catch {
+      /* sem save */
+    }
+    if (!at && this.hq.founded) at = { x: this.player.spawnX, y: this.player.spawnY };
+    if (at) this.teleport(at.x, at.y);
+    const save = () => {
+      if (this.player.state2 === 'dead') return;
+      try {
+        localStorage.setItem(POS_KEY, JSON.stringify({ x: Math.round(this.player.x), y: Math.round(this.player.y) }));
+      } catch {
+        /* sem espaço */
+      }
+    };
+    this.time.addEvent({ delay: 4000, loop: true, callback: save });
+    const onHide = () => document.visibilityState === 'hidden' && save();
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', save);
+    this.events.once('shutdown', () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', save);
+    });
+  }
+
   teleport(x: number, y: number) {
     const m = this.map;
     let tx = Phaser.Math.Clamp(Math.floor(x / TILE), 1, m.width - 2);

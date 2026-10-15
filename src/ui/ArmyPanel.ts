@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { WorldScene } from '../scenes/WorldScene';
-import { SOLDIER_TYPES, SOLDIERS, type SoldierType } from '../systems/Army';
+import { SKINS } from '../data/skins';
+import { allyTint, FORMATION_ORDER, FORMATIONS, SOLDIER_TYPES, SOLDIERS, type SoldierType } from '../systems/Army';
 import { Button, COLOR, drawBar, fit, frame, label, sizeFrame, Window } from './kit';
 
 type Txt = Phaser.GameObjects.Text;
@@ -15,6 +16,10 @@ interface Card {
   plus1: Button;
   plus5: Button;
 }
+
+/** Nome do escalão do exército (sobe com o treino no Arsenal da sede). */
+export const TIER_NAME = ['Recrutas', 'Veteranos', 'Elite', 'Campeões'];
+const fmt = (n: number) => (Math.round(n * 10) / 10).toString().replace('.', ',');
 
 const ROLE: Record<SoldierType, string> = {
   sword: 'linha de frente',
@@ -39,6 +44,9 @@ export class ArmyPanel {
   private campBtn: Button;
   private warBtn: Button;
   private cards: Card[] = [];
+  private formLabel: Txt;
+  private formDesc: Txt;
+  private formBtns: Button[];
   private u = 1;
   private lastTick = 0;
   private bar = { x: 0, y: 0, w: 10, h: 10 };
@@ -59,6 +67,12 @@ export class ArmyPanel {
     this.win.add(this.poolBar, this.poolText, this.where, this.status, this.infoBox, this.info);
     this.campBtn.addTo(this.win.root);
     this.warBtn.addTo(this.win.root);
+    // formações: arqueiros atrás, quebra-escudos na frente, arcanos nos flancos…
+    this.formLabel = label(scene, 'FORMAÇÃO', 9, COLOR.gold);
+    this.formDesc = label(scene, '', 8, COLOR.dim, 1, false);
+    this.win.add(this.formLabel, this.formDesc);
+    this.formBtns = FORMATION_ORDER.map((f) => new Button(scene, { label: FORMATIONS[f].name, color: 'dark', size: 9, onTap: () => world.army.setFormation(f) }).addTo(this.win.root));
+    world.army.on('formation', () => this.refresh());
     for (const type of SOLDIER_TYPES) {
       const c: Card = {
         type,
@@ -94,9 +108,19 @@ export class ArmyPanel {
     this.status.setText('');
     if (!on) return;
     this.layout(this.u);
-    // os retratos são as folhas dos soldados, fundidas na primeira vez
-    this.world.army.prepare(() => {
-      for (const c of this.cards) c.portrait.setTexture(`sold-0-${c.type}`, 0);
+    this.portraits();
+  }
+
+  /** Retratos: o soldado do clã com o equipamento do treino atual. */
+  private portraits() {
+    const a = this.world.army;
+    const keys = this.cards.map((c) => `sk-${SKINS.ally[a.upTier][c.type][0]}`);
+    a.need(keys, () => {
+      this.cards.forEach((c, i) => {
+        if (c.portrait.texture.key !== keys[i]) c.portrait.setTexture(keys[i], 0);
+        const tint = a.clanColor >= 0 ? allyTint(a.clanColor) : 0xffffff;
+        c.portrait.setTint(tint);
+      });
       this.layout(this.u);
     });
   }
@@ -151,7 +175,9 @@ export class ArmyPanel {
     const u = this.u;
     const field = a.allies.length;
     const order = a.mode === 'follow' ? 'seguir' : a.mode === 'attack' ? 'atacar' : 'segurar';
-    this.win.sub.setText(`${P.rank.name} · ${a.size}/${P.armyCap} soldados · ordem: ${order}`);
+    const up = a.upg;
+    this.win.sub.setText(`${P.rank.name} · ${a.size}/${P.armyCap} soldados · ${TIER_NAME[a.upTier]} (treino: ataque ${up.atk} · defesa ${up.def} · vida ${up.hp}) · ordem: ${order}`);
+    if (this.open && this.cards[0].portrait.texture.key !== `sk-${SKINS.ally[a.upTier][this.cards[0].type][0]}`) this.portraits();
     // reserva de recrutas
     const g = this.poolBar;
     g.clear();
@@ -163,7 +189,14 @@ export class ArmyPanel {
       const mine = a.allies.filter((s) => s.type === c.type);
       const kept = a.garrison.filter((s) => s.t === c.type).length;
       const role = D.ranged ? `${ROLE[c.type]} · alcance ${D.range}` : ROLE[c.type];
-      c.stats.setText(`vida ${D.hp} · dano ${D.damage}\n${role}\ncusto: ${D.cost} recruta${D.cost > 1 ? 's' : ''}`);
+      // números com o treino do Arsenal (o que o exército ganhou fica visível)
+      const hp = D.hp * (1 + 0.12 * up.hp);
+      const dmg = D.damage * (1 + 0.1 * up.atk);
+      const def = Math.min(50, 5 * up.def);
+      const boost = up.atk + up.def + up.hp > 0;
+      c.stats
+        .setText(`vida ${fmt(hp)}${up.hp ? ` (+${up.hp * 12}%)` : ''} · dano ${fmt(dmg)}${up.atk ? ` (+${up.atk * 10}%)` : ''}${def ? `\ndefesa −${def}% de dano` : ''}\n${role}\ncusto: ${D.cost} recruta${D.cost > 1 ? 's' : ''}`)
+        .setColor(boost ? COLOR.green : COLOR.dim);
       c.count.setText(`${mine.length} no campo${kept ? ` · ${kept} no quartel` : ''}`);
       const ok = !a.recruitBlock(c.type, 1);
       c.plus1.setEnabled(ok);
@@ -172,6 +205,8 @@ export class ArmyPanel {
     }
     this.campBtn.setLabel(a.garrison.length ? `CONVOCAR (${a.garrison.length})` : 'AQUARTELAR').setIcon(a.garrison.length ? 11 : 10);
     this.campBtn.setEnabled(!!a.garrison.length || (field > 0 && !a.war));
+    FORMATION_ORDER.forEach((f, i) => this.formBtns[i].setColor(a.formation === f ? 'blue' : 'dark'));
+    this.formDesc.setText(FORMATIONS[a.formation].desc);
     this.warBtn.setLabel(a.war ? `EM GUERRA: ${a.war.house}` : 'DESAFIAR UM CLÃ').setEnabled(!a.war);
     this.info.setText(
       [
@@ -203,14 +238,14 @@ export class ArmyPanel {
       const cx = x + cw / 2;
       fit(c.name, 11, u).setPosition(cx, top + 7 * u);
       // retrato: a folha tem quadros de 96 px com o soldado ocupando ~64
-      const ph = ch * 0.36;
-      const isSheet = c.portrait.texture.key.startsWith('sold-');
+      const ph = ch * 0.32;
+      const isSheet = c.portrait.texture.key.startsWith('sk-');
       const sc = Math.max(1, Math.round(isSheet ? ph / 52 : ph / 16));
-      c.portrait.setScale(sc).setPosition(cx, top + 22 * u + ph / 2 + (isSheet ? 6 * sc : 0));
+      c.portrait.setScale(sc).setOrigin(0.5, isSheet ? 77 / 96 : 0.5).setPosition(cx, isSheet ? top + 22 * u + ph + 2 * u : top + 22 * u + ph / 2);
       const sy = top + 30 * u + ph;
       fit(c.stats, 8, u).setPosition(cx, sy);
-      fit(c.count, 9, u).setPosition(cx, sy + c.stats.height + 2 * u);
       const bh = 24 * u;
+      fit(c.count, 9, u).setPosition(cx, Math.max(sy + c.stats.height + 1 * u, top + ch - bh - 22 * u));
       const bw = (cw - 24 * u) / 2;
       c.plus1.place(x + 8 * u, top + ch - bh - 8 * u, u, bw, bh);
       c.plus5.place(x + cw - 8 * u - bw, top + ch - bh - 8 * u, u, bw, bh);
@@ -226,7 +261,14 @@ export class ArmyPanel {
     const bh = 28 * u;
     this.campBtn.place(pad, y, u, lw * 0.44, bh);
     this.warBtn.place(pad + lw * 0.44 + 6 * u, y, u, lw * 0.56 - 6 * u, bh);
-    fit(this.status, 9, u).setPosition(pad + lw / 2, y + bh + 6 * u).setWordWrapWidth(lw);
+    // --- formação de guerra
+    const fy = y + bh + 6 * u;
+    fit(this.formLabel, 9, u).setPosition(pad, fy + 6 * u);
+    const fl = 74 * u;
+    const fw = (lw - fl - 3 * 4 * u) / 4;
+    this.formBtns.forEach((b, i) => b.place(pad + fl + i * (fw + 4 * u), fy, u, fw, 22 * u));
+    fit(this.formDesc, 8, u).setPosition(pad, fy + 26 * u).setWordWrapWidth(lw);
+    fit(this.status, 9, u).setPosition(pad + lw / 2, fy + 40 * u).setWordWrapWidth(lw);
     // --- como funciona
     const ix = pad * 2 + lw;
     const iy = top + ch + 6 * u;
