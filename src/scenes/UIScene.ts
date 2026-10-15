@@ -22,6 +22,7 @@ import { InventoryPanel } from '../ui/InventoryPanel';
 import { Button, COLOR, Crest, drawBar, FONT, fit, frame, label, sizeFrame } from '../ui/kit';
 import { MapPanel } from '../ui/MapPanel';
 import { Minimap } from '../ui/Minimap';
+import { MountReveal } from '../ui/MountReveal';
 import type { WorldScene } from './WorldScene';
 
 type PanelId = 'bag' | 'attrs' | 'army' | 'hq' | 'market' | 'stable' | 'missions' | 'clans' | 'map' | 'debug';
@@ -69,6 +70,9 @@ export class UIScene extends Phaser.Scene {
   private formBtn!: Button;
   private menu: { id: PanelId; b: Button }[] = [];
   private pointsBadge!: Phaser.GameObjects.Text;
+  /** Selo NOVA no estábulo (montaria ganha e ainda não vista). */
+  private stableBadge!: Phaser.GameObjects.Text;
+  private reveal!: MountReveal;
   private clock!: Phaser.GameObjects.Text;
   private areaText!: Phaser.GameObjects.Text;
   private areaSub!: Phaser.GameObjects.Text;
@@ -179,6 +183,7 @@ export class UIScene extends Phaser.Scene {
     ];
     this.menuBar = frame(this, 'frame').setDepth(1399);
     for (const [id, icon, color] of menuDefs) this.menu.push({ id, b: new Button(this, { icon, color, onTap: () => this.togglePanel(id) }).setDepth(1400) });
+    this.stableBadge = this.add.text(0, 0, 'NOVA', { fontFamily: FONT, fontSize: '9px', fontStyle: 'bold', color: COLOR.ink }).setOrigin(0.5).setDepth(1405).setBackgroundColor('#9cff8a').setVisible(false);
     this.pointsBadge = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '9px', fontStyle: 'bold', color: COLOR.ink }).setOrigin(0.5).setDepth(1405).setBackgroundColor('#ffd77a');
 
     // --- centro
@@ -209,10 +214,13 @@ export class UIScene extends Phaser.Scene {
     this.marketPanel = new MarketPanel(this, world);
     this.stablePanel = new StablePanel(this, world);
     this.clanCreate = new ClanCreate(this, world);
+    this.reveal = new MountReveal(this, world);
+    world.stable.on('change', () => this.updateHud());
     this.armyPanel.onClans = () => this.togglePanel('clans');
     this.panels = { bag: this.bag, attrs: this.attrs, army: this.armyPanel, hq: this.hqPanel, market: this.marketPanel, stable: this.stablePanel, missions: this.missionsPanel, clans: this.clansPanel, map: this.mapPanel, debug: this.debug };
     this.controls.blocker = (x, y) =>
       this.clanCreate.open ||
+      this.reveal.open ||
       Object.values(this.panels).some((p) => p.open && p.contains(x, y)) ||
       this.minimap.contains(x, y) ||
       this.menuBar.getBounds().contains(x, y) ||
@@ -309,6 +317,7 @@ export class UIScene extends Phaser.Scene {
     const was = p.open;
     this.closePanels();
     if (!was) p.setOpen(true);
+    if (!was && which === 'stable') this.world.stable.markSeen();
   }
 
   private showNews(text: string) {
@@ -381,6 +390,8 @@ export class UIScene extends Phaser.Scene {
       it.b.place(bx - ms, m + bp, u, ms, ms);
       bx -= ms + gap;
     }
+    this.stableBadge.setFontSize(Math.round(9 * u)).setPadding(Math.round(3 * u), Math.round(1 * u), Math.round(3 * u), Math.round(1 * u));
+    this.reveal.layout(u);
     this.pointsBadge.setFontSize(Math.round(10 * u)).setPadding(Math.round(3 * u), Math.round(1 * u), Math.round(3 * u), Math.round(1 * u));
     const mw = Math.min(150 * u, width * 0.2);
     const mh = Math.round(mw * 0.72);
@@ -442,6 +453,8 @@ export class UIScene extends Phaser.Scene {
     const free = P.free;
     const pb = this.menu.find((m) => m.id === 'attrs')!.b;
     this.pointsBadge.setVisible(free > 0).setText(`+${free}`).setPosition(pb.x + pb.w - 2 * this.u, pb.y + 2 * this.u);
+    const sb = this.menu.find((m) => m.id === 'stable')!.b;
+    this.stableBadge.setVisible(w.stable.unseen.size > 0).setPosition(sb.x + sb.w - 4 * this.u, sb.y + 2 * this.u);
   }
 
   private showArea(name: string, sub = '') {
@@ -486,6 +499,7 @@ export class UIScene extends Phaser.Scene {
       this.drawHp();
     }
     const now = this.time.now;
+    this.reveal.update(now);
     this.clock.setText(`${this.registry.get('clock') ?? ''} · ${this.registry.get('weather') ?? ''}`);
     this.minimap.update(now);
     // botão de golpe ↔ ação de contexto (COMPRAR perto do mercador…)

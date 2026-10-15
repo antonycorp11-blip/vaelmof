@@ -266,6 +266,11 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   cada campeão de duelo deixa a sua (Brakk → Javali, Ysra → Lobo da Geada,
   Ulgar → Grifo, Morvath → Dragão Rubro), líderes de clã têm 10% e procurados
   fortes 15% de deixar uma rara.
+- **Montaria nova** (`src/ui/MountReveal.ts`): quando uma cai de campeão,
+  líder ou procurado, o jogo pausa e aparece um cartão com a montaria num feixe
+  de luz girando, a raridade (comum, rara, lendária), velocidade, bônus e a
+  habilidade, com MONTAR AGORA ou DEPOIS (várias de uma vez entram em fila). O
+  ícone do estábulo ganha o selo **NOVA** até você abrir o estábulo.
 - **Estábulo** (ícone do cavalo no menu): as 21 em grade (as que faltam em
   sombra), a ficha (velocidade, bônus, onde conseguir), USAR, COMPRAR e
   MONTAR.
@@ -384,6 +389,9 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   (paliçada ou pedra) com folhas que se abrem quando o herói ou um soldado
   aliado chega perto e se fecham sozinhas — com inimigos na porta ele não abre,
   e fechado o vão vira parede (os rivais precisam derrubá-lo).
+  O herói sempre consegue abrir ao chegar no portão (mesmo com inimigos); os
+  soldados, só sem inimigos na porta. O portão nunca fecha com alguém parado no
+  vão, e a corneta e o renascimento levam para dentro do pátio, não para o vão.
 - **Construções** (com o que se coleta + ouro; nível 2/3 pede o Salão no mesmo
   nível): **Salão** (coração: cura, chamados dos Lordes, ouro; se cair, o clã
   acaba), **muralhas** por lado (paliçada → pedra), **4 torres** (atiram em

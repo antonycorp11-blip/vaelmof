@@ -774,7 +774,7 @@ export class HQ extends Phaser.Events.EventEmitter {
     // o herói renasce na sede
     const g = this.gate;
     s.player.spawnX = g.x;
-    s.player.spawnY = g.y - 3 * TILE;
+    s.player.spawnY = (o.oy + HQ_H - 5) * TILE + 8;
     s.army.assignPosts();
   }
 
@@ -807,15 +807,24 @@ export class HQ extends Phaser.Events.EventEmitter {
     const gx = (this.st.ox + HQ_W / 2) * TILE;
     const gy = (this.st.oy + HQ_H - 1) * TILE;
     const near = (x: number, y: number, r: number) => Math.abs(x - gx) < r * TILE && Math.abs(y - gy) < r * TILE;
-    let want = near(s.player.x, s.player.y, 4);
-    if (!want) for (const a of s.army.allies) if (near(a.x, a.y, 3.5)) {
+    // alguém do lado de cá parado no vão: não fecha em cima dele (ficaria preso na parede)
+    const inDoor = (x: number, y: number) => Math.abs(x - gx) < (GATE / 2 + 0.4) * TILE && y > (this.st.oy + HQ_H - 2.4) * TILE && y < (this.st.oy + HQ_H + 0.4) * TILE;
+    const p = s.player;
+    let blocked = inDoor(p.x, p.y);
+    for (const a of s.army.allies) if (!blocked && inDoor(a.x, a.y)) blocked = true;
+    // o herói sempre consegue abrir quando chega no portão; soldados, só sem inimigos na porta
+    let want = near(p.x, p.y, 4);
+    let foes = false;
+    if (s.army.war) for (const f of s.army.soldiers) if (f.team === 1 && f.targetable && near(f.x, f.y, 5)) {
+      foes = true;
+      break;
+    }
+    if (want && foes && !near(p.x, p.y, 2)) want = false;
+    if (!want && !foes) for (const a of s.army.allies) if (near(a.x, a.y, 3.5)) {
       want = true;
       break;
     }
-    if (want && s.army.war) for (const f of s.army.soldiers) if (f.team === 1 && f.targetable && near(f.x, f.y, 5)) {
-      want = false;
-      break;
-    }
+    if (blocked) want = true;
     const k = Phaser.Math.Clamp(this.gateK + ((want ? 1 : -1) * delta) / 450, 0, 1);
     if (k === this.gateK) return;
     // rangido ao começar a abrir/fechar
@@ -1113,8 +1122,8 @@ export class HQ extends Phaser.Events.EventEmitter {
     const why = this.returnBlock();
     if (why) return why;
     this.returnAt = this.scene.time.now;
-    const g = this.gate;
-    this.scene.teleport(g.x, g.y - 3 * TILE);
+    // dentro do pátio, na rua de pedras (não no vão do portão, que pode estar fechado)
+    this.scene.teleport(this.gate.x, (this.st.oy + HQ_H - 5) * TILE + 8);
     return '';
   }
 

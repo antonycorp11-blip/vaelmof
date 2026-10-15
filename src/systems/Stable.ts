@@ -13,6 +13,8 @@ export class Stable extends Phaser.Events.EventEmitter {
   owned = new Set<string>();
   active: string | null = null;
   riding = false;
+  /** Montarias ganhas e ainda não vistas no estábulo (selo NOVA no menu). */
+  unseen = new Set<string>();
 
   constructor(private scene: WorldScene) {
     super();
@@ -49,15 +51,25 @@ export class Stable extends Phaser.Events.EventEmitter {
     const isNew = !this.owned.has(id);
     this.owned.add(id);
     if (!this.active) this.active = id;
+    if (isNew) this.unseen.add(id);
     this.save();
     this.emit('change');
-    if (loot && isNew) this.scene.events.emit('area', 'NOVA MONTARIA!', `${m.name} · veja no estábulo`);
+    // ganhar uma montaria é um momento: cartão com o retrato e MONTAR AGORA (UIScene)
+    if (loot && isNew) this.emit('new-mount', id);
   }
 
   choose(id: string) {
     if (!this.owned.has(id)) return;
     this.active = id;
     if (this.riding) this.scene.player.setMount(MOUNTS[id]);
+    this.save();
+    this.emit('change');
+  }
+
+  /** O estábulo foi aberto: as novas já foram vistas. */
+  markSeen() {
+    if (!this.unseen.size) return;
+    this.unseen.clear();
     this.save();
     this.emit('change');
   }
@@ -76,7 +88,7 @@ export class Stable extends Phaser.Events.EventEmitter {
 
   save() {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ owned: [...this.owned], active: this.active, riding: this.riding }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ owned: [...this.owned], active: this.active, riding: this.riding, unseen: [...this.unseen] }));
     } catch {
       /* sem espaço */
     }
@@ -90,6 +102,7 @@ export class Stable extends Phaser.Events.EventEmitter {
       this.owned = new Set((d.owned ?? []).filter((id: string) => MOUNTS[id]));
       this.active = d.active && MOUNTS[d.active] ? d.active : null;
       this.riding = !!d.riding && !!this.active;
+      this.unseen = new Set((d.unseen ?? []).filter((id: string) => this.owned.has(id)));
     } catch {
       /* sem save */
     }
