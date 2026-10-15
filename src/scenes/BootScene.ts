@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { BUILDINGS } from '../data/buildings';
+import { FX_ART } from '../data/fxArt';
 import { HQ_ART } from '../data/hqArt';
 import { WRAITH_SHEET } from '../entities/wraithSheet';
 
@@ -64,6 +65,8 @@ export class BootScene extends Phaser.Scene {
     for (const [k, B] of Object.entries(BUILDINGS)) this.load.spritesheet(`bld-${k}`, `assets/tiles/bld-${k}.png`, { frameWidth: B.w, frameHeight: B.h });
     this.load.spritesheet('tower', 'assets/tiles/tower.png', { frameWidth: 32, frameHeight: 48 });
     // sede do clã: um quadro por nível, torres e a guarita do portão (fechado → aberto)
+    // efeitos das habilidades das montarias (scripts/fx-art.mjs)
+    for (const [k, A] of Object.entries(FX_ART)) this.load.spritesheet(k, `assets/sprites/fx/${k}.png`, { frameWidth: A.w, frameHeight: A.h });
     for (const [k, A] of Object.entries(HQ_ART)) this.load.spritesheet(`hq-${k}`, `assets/tiles/hq-${k}.png`, { frameWidth: A.w, frameHeight: A.h });
     this.load.spritesheet('stall', 'assets/tiles/stall.png', { frameWidth: 32, frameHeight: 32 });
     this.load.image('fountain', 'assets/tiles/fountain.png');

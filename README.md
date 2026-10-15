@@ -244,6 +244,22 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   **Gelo** (urso polar, lobo da geada: congela em volta), **Estouro/Investida/
   Bote** (rinoceronte, javali, tigre, pantera, raptor: disparada longa que
   atordoa) e **Rajada** (grifo: empurra para longe).
+- **Efeitos das habilidades** (`scripts/fx-art.mjs` + `src/systems/MountFx.ts`),
+  cada um com coreografia e peças de pixel art próprias: **Coice** — clarão,
+  rachadura no chão, duas ondas de choque achatadas, poeira em anel e pedras
+  voando; **Rugido** — ondas sonoras com contorno (aparecem em qualquer chão),
+  riscos de som, poeira e setas douradas sobre os soldados animados; **Cura** —
+  dois círculos mágicos girando no chão em perspectiva, coluna de luz do céu,
+  luzinhas subindo e uma cruz verde em cada curado; **Sopro** — jato com núcleo
+  branco-quente e labaredas que vão do amarelo ao vermelho (ou na cor do dragão),
+  fumaça, faíscas, luz no chão e marcas de queimado; **Gelo** — clarão, névoa,
+  duas voltas de cristais brotando do chão que depois se partem, flocos girando
+  e os inimigos atingidos ficam azuis com gelo nos pés; **Bote/Estouro** — poeira
+  na arrancada, riscos de velocidade, garras (felinos, raptor) ou impacto com
+  pedras (rinoceronte, javali); **Rajada** — pulsos de vento em meia-lua,
+  redemoinho, folhas e penas levadas. A disparada de qualquer montaria também
+  deixa rastro. Os emissores de partículas são criados uma vez e reaproveitados
+  (teto de partículas por efeito).
 - **Como conseguir:** o estábulo de cada cidade vende as comuns e as da região
   (urso em Greenland, lobo em Snowland, rinoceronte em Blockland, raptor e
   tigre em Dustland, salamandra em Blackland…). As raras e lendárias só caem:

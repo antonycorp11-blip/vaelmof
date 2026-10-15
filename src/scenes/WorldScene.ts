@@ -40,6 +40,7 @@ import { rollGear } from '../data/gear';
 import { Champions } from '../systems/Champions';
 import { CHAMPIONS, RANKS, type ChampionId } from '../systems/Ranks';
 import type { Hittable } from '../entities/Hittable';
+import { MountFx } from '../systems/MountFx';
 import { Streamer } from '../systems/Streamer';
 import { TileWindow } from '../systems/TileWindow';
 import { WeatherSystem } from '../systems/WeatherSystem';
@@ -100,6 +101,8 @@ export class WorldScene extends Phaser.Scene {
     damageText: (x: number, y: number, amount: number, color?: string) => void;
     floatText: (x: number, y: number, text: string, color?: string) => void;
   };
+  /** Efeitos das habilidades das montarias. */
+  mountFx!: MountFx;
   inventory = new Inventory();
   /** Atributos e pontos (estilo MU), salvos no aparelho. */
   progress = new Progress();
@@ -545,6 +548,7 @@ export class WorldScene extends Phaser.Scene {
 
   // ------------------------------------------------------------------ efeitos
   private createFx() {
+    this.mountFx = new MountFx(this);
     const burst = this.add.particles(0, 0, 'pixel', {
       speed: { min: 30, max: 110 },
       lifespan: { min: 250, max: 520 },

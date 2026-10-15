@@ -17,6 +17,7 @@ import { drawUiKit } from './ui-art.mjs';
 import { drawMounts } from './mount-art.mjs';
 import { drawWorkers } from './worker-art.mjs';
 import { drawHQ } from './hq-art.mjs';
+import { drawFx } from './fx-art.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'public');
@@ -2498,6 +2499,10 @@ drawBuildings({ Img, rng, save, composite, PAL }, ROOT);
 drawRankIcons({ Img, save });
 drawUiKit({ Img, save, composite });
 drawWorkers({ Img, save, composite });
+writeFileSync(
+  new URL('../src/data/fxArt.ts', import.meta.url),
+  `// Gerado por scripts/fx-art.mjs — não editar à mão.\n/** Folhas dos efeitos das habilidades das montarias (quadro w × h). */\nexport const FX_ART = ${JSON.stringify(drawFx({ Img, save }))} as const;\n`,
+);
 {
   const hq = drawHQ({ Img, save, composite });
   writeFileSync(

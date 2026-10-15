@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { shade } from '../systems/MountFx';
 import { PLAYER } from '../config';
 import { BUFFS, WEAPONS, type BuffId, type Effect, type Move, type WeaponDef } from '../data/weapons';
 import { ITEMS } from '../data/items';
@@ -706,7 +707,10 @@ export class Player extends Creature {
         this.body.setVelocity(this.chargeDir.x * v, this.chargeDir.y * v);
         this.updateDir(this.chargeDir.x, this.chargeDir.y);
         this.walk(dt * 1.8);
-        if (time - this.lastGhost > 50) this.ghost(time);
+        if (time - this.lastGhost > 50) {
+          this.ghost(time);
+          this.scene.mountFx.chargeTrail(this.x, this.y, this.chargeDir, this.chargeColor);
+        }
         this.trample(time);
         this.sortDepth();
         return;
@@ -1107,7 +1111,13 @@ export class Player extends Creature {
   private trampled = new Set<unknown>();
 
   /** Disparada montado: avança rápido e atropela quem estiver no caminho. */
-  private startCharge(time: number, dir: Phaser.Math.Vector2, ms: number, k: number, dmg: number, stunK: number) {
+  /** Cor do rastro e se quem é atropelado leva garras (felinos, raptor) ou impacto. */
+  private chargeColor = 0xffffff;
+  private chargeClaws = false;
+
+  private startCharge(time: number, dir: Phaser.Math.Vector2, ms: number, k: number, dmg: number, stunK: number, color = 0xdfe8ff, claws = false) {
+    this.chargeColor = color;
+    this.chargeClaws = claws;
     this.lastMountDash = time;
     this.buffered.dodge = 0;
     this.chargeUntil = time + ms;
@@ -1118,6 +1128,7 @@ export class Player extends Creature {
     if (this.chargeDir.lengthSq() < 0.5) this.chargeDir.set(this.dir === 1 ? -1 : this.dir === 2 ? 1 : 0, this.dir === 0 ? 1 : this.dir === 3 ? -1 : 0);
     this.trampled.clear();
     this.dust(4);
+    this.scene.mountFx.chargeStart(this.x, this.y, this.chargeDir, color);
   }
 
   private trample(time: number) {
@@ -1129,61 +1140,93 @@ export class Player extends Creature {
       e.takeDamage(Math.max(1, Math.round(this.chargeDmg * this.dmgMul)), this.fx, this.fy, 260);
       if (this.chargeStun) e.stun(this.chargeStun);
       s.fx.impact(e.fx, e.fy - 8);
+      s.mountFx.chargeHit(e.fx, e.fy, this.chargeDir, this.chargeColor, this.chargeClaws);
     }
     void time;
   }
 
-  /** Habilidade da montaria. */
+  /** Habilidade da montaria: o efeito em src/systems/MountFx.ts, o dano aqui. */
   private mountSkill(K: MountSkill, aim: Phaser.Math.Vector2) {
     const s = this.scene;
     const p = K.power;
-    s.fx.floatText(this.x, this.y - 34, `${K.name}!`, '#' + K.color.toString(16).padStart(6, '0'));
+    const F = s.mountFx;
+    const x = this.fx;
+    const y = this.fy;
+    const mul = this.dmgMul;
+    s.fx.floatText(this.x, this.y - 40, `${K.name}!`, '#' + shade(K.color, 0.35).toString(16).padStart(6, '0'));
+    const near = (r: number) => s.army.allies.filter((a) => Math.abs(a.x - x) < r && Math.abs(a.y - y) < r * 0.8);
     switch (K.kind) {
-      case 'stomp':
-        this.effect({ kind: 'aoe', style: 'quake', at: 'self', radius: 30 + p * 8, damage: 2 + p * 2, knockback: 280, stun: 900 * p, color: K.color }, aim);
+      case 'stomp': {
+        const r = 30 + p * 8;
+        s.hitStop(45);
+        F.stomp(x, y, r, K.color, p);
+        this.areaHit(x, y, r, (2 + p * 2) * mul, 280, 900 * p);
         break;
-      case 'roar':
-        this.effect({ kind: 'buff', buff: 'war', ms: 6000 + p * 2000 }, aim);
-        this.effect({ kind: 'aoe', style: 'nova', at: 'self', radius: 44 + p * 6, damage: 1, knockback: 120, stun: 1400 * p, color: K.color }, aim);
+      }
+      case 'roar': {
+        const r = 44 + p * 6;
+        this.buffs.set('war', s.time.now + 6000 + p * 2000);
+        const allies = near(90);
+        F.roar(x, y, r, K.color, allies);
+        this.areaHit(x, y, r, 1 * mul, 120, 1400 * p);
         // o exército perto também se anima: cura um pouco
-        for (const a of s.army.allies) if (Phaser.Math.Distance.Between(a.x, a.y, this.x, this.y) < 90) a.hp = Math.min(a.maxHp, a.hp + a.maxHp * 0.15);
+        for (const a of allies) a.hp = Math.min(a.maxHp, a.hp + a.maxHp * 0.15);
         break;
+      }
       case 'heal': {
         const k = Math.round(this.maxHp * 0.3 * p);
         this.hp = Math.min(this.maxHp, this.hp + k);
         inputState.hp = Math.ceil(this.hp);
-        s.fx.floatText(this.x, this.y - 22, `+${k}`, '#8aff9a');
-        this.ring(this.fx, this.fy - 6, 70, K.color, 600);
-        for (const a of s.army.allies)
-          if (Phaser.Math.Distance.Between(a.x, a.y, this.x, this.y) < 100) {
-            a.hp = Math.min(a.maxHp, a.hp + a.maxHp * 0.4 * p);
-            s.fx.burst(a.x, a.y - 10, K.color, 4);
-          }
-        s.fx.burst(this.x, this.y - 14, K.color, 20);
+        s.fx.floatText(this.x, this.y - 26, `+${k}`, '#8aff9a');
+        const allies = near(100);
+        for (const a of allies) a.hp = Math.min(a.maxHp, a.hp + a.maxHp * 0.4 * p);
+        F.heal(x, y, K.color, allies);
         break;
       }
       case 'breath': {
-        // sopro em leque: chamas uma atrás da outra
-        const a0 = Math.atan2(aim.y, aim.x);
-        const n = Math.round(5 + p * 2);
-        for (let i = 0; i < n; i++)
-          s.time.delayedCall(i * 55, () => {
-            const a = a0 + (Math.random() - 0.5) * 0.5;
-            new Flame(s, this.fx + Math.cos(a) * 10, this.fy - 12 + Math.sin(a) * 6, a, this.dmgMul * (0.6 + p * 0.3));
-          });
+        // cone de fogo saindo da boca da montaria; queima quem estiver no cone
+        const range = 70 + p * 12;
+        const dir = aim.clone().normalize();
+        const mouth = () => ({ x: this.x + dir.x * 16, y: this.y - 13 + dir.y * 8 });
+        F.breath(mouth, dir, K.color, 650 + p * 150, range, (mx, my, ang) => {
+          for (const e of s.hostiles) {
+            if (!e.targetable) continue;
+            const dx = e.fx - mx;
+            const dy = e.fy - 6 - my;
+            const d = Math.hypot(dx, dy);
+            if (d > range || Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - ang)) > 0.5) continue;
+            e.takeDamage(Math.max(1, Math.round((0.45 + 0.25 * p) * mul)), mx, my, 40);
+            s.fx.ember(e.fx, e.fy - 10);
+          }
+        });
         break;
       }
-      case 'frost':
-        this.effect({ kind: 'aoe', style: 'nova', at: 'self', radius: 46 + p * 8, damage: 2 * p, knockback: 60, stun: 2200 * p, color: K.color }, aim);
+      case 'frost': {
+        const r = 46 + p * 8;
+        F.frost(x, y, r, K.color);
+        const stun = 2200 * p;
+        s.time.delayedCall(90, () => {
+          for (const e of s.hostiles) {
+            if (!e.targetable || Phaser.Math.Distance.Between(x, y, e.fx, e.fy) > r) continue;
+            e.takeDamage(Math.max(1, Math.round(2 * p * mul)), x, y, 60);
+            e.stun(stun);
+            F.freeze(e, stun);
+          }
+        });
         break;
+      }
       case 'pounce':
         // bote: disparada longa e forte, atordoa quem atropela
-        this.startCharge(s.time.now, aim, 300 + p * 80, 3, 3 + p * 2.5, 1.6 * p);
+        this.startCharge(s.time.now, aim, 300 + p * 80, 3, 3 + p * 2.5, 1.6 * p, K.color, K.name.startsWith('BOTE'));
         this.lastMountDash = s.time.now - MOUNT_DASH_CD;
         break;
-      case 'gust':
-        this.effect({ kind: 'aoe', style: 'nova', at: 'front', radius: 40 + p * 6, damage: 2 + p, knockback: 480, color: K.color }, aim);
+      case 'gust': {
+        const r = 40 + p * 6;
+        const dir = aim.clone().normalize();
+        F.gust(x, y, dir, r, K.color);
+        this.areaHit(x + dir.x * 22, y + dir.y * 22, r, (2 + p) * mul, 480);
         break;
+      }
     }
   }
 
