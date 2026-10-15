@@ -285,6 +285,13 @@ export class Player extends Creature {
     const o = OUTFITS[this.outfit];
     this.back.setVisible(visible && o.back);
     if (o.back) this.back.setFrame(frame);
+    // montado: corta as pernas (do quadril para baixo). Refeito a cada quadro: nos
+    // atlas recortados o Phaser encolhe o retângulo de corte a cada troca de quadro,
+    // e partes do herói sumiam
+    if (this.mount) {
+      this.setCrop(0, 0, HERO.frame, HERO.footY - 15);
+      if (o.back) this.back.setCrop(0, 0, HERO.frame, HERO.footY - 15);
+    }
     const w = this.look;
     const big = p.big ? bigOf(w, p.big.anim) : undefined;
     for (const [s, side] of [
