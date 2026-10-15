@@ -685,6 +685,11 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   deixava a abertura do PWA no iPhone muito lenta.)
 - Se algo quebrar enquanto o jogo abre, aparece a mensagem do erro com
   "Tentar de novo", em vez de ficar parado no carregamento.
+- **Rede de proteção no loop** (`src/main.ts`): no Phaser, um erro dentro de
+  um quadro impede o próximo de ser agendado e o jogo congela para sempre. O
+  passo do jogo roda dentro de um `try`: o erro é mostrado num canto da tela
+  ("erro (o jogo seguiu): …"), salvo em `localStorage['vaelmor.lastError']` e
+  o jogo continua.
 - Em retrato aparece a tela **"Gire o aparelho para jogar"** (CSS
   `orientation: portrait`).
 - No primeiro toque tenta tela cheia e `screen.orientation.lock('landscape')`

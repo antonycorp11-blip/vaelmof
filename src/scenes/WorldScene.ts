@@ -306,6 +306,8 @@ export class WorldScene extends Phaser.Scene {
   /** Tira um inimigo do mundo (spot esvaziado ou criatura de spot morta). */
   removeEnemy(e: Enemy) {
     Phaser.Utils.Array.Remove(this.enemies, e);
+    // também sai da lista de alvos deste quadro (senão a mira ainda a consulta)
+    Phaser.Utils.Array.Remove(this.hostiles, e);
     this.collision.remove(e.body);
     this.tweens.killTweensOf(e);
     if (e.active) e.destroy();

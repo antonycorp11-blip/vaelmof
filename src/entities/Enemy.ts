@@ -68,7 +68,8 @@ export abstract class Enemy extends Creature implements Hittable {
 
   /** Vivo e ativo (perto da câmera): dá para mirar. */
   get targetable(): boolean {
-    return !this.dead && this.body.enable;
+    // apagada no meio do quadro (região descarregada): não tem mais corpo
+    return !this.dead && this.active && !!this.body?.enable;
   }
 
   get stunned(): boolean {
