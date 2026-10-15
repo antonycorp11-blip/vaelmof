@@ -36,6 +36,10 @@ export interface Clan {
   restUntil?: number;
   /** Vezes que o jogador venceu este clã. */
   beaten?: number;
+  /** Trégua comprada: não caça o herói nem ataca a sede até este momento (relógio dos clãs). */
+  truceUntil?: number;
+  /** Aceitou um desafio de honra: na próxima batalha o líder vem para o duelo. */
+  duelPending?: boolean;
 }
 
 export interface Chronicle {

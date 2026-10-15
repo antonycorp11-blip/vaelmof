@@ -298,6 +298,8 @@ export class Army extends Phaser.Events.EventEmitter {
   healAt: (x: number, y: number) => number = () => 0;
   /** Construções que o inimigo pode atacar (sede, fortes do herói). */
   structures: () => Hittable[] = () => [];
+  /** Duelo 1x1 em curso: todos param em roda e só o duelista luta com o herói. */
+  duel: { x: number; y: number; r: number; champ: Soldier } | null = null;
   /** Construções inimigas que o exército do herói ataca (forte rival sob cerco). */
   siegeTargets: () => Hittable[] = () => [];
   /** Posto do i-ésimo soldado de guarda na sede. */
@@ -1298,7 +1300,8 @@ export class Army extends Phaser.Events.EventEmitter {
       // decide o alvo de vez em quando (turnos alternados)
       if (time >= s.thinkAt) {
         s.thinkAt = time + 140 + Math.random() * 120;
-        if (s.fleeing) s.target = null;
+        if (this.duel) s.target = s === this.duel.champ ? this.heroT : null;
+        else if (s.fleeing) s.target = null;
         else if (s.station) {
           // guarda: só sai do posto atrás de quem chega perto da sede
           const t = this.nearest(s, 170);
@@ -1326,7 +1329,19 @@ export class Army extends Phaser.Events.EventEmitter {
       let wantAttack = false;
       const t = s.target;
       if (t && !t.targetable) s.target = null;
-      if (s.fleeing) {
+      const du = this.duel;
+      if (du && s !== du.champ) {
+        // duelo: todo mundo assiste de fora da roda
+        const ax = s.x - du.x;
+        const ay = s.y - du.y;
+        const d = Math.hypot(ax, ay) || 1;
+        const R = du.r + 16 + (s.team === 1 ? 12 : 0);
+        if (d < R) {
+          gx = du.x + (ax / d) * R;
+          gy = du.y + (ay / d) * R;
+        }
+        s.dir = Math.abs(ax) > Math.abs(ay) ? (ax > 0 ? 1 : 2) : ay > 0 ? 3 : 0;
+      } else if (s.fleeing) {
         gx = s.x + (s.x - p.x);
         gy = s.y + (s.y - p.y);
       } else if (s.target) {
@@ -1569,6 +1584,16 @@ export class Army extends Phaser.Events.EventEmitter {
       this.emit('war-end', { ...w, won: true, glory });
       this.save();
     }
+  }
+
+  /** Tira a montaria de um personagem (duelo a pé). */
+  dismount(s: Soldier) {
+    if (!s.mount) return;
+    s.mountSpr?.destroy();
+    s.mountSpr = undefined;
+    s.mount = null;
+    s.sprite.setOrigin(0.5, FOOT / CELL);
+    s.ring.setScale(this.scale * 2 * s.sizeK);
   }
 
   /** Vitória forçada (o Salão do forte inimigo caiu): os que sobraram fogem. */

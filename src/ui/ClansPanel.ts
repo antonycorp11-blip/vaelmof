@@ -40,6 +40,7 @@ export class ClansPanel {
   private dInfo: Txt;
   private dGear: Txt;
   private action: Button;
+  private talkBtn: Button;
   private status: Txt;
   private banner: Phaser.GameObjects.NineSlice;
   private bannerText: Txt;
@@ -88,6 +89,8 @@ export class ClansPanel {
     this.chron = label(scene, '', 8, COLOR.dim, 1, false).setLineSpacing(3);
     this.win.add(this.detailBox, ...this.bigCrest.parts, this.dName, this.dInfo, this.dGear, this.status, this.banner, this.bannerText, this.chron);
     this.action.addTo(this.win.root);
+    // conversar com o líder: provocar, desafio de honra (duelo), trégua
+    this.talkBtn = new Button(scene, { label: 'CONVERSAR', icon: 19, color: 'gold', size: 11, onTap: () => this.sel && !this.sel.player && world.diplomacy.talk(this.sel) }).addTo(this.win.root);
     this.accept.addTo(this.win.root);
     world.clans.on('change', () => this.refresh());
     world.progress.on('change', () => this.refresh());
@@ -195,6 +198,7 @@ export class ClansPanel {
     if (g && !c.player) this.dGear.setText(`O líder carrega: ${g.name} (${RARITY[g.tier ?? 0].name})`).setColor(RARITY[g.tier ?? 0].color);
     else this.dGear.setText(c.player ? 'Vença rivais, cumpra missões e derrote personagens para subir.' : '').setColor(COLOR.dim);
     this.action.setVisible(!c.player).setLabel('VER NO MAPA');
+    this.talkBtn.setVisible(!c.player);
     this.status.setText(c.player ? '' : this.bandText(c)).setColor(this.world.bands.byClan(c.id)?.goal === 'hunt' ? COLOR.red : COLOR.text);
     // aviso: alguém vem atrás de você
     const hunter = this.world.bands.active.find((a) => a.band.goal === 'hunt' || a.band.goal === 'raid');
@@ -243,7 +247,9 @@ export class ClansPanel {
     fit(this.dName, 12, u).setPosition(rx + 58 * u, y + 12 * u).setWordWrapWidth(rw - 66 * u);
     fit(this.dInfo, 9, u).setPosition(rx + 58 * u, y + 30 * u).setWordWrapWidth(rw - 66 * u);
     fit(this.dGear, 9, u).setPosition(rx + 12 * u, y + dh - 46 * u).setWordWrapWidth(rw - 24 * u);
-    this.action.place(rx + 10 * u, y + dh - 32 * u, u, rw - 20 * u, 24 * u);
+    const half = (rw - 26 * u) / 2;
+    this.action.place(rx + 10 * u, y + dh - 32 * u, u, half, 24 * u);
+    this.talkBtn.place(rx + 16 * u + half, y + dh - 32 * u, u, half, 24 * u);
     y += dh + 4 * u;
     fit(this.status, 9, u).setPosition(rx, y).setWordWrapWidth(rw);
     fit(this.chron, 8, u).setPosition(rx, y + 16 * u).setWordWrapWidth(rw);

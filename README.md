@@ -470,6 +470,20 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - **Guarda:** no portão do seu forte o botão vira DEIXAR GUARDA (até 12
   soldados ficam lá) / CHAMAR GUARDA.
 
+### Diplomacia e duelos (`src/systems/Diplomacy.ts`, `src/ui/Dialog.ts`)
+- **O líder fala antes da batalha** (no campo e no cerco de um forte), numa
+  conversa com o brasão dele e a fala letra a letra; o jogo pausa. Respostas:
+  **LUTAR!**, **DUELO 1x1**, **TRÉGUA** (150 + 250 por nível do clã em ouro:
+  a guerra acaba e o clã não caça você nem ataca a sede por 20 min) e
+  **EXIGIR RENDIÇÃO** (com o dobro de força: o clã paga tributo e vai embora;
+  senão ele ri na sua cara).
+- **Duelo épico a pé:** você e o líder desmontam, os dois exércitos param em
+  roda (anel dourado com brasas) e só vocês lutam — ninguém sai da roda. Se o
+  líder cai, a guerra é sua (Glória extra, o clã perde 15%); se você fica com
+  10% da vida, perde o duelo e a guerra, sem mais baixas.
+- **Conversar a qualquer hora** (tela de Clãs → CONVERSAR): PROVOCAR (o bando
+  vem atrás de você), DESAFIO DE HONRA (o líder vem para um duelo) ou TRÉGUA.
+
 ### Patentes e Glória (`src/systems/Ranks.ts`, `src/systems/Progress.ts`)
 - Teren **não tem nível**: tem **patente**. Sobe quando **todos os 4
   atributos** chegam ao mínimo e, em algumas, depois de **vencer um campeão**

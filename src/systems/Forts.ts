@@ -418,6 +418,7 @@ export class Forts extends Phaser.Events.EventEmitter {
     s.army.prepare(() => {
       s.army.declareWar(n, { name: c.name, color: c.color, clan: c.id }, { origin: { x: ctr.x, y: ctr.y }, exact: true, vet: Math.min(3, f.tier), faction: this.regionOf(ctr.x, ctr.y).biome });
       s.events.emit('area', 'CERCO!', `Forte do ${c.name} · ${n} defensores · derrube o portão e o Salão`);
+      s.diplomacy.atSiege(c);
     });
     this.redraw(f);
     return '';

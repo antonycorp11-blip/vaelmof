@@ -40,6 +40,7 @@ import { rollGear } from '../data/gear';
 import { Champions } from '../systems/Champions';
 import { CHAMPIONS, RANKS, type ChampionId } from '../systems/Ranks';
 import type { Hittable } from '../entities/Hittable';
+import { Diplomacy } from '../systems/Diplomacy';
 import { Forts } from '../systems/Forts';
 import { MountFx } from '../systems/MountFx';
 import { Streamer } from '../systems/Streamer';
@@ -86,6 +87,8 @@ export class WorldScene extends Phaser.Scene {
   hq!: HQ;
   /** Fortes dos clãs e territórios. */
   forts!: Forts;
+  /** Conversas com líderes, tréguas e duelos. */
+  diplomacy!: Diplomacy;
   /** Bandos dos clãs rivais andando pelo mapa. */
   bands!: Bands;
   /** Mercadores das cidades. */
@@ -170,6 +173,7 @@ export class WorldScene extends Phaser.Scene {
     this.market.placeMerchants();
     this.stable = new Stable(this);
     this.forts = new Forts(this);
+    this.diplomacy = new Diplomacy(this);
     // um save estranho nunca pode impedir o jogo de abrir: na dúvida, desmonta
     try {
       if (this.stable.riding && this.stable.mount) this.player.setMount(this.stable.mount);
@@ -661,6 +665,11 @@ export class WorldScene extends Phaser.Scene {
     for (const s of this.army.soldiers) if (s.team === 1 && !s.dead) H.push(s);
     // cerco: portão, torres e Salão do forte rival também são alvos do herói
     for (const t of this.forts.hostileStructures()) H.push(t);
+    // duelo: só o duelista é alvo
+    if (this.army.duel) {
+      H.length = 0;
+      H.push(this.army.duel.champ);
+    }
     // ação de contexto: perto do mercador o golpe vira COMPRAR
     inputState.action = !this.army.war && this.market.merchantNear(this.player.x, this.player.y) ? MERCHANT_ACTION : null;
     // diante do portão de um forte: atacar (rival) ou deixar/chamar a guarda (seu)
@@ -679,6 +688,7 @@ export class WorldScene extends Phaser.Scene {
     this.hq.update(time, dt);
     this.bands.update(time, dt);
     this.forts.update(time, dt);
+    this.diplomacy.update(time);
     this.market.update(dt);
     const pl = this.player;
     this.rankIcon

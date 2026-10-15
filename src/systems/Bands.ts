@@ -154,7 +154,10 @@ export class Bands extends Phaser.Events.EventEmitter {
       const theirs = this.power(b.n, s.clans.tier(c));
       // (rivais de força parecida: um Bando iniciante não é caçado por um exército dez vezes maior)
       const fair = theirs < myPower * 3 + 12 && Math.abs(s.clans.tier(c) - me) <= 1;
-      if (b.goal !== 'raid' && dh < HUNT && theirs > myPower * 0.9 && fair) {
+      const truce = (c.truceUntil ?? 0) > s.clans.now;
+      // desafio de honra: o bando vem ao herói de qualquer jeito
+      if (c.duelPending && b.goal !== 'raid') b.goal = 'hunt';
+      else if (!truce && b.goal !== 'raid' && dh < HUNT && theirs > myPower * 0.9 && fair) {
         if (b.goal !== 'hunt') b.goal = 'hunt';
       } else if (b.goal === 'hunt' && dh > HUNT * 1.4) {
         b.goal = 'patrol';
@@ -180,7 +183,7 @@ export class Bands extends Phaser.Events.EventEmitter {
       }
     // de vez em quando um rival parte para atacar a sede do jogador
     if (s.hq.founded && !s.hq.st.raid && Math.random() < 0.004) {
-      const cands = act.filter(({ band, clan }) => band.goal === 'patrol' && Math.abs(s.clans.tier(clan) - me) <= 1 && band.n >= 10);
+      const cands = act.filter(({ band, clan }) => band.goal === 'patrol' && Math.abs(s.clans.tier(clan) - me) <= 1 && band.n >= 10 && (clan.truceUntil ?? 0) <= s.clans.now);
       if (cands.length) {
         const { band, clan } = cands[Math.floor(Math.random() * cands.length)];
         const g = s.hq.gate;
@@ -261,7 +264,11 @@ export class Bands extends Phaser.Events.EventEmitter {
             s.events.emit('toast', `${c.leader}, líder do ${c.name}, caiu!`);
           },
         },
-        (u) => (this.leader = u),
+        (u) => {
+          this.leader = u;
+          // o líder fala antes da batalha: lutar, duelo, trégua ou rendição
+          s.diplomacy.atBattle(c, u);
+        },
       );
       s.events.emit('area', 'BATALHA!', `${c.name} · ${b.n} soldados · líder ${c.leader}`);
     });

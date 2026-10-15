@@ -21,6 +21,7 @@ import { AttributesPanel } from '../ui/AttributesPanel';
 import { DebugPanel } from '../ui/DebugPanel';
 import { InventoryPanel } from '../ui/InventoryPanel';
 import { Button, COLOR, Crest, drawBar, FONT, fit, frame, label, sizeFrame } from '../ui/kit';
+import { Dialog, type DialogSpec } from '../ui/Dialog';
 import { MapPanel } from '../ui/MapPanel';
 import { Minimap } from '../ui/Minimap';
 import { MountReveal } from '../ui/MountReveal';
@@ -74,6 +75,7 @@ export class UIScene extends Phaser.Scene {
   /** Selo NOVA no estábulo (montaria ganha e ainda não vista). */
   private stableBadge!: Phaser.GameObjects.Text;
   private reveal!: MountReveal;
+  private dialog!: Dialog;
   private clock!: Phaser.GameObjects.Text;
   private areaText!: Phaser.GameObjects.Text;
   private areaSub!: Phaser.GameObjects.Text;
@@ -217,12 +219,15 @@ export class UIScene extends Phaser.Scene {
     this.stablePanel = new StablePanel(this, world);
     this.clanCreate = new ClanCreate(this, world);
     this.reveal = new MountReveal(this, world);
+    this.dialog = new Dialog(this);
+    world.events.on('dialog', (spec: DialogSpec) => this.dialog.show(spec));
     world.stable.on('change', () => this.updateHud());
     this.armyPanel.onClans = () => this.togglePanel('clans');
     this.panels = { bag: this.bag, attrs: this.attrs, army: this.armyPanel, hq: this.hqPanel, market: this.marketPanel, stable: this.stablePanel, missions: this.missionsPanel, clans: this.clansPanel, map: this.mapPanel, debug: this.debug };
     this.controls.blocker = (x, y) =>
       this.clanCreate.open ||
       this.reveal.open ||
+      this.dialog.open ||
       Object.values(this.panels).some((p) => p.open && p.contains(x, y)) ||
       this.minimap.contains(x, y) ||
       this.menuBar.getBounds().contains(x, y) ||
@@ -403,6 +408,7 @@ export class UIScene extends Phaser.Scene {
     }
     this.stableBadge.setFontSize(Math.round(9 * u)).setPadding(Math.round(3 * u), Math.round(1 * u), Math.round(3 * u), Math.round(1 * u));
     this.reveal.layout(u);
+    this.dialog.layout(u);
     this.pointsBadge.setFontSize(Math.round(10 * u)).setPadding(Math.round(3 * u), Math.round(1 * u), Math.round(3 * u), Math.round(1 * u));
     const mw = Math.min(150 * u, width * 0.2);
     const mh = Math.round(mw * 0.72);
@@ -511,6 +517,7 @@ export class UIScene extends Phaser.Scene {
     }
     const now = this.time.now;
     this.reveal.update(now);
+    this.dialog.update();
     this.clock.setText(`${this.registry.get('clock') ?? ''} · ${this.registry.get('weather') ?? ''}`);
     this.minimap.update(now);
     // botão de golpe ↔ ação de contexto (COMPRAR perto do mercador…)
