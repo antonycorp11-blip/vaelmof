@@ -33,6 +33,7 @@ export class StablePanel {
   private knight: Button;
   private recallBtn: Button;
   private breedBtn: Button;
+  private raceBtn: Button;
   private status: Txt;
   private u = 1;
 
@@ -64,6 +65,11 @@ export class StablePanel {
     // cavalaria: uma montaria parada vira a de um soldado; procriação multiplica o rebanho
     this.knight = new Button(scene, { label: 'DAR A UM SOLDADO', icon: 2, color: 'blue', size: 9, onTap: () => this.say(this.promote()) }).addTo(w.root);
     this.recallBtn = new Button(scene, { label: 'RECOLHER', color: 'dark', size: 9, onTap: () => this.say(world.army.recall(this.sel.id) ? `${this.sel.name} voltou ao estábulo` : 'Nenhum cavaleiro com esta montaria') }).addTo(w.root);
+    this.raceBtn = new Button(scene, { label: 'CORRIDA', icon: 7, color: 'green', size: 9, onTap: () => {
+      const why = world.races.start(world.market.cityHere());
+      if (why) this.say(why);
+      else this.setOpen(false);
+    } }).addTo(w.root);
     this.breedBtn = new Button(scene, { label: 'PROCRIAR', icon: 14, color: 'gold', size: 9, onTap: () => this.say(world.stable.breed(this.sel.id)) }).addTo(w.root);
     w.add(this.info, this.status);
     world.stable.on('change', () => this.refresh());
@@ -146,6 +152,9 @@ export class StablePanel {
     this.knight.setVisible(has).setColor(st.free(m.id) > 0 ? 'blue' : 'dark');
     this.recallBtn.setVisible(has && riders > 0);
     this.breedBtn.setVisible(has).setColor(st.breedBlock(m.id) ? 'dark' : 'gold');
+    const city = this.world.market.cityHere();
+    const best = city ? this.world.races.best[city.name] : undefined;
+    this.raceBtn.setVisible(!!city).setColor(this.world.races.startBlock(city) ? 'dark' : 'green').setLabel(best ? `CORRIDA (${best} s)` : 'CORRIDA');
     this.use.setEnabled(has && st.active !== m.id);
     this.buy.setVisible(!has && sale.includes(m)).setLabel(`COMPRAR ${m.price}`);
     this.ride.setLabel(st.riding ? 'DESMONTAR' : 'MONTAR').setEnabled(!!st.active);
@@ -178,6 +187,7 @@ export class StablePanel {
     this.knight.place(bx, by + 28 * u, u, 132 * u, 24 * u);
     this.recallBtn.place(bx + 136 * u, by + 28 * u, u, 74 * u, 24 * u);
     this.breedBtn.place(bx + 214 * u, by + 28 * u, u, 86 * u, 24 * u);
+    this.raceBtn.place(pad, win.H - pad - 24 * u, u, 140 * u, 22 * u);
     fit(this.status, 9, u).setPosition(bx, by + 58 * u).setWordWrapWidth(300 * u);
     this.refresh(true);
   }

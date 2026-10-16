@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { TILE } from '../config';
 import type { WorldScene } from '../scenes/WorldScene';
+import { TYRANTS } from '../systems/Tyrants';
 import { BIOMES } from '../systems/WorldGenerator';
 import { Button, COLOR, fit, frame, label, pxOf, sizeFrame } from './kit';
 
@@ -146,6 +147,17 @@ export class Minimap {
       g.fillStyle(col, 1).fillRect(pt[0] - r, pt[1] - r - u, u, u).fillRect(pt[0] + r - u, pt[1] - r - u, u, u);
       if (mine) g.fillStyle(0xffd77a, 1).fillRect(pt[0] - u, pt[1] - u, 2 * u, 2 * u);
     }
+    // Tiranos (covil): caveira com coroa roxa
+    TYRANTS.forEach((_, i) => {
+      if (!w.tyrants.alive(i)) return;
+      const at = w.tyrants.lair(i);
+      const pt = this.toScreen(at.x, at.y);
+      if (!pt) return;
+      const r = 3.5 * u;
+      g.fillStyle(0x0b0d14, 1).fillCircle(pt[0], pt[1], r + u);
+      g.fillStyle(0xb070ff, 1).fillCircle(pt[0], pt[1], r);
+      g.fillStyle(0xffd77a, 1).fillRect(pt[0] - r, pt[1] - r - 1.5 * u, 2 * r, 1.5 * u);
+    });
     // spots de up
     for (const sp of w.spots.spots) {
       const pt = this.toScreen(sp.x, sp.y);

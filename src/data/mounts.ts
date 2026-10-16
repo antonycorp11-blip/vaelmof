@@ -23,7 +23,16 @@ export interface MountDef {
   desc: string;
   /** Habilidade da montaria (botão ao lado da esquiva, montado). */
   skill: MountSkill;
+  /** Espécie (cavalo, lobo, dragão…). */
+  kind: string;
+  /** Voa: passa por cima de água, montanhas e muralhas. */
+  flies: boolean;
+  /** Bioma onde rende mais (+30% de velocidade), ou -1. */
+  home: number;
 }
+
+/** Feras que correm melhor na terra delas. */
+const HOME: Record<string, number> = { wolf: 2, frostwolf: 2, polar: 2, raptor: 5, sabre: 5, boar: 5, salamander: 4, nightmare: 4, bear: 1, stag: 1, rhino: 3 };
 
 /** Habilidades das montarias: pisotear, rugir, curar, sopro de fogo, gelo, bote, rajada. */
 export interface MountSkill {
@@ -90,7 +99,7 @@ const STATS: Record<MountId, [number, number, number, number, number[], string]>
 export const MOUNTS: Record<string, MountDef> = {};
 MOUNT_ART.forEach((a, row) => {
   const [speed, guard, power, price, biomes, desc] = STATS[a.id];
-  MOUNTS[a.id] = { id: a.id, name: a.name, row, seat: a.seat, glow: a.glow, ghost: a.ghost, speed, guard, power, price, biomes, desc, skill: SKILL_BY_ID[a.id] ?? SKILL_BY_KIND[a.kind] ?? SKILL_BY_KIND.horse };
+  MOUNTS[a.id] = { id: a.id, name: a.name, row, seat: a.seat, glow: a.glow, ghost: a.ghost, speed, guard, power, price, biomes, desc, skill: SKILL_BY_ID[a.id] ?? SKILL_BY_KIND[a.kind] ?? SKILL_BY_KIND.horse, kind: a.kind, flies: a.kind === 'dragon' || a.kind === 'griffin', home: HOME[a.id] ?? -1 };
 });
 
 /** Montarias raras que caem de personagens (líderes de clã, procurados fortes). */

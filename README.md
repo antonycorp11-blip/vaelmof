@@ -494,6 +494,25 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - **Reputação** com cada Lorde: cumprir sobe (contratos pagam até +60%),
   falhar ou estourar o prazo desce. O alvo aparece no mapa e na seta.
 
+### Tiranos, corridas, voo e viagem rápida
+- **Tiranos** (`src/systems/Tyrants.ts`): um chefe único no coração de cada
+  bioma, montado na fera mais forte da região e com 6 guardas de elite —
+  Corvane (Vale, unicórnio), Verdalia (Greenland, dragão esmeralda), Hrodgar
+  (Snowland, urso polar), Kastor (Blockland, grifo), Nyx (Blackland, pesadelo)
+  e Zahir (Dustland, pantera). Derrotado, deixa a montaria (ou 1000 de ouro se
+  já a tiver) e uma peça Lendária; volta em 40 min. Covil marcado no mapa
+  (círculo roxo com coroa).
+- **Corridas** (estábulo → CORRIDA, numa cidade, montado): 6 bandeiras em volta
+  da cidade contra o relógio (a próxima aparece na seta e no mapa). No tempo
+  paga ouro e Glória; recorde por cidade.
+- **Montarias com propósito:** grifo e dragões **voam** (passam por cima de
+  água, montanhas e muralhas; ao descer, pousam no chão livre mais perto); as
+  feras correm **30% mais na terra delas** (lobos e urso polar em Snowland,
+  raptor, tigre e javali em Dustland, salamandra e pesadelo em Blackland, urso
+  e cervo em Greenland, rinoceronte em Blockland).
+- **Viagem rápida:** no mapa, toque na sua sede, num forte seu ou numa cidade
+  do seu território (30 de ouro, 60 s de espera, fora de guerra).
+
 ### Patentes e Glória (`src/systems/Ranks.ts`, `src/systems/Progress.ts`)
 - Teren **não tem nível**: tem **patente**. Sobe quando **todos os 4
   atributos** chegam ao mínimo e, em algumas, depois de **vencer um campeão**

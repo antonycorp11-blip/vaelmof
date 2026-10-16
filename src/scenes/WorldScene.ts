@@ -43,8 +43,10 @@ import type { Hittable } from '../entities/Hittable';
 import { Diplomacy } from '../systems/Diplomacy';
 import { Forts } from '../systems/Forts';
 import { MountFx } from '../systems/MountFx';
+import { Races } from '../systems/Races';
 import { Streamer } from '../systems/Streamer';
 import { TileWindow } from '../systems/TileWindow';
+import { Tyrants } from '../systems/Tyrants';
 import { WeatherSystem } from '../systems/WeatherSystem';
 
 export interface Light {
@@ -89,6 +91,10 @@ export class WorldScene extends Phaser.Scene {
   forts!: Forts;
   /** Conversas com líderes, tréguas e duelos. */
   diplomacy!: Diplomacy;
+  /** Um chefe único por bioma. */
+  tyrants!: Tyrants;
+  /** Corridas de montaria em volta das cidades. */
+  races!: Races;
   /** Bandos dos clãs rivais andando pelo mapa. */
   bands!: Bands;
   /** Mercadores das cidades. */
@@ -174,6 +180,8 @@ export class WorldScene extends Phaser.Scene {
     this.stable = new Stable(this);
     this.forts = new Forts(this);
     this.diplomacy = new Diplomacy(this);
+    this.tyrants = new Tyrants(this);
+    this.races = new Races(this);
     // um save estranho nunca pode impedir o jogo de abrir: na dúvida, desmonta
     try {
       if (this.stable.riding && this.stable.mount) this.player.setMount(this.stable.mount);
@@ -431,6 +439,9 @@ export class WorldScene extends Phaser.Scene {
     }
     const next = RANKS[this.progress.rankIdx + 1];
     if (next?.duel) champ(next.duel);
+    // corrida: a próxima bandeira
+    const rt = this.races?.target;
+    if (rt) out.unshift({ x: rt.x, y: rt.y, name: rt.name, color: 0xffd34a });
     // forte do herói com ataque marcado
     const r = this.forts?.retake;
     if (r) {
@@ -694,6 +705,8 @@ export class WorldScene extends Phaser.Scene {
     this.bands.update(time, dt);
     this.forts.update(time, dt);
     this.diplomacy.update(time);
+    this.tyrants.update(time);
+    this.races.update(time);
     this.market.update(dt);
     const pl = this.player;
     this.rankIcon
@@ -842,7 +855,7 @@ export class WorldScene extends Phaser.Scene {
     let tx = Phaser.Math.Clamp(Math.floor(x / TILE), 1, m.width - 2);
     let ty = Phaser.Math.Clamp(Math.floor(y / TILE), 1, m.height - 2);
     const freeAt = (cx: number, cy: number) => cx > 0 && cy > 0 && cx < m.width - 1 && cy < m.height - 1 && !m.collision[cy * m.width + cx];
-    if (!this.flying && !freeAt(tx, ty)) {
+    if (!this.flying && !this.player.mount?.flies && !freeAt(tx, ty)) {
       search: for (let r = 1; r < 40; r++)
         for (let dy = -r; dy <= r; dy++)
           for (let dx = -r; dx <= r; dx++) {
@@ -863,6 +876,35 @@ export class WorldScene extends Phaser.Scene {
     // chega com o clima do destino já aplicado
     const b = this.biomeAt(px, py);
     this.biomeW = BIOMES.map((_, i) => (i === b ? 1 : 0));
+  }
+
+  // ------------------------------------------------------------------ viagem rápida
+  private travelAt = -1e9;
+  /** Para onde dá para viajar: a sede, os fortes e as cidades dos seus territórios. */
+  travelPoints(): { x: number; y: number; name: string }[] {
+    const out: { x: number; y: number; name: string }[] = [];
+    if (this.hq.founded) out.push({ x: this.hq.gate.x, y: this.hq.gate.y - 5 * TILE, name: 'sede' });
+    for (const f of this.forts.mine) out.push({ ...this.forts.gateOut(f), name: `forte de ${f.city}` });
+    for (const c of this.forts.territories) out.push({ x: c.cx * TILE + 8, y: (c.cy + 3) * TILE + 8, name: c.name });
+    return out;
+  }
+
+  /** Viagem rápida (30 de ouro, 60 s de espera, fora de guerra). */
+  fastTravel(to: { x: number; y: number; name: string }): string {
+    if (this.army.war) return 'Não dá para viajar durante uma guerra';
+    const left = this.travelAt + 60000 - this.time.now;
+    if (left > 0) return `Os cavalos de posta descansam: ${Math.ceil(left / 1000)} s`;
+    if (this.hq.gold < 30) return 'A viagem custa 30 de ouro';
+    this.hq.addGold(-30);
+    this.travelAt = this.time.now;
+    this.teleport(to.x, to.y);
+    this.events.emit('toast', `Viagem para ${to.name} (−30 ouro)`);
+    return '';
+  }
+
+  /** Tile sólido sob o ponto (px)? */
+  isSolidAt(x: number, y: number) {
+    return this.collision.solid(Math.floor(x / TILE), Math.floor(y / TILE));
   }
 
   flying = false;

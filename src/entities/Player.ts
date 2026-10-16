@@ -450,6 +450,13 @@ export class Player extends Creature {
       this.mountSpr?.setVisible(false);
       this.mountAura?.setVisible(false);
     }
+    // voadoras passam por cima de água, montanhas e muralhas; ao descer, pousa em chão livre
+    const fly = !!def?.flies;
+    if (fly) s.collision.ghosts.add(this.body);
+    else if (!s.flying) {
+      s.collision.ghosts.delete(this.body);
+      if (s.isSolidAt(this.x, this.y)) s.teleport(this.x, this.y);
+    }
     s.events.emit('mount', def);
   }
 
@@ -686,7 +693,9 @@ export class Player extends Creature {
       this.facing.copy(move).normalize();
       if (st === 'normal') this.updateDir(move.x, move.y);
     }
-    let speed = PLAYER.speed * O.speed * this.speedMul * this.weightMul * this.scene.progress.moveMul * (this.mount ? this.mount.speed : 1);
+    // montaria na terra dela (lobo na neve, raptor no deserto…) corre 30% mais
+    const terrain = this.mount && this.mount.home === this.scene.biome ? 1.3 : 1;
+    let speed = PLAYER.speed * O.speed * this.speedMul * this.weightMul * this.scene.progress.moveMul * (this.mount ? this.mount.speed * terrain : 1);
 
     // montado: galope (andando um tempo, acelera), disparada (botão de esquiva) e habilidade da montaria
     const m = this.mount;

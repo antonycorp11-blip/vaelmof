@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { TILE } from '../config';
 import type { WorldScene } from '../scenes/WorldScene';
+import { TYRANTS } from '../systems/Tyrants';
 import { Button, COLOR, fit, label } from './kit';
 
 const ZOOMS = [1, 1.6, 2.5, 4, 6, 9];
@@ -77,10 +78,20 @@ export class MapPanel {
       if (!this.open || !this.drag) return;
       const d = this.drag;
       this.drag = null;
-      if (d.moved || !this.teleport) return;
+      if (d.moved) return;
       const { x, y } = this.toWorld(p.x, p.y);
-      world.teleport(x, y);
-      this.setOpen(false);
+      if (this.teleport) {
+        world.teleport(x, y);
+        this.setOpen(false);
+        return;
+      }
+      // viagem rápida: toque na sua sede, num forte seu ou numa cidade do seu território
+      const k = this.k;
+      const hit = world.travelPoints().find((t) => Math.hypot((t.x - x) * k, (t.y - y) * k) < 14 * this.u);
+      if (!hit) return;
+      const why = world.fastTravel(hit);
+      if (why) world.events.emit('toast', why);
+      else this.setOpen(false);
     });
     scene.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
       if (this.open) this.setZoom(this.zoom + (dy > 0 ? -1 : 1));
@@ -147,7 +158,7 @@ export class MapPanel {
     this.zout.place(width - pad - 34 * u, height / 2 + 4 * u, u, 34 * u, 32 * u);
     this.me.place(width - pad - 70 * u, height / 2 + 44 * u, u, 70 * u, 26 * u);
     fit(this.legend, 9, u)
-      .setText(`□ cidade   ▣ forte (cor do dono)   ◯ território   ■ sua sede   ■ bando rival (vermelho = vem atrás de você)   * alvo   ◯ spot   ◆ campeão   ▲ você${this.teleport ? '   · toque para ir' : '   · arraste para andar'}`)
+      .setText(`□ cidade   ▣ forte (cor do dono)   ◯ território   ■ sua sede   ■ bando rival (vermelho = vem atrás de você)   * alvo   ◯ spot   ◆ campeão   ● Tirano (coroa)   ▲ você${this.teleport ? '   · toque para ir' : '   · arraste para andar · toque na sua sede, forte ou território para viajar (30 ouro)'}`)
       .setPosition(pad, height - pad - 12 * u)
       .setWordWrapWidth(width - pad * 2);
     this.place();
@@ -213,6 +224,16 @@ export class MapPanel {
       const r = 4 * u;
       g.fillStyle(0xff5a5a, 1).fillPoints([{ x, y: y - r }, { x: x + r, y }, { x, y: y + r }, { x: x - r, y }], true);
     }
+    // Tiranos: covil com coroa
+    TYRANTS.forEach((_, i) => {
+      if (!w.tyrants.alive(i)) return;
+      const t = w.tyrants.lair(i);
+      const [x, y] = at(t.x, t.y);
+      const r = 5 * u;
+      g.fillStyle(0x0b0d14, 1).fillCircle(x, y, r + u);
+      g.fillStyle(0xb070ff, 1).fillCircle(x, y, r);
+      g.fillStyle(0xffd77a, 1).fillRect(x - r, y - r - 2 * u, 2 * r, 2 * u);
+    });
     if (w.hq.founded) {
       const c = w.hq.center;
       const [x, y] = at(c.x, c.y);
