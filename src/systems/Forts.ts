@@ -7,7 +7,7 @@ import type { WorldScene } from '../scenes/WorldScene';
 import type { SoldierType } from './Army';
 import type { City } from './Cities';
 import type { Clan } from './Clans';
-import { HQ_H, HQ_W, type Material } from './HQ';
+import { type Material } from './HQ';
 import { T } from './Tiles';
 
 /** Forte: largura e altura em tiles (muralha incluída) e vão do portão (ao sul). */
@@ -211,7 +211,7 @@ export class Forts extends Phaser.Events.EventEmitter {
       const oy = Math.round(city.cy + Math.sin(a) * r * 0.8 - FORT_H / 2);
       if (ox < 4 || oy < 4 || ox + FORT_W > m.width - 4 || oy + FORT_H > m.height - 4) continue;
       if (this.overlaps(ox, oy, FORT_W, FORT_H, 6)) continue;
-      if (hq.founded && ox < hq.st.ox + HQ_W + 6 && ox + FORT_W > hq.st.ox - 6 && oy < hq.st.oy + HQ_H + 6 && oy + FORT_H > hq.st.oy - 6) continue;
+      if (hq.founded && ox < hq.st.ox + hq.W + 14 && ox + FORT_W > hq.st.ox - 14 && oy < hq.st.oy + hq.H + 14 && oy + FORT_H > hq.st.oy - 14) continue;
       if (m.cities.some((q) => ox < q.x1 + 5 && ox + FORT_W > q.x0 - 5 && oy < q.y1 + 5 && oy + FORT_H > q.y0 - 5)) continue;
       let bad = false;
       for (let y = oy - 1; y <= oy + FORT_H + 2 && !bad; y++)

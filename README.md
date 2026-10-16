@@ -276,13 +276,16 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   deixar a própria montaria** (senão, a chance de uma rara). Procurados de
   nível 2+ também andam montados. O cavaleiro vai na sela e a montaria é
   desenhada na frente das pernas dele.
-- **Cavaleiros** (estábulo → DAR A UM SOLDADO): uma montaria que você não
-  está usando vira a de um soldado do exército (quebra-escudos e espadas
-  primeiro). O cavaleiro tem +60% de vida, +40% de dano (mais o bônus da
-  montaria), a defesa dela e anda 35% mais rápido; aparece montado na batalha
-  e fica salvo (também aquartelado ou de guarda). RECOLHER devolve a montaria;
-  se o cavaleiro cai, ela volta ferida ao estábulo. Escolher para você uma
-  montaria que só um cavaleiro usa a tira dele.
+- **Cavaleiros nomeados** (estábulo → NOMEAR CAVALEIRO): pede uma montaria
+  que você não está usando **e uma arma e uma armadura sobrando na mochila** (a
+  melhor de cada). Um soldado do exército (do tipo da arma, se houver) recebe
+  tudo e ganha um nome com o da sua casa — "Sir Roland Lobos", "Dama Isolda
+  Lobos" — escrito sobre a cabeça, com o traje de elite. Cavaleiros são fortes:
+  ~3,5× a vida de um soldado, +110% de dano (mais o bônus da montaria), a
+  defesa da montaria, −25% de dano pela armadura e 35% mais rápidos; a raridade
+  da arma e da armadura pesa muito. Ficam salvos (também aquartelados ou de
+  guarda). RECOLHER devolve montaria, arma e armadura; se o cavaleiro cai, a
+  montaria volta ferida ao estábulo e o reino anuncia a morte dele.
 - **Rebanho e procriação** (estábulo → PROCRIAR): cada espécie que você tem
   pode gerar filhotes — comum 150 ouro + 20 fibra em 4 min, de guerra/região
   400 ouro + 40 fibra + 10 minério em 8 min, rara 900 ouro + 60 fibra + 20
@@ -442,6 +445,16 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   dispersam, metade da Glória e 25% dos atributos distribuídos se perdem, o
   baú some e é preciso fundar outro clã.
 - **Ouro:** rende na Tesouraria/Salão e vem das missões; mostrado no HUD.
+- **A sede cresce sozinha** (Acampamento 30×24 → Vila Fortificada 38×30 →
+  Cidadela 46×36): quando **todas** as construções chegam ao nível 2 (ou ao
+  máximo delas), a muralha é refeita mais larga em volta do pátio, com um
+  anúncio; de novo quando tudo chega ao nível 3. Cada era dá +20 de guarda, +4
+  coletores e +12 espaços no baú. Se não houver chão plano e seco em volta
+  (água, montanha, cidade ou forte), ela tenta crescer encostada para um lado;
+  sem espaço nenhum, avisa. A tela da sede mostra a era e o que falta subir.
+- **Estoque dos coletores no baú:** na aba do baú, cada material juntado pelos
+  coletores tem um PEGAR que o põe na mochila (como item da região da sede):
+  dá para levar e vender no mercador, além de gastar nas obras.
 - **Corneta:** VOLTAR À SEDE leva o herói para casa (espera de 90 s, não em
   guerra). O herói renasce na sede.
 

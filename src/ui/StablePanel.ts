@@ -63,7 +63,7 @@ export class StablePanel {
     this.buy = new Button(scene, { label: 'COMPRAR', color: 'gold', size: 10, onTap: () => this.say(world.stable.buy(this.sel.id)) }).addTo(w.root);
     this.ride = new Button(scene, { label: 'MONTAR', icon: 26, color: 'green', size: 10, onTap: () => this.say(world.stable.toggle()) }).addTo(w.root);
     // cavalaria: uma montaria parada vira a de um soldado; procriação multiplica o rebanho
-    this.knight = new Button(scene, { label: 'DAR A UM SOLDADO', icon: 2, color: 'blue', size: 9, onTap: () => this.say(this.promote()) }).addTo(w.root);
+    this.knight = new Button(scene, { label: 'NOMEAR CAVALEIRO', icon: 2, color: 'blue', size: 9, onTap: () => this.say(this.promote()) }).addTo(w.root);
     this.recallBtn = new Button(scene, { label: 'RECOLHER', color: 'dark', size: 9, onTap: () => this.say(world.army.recall(this.sel.id) ? `${this.sel.name} voltou ao estábulo` : 'Nenhum cavaleiro com esta montaria') }).addTo(w.root);
     this.raceBtn = new Button(scene, { label: 'CORRIDA', icon: 7, color: 'green', size: 9, onTap: () => {
       const why = world.races.start(world.market.cityHere());
@@ -145,11 +145,14 @@ export class StablePanel {
       : 'Não se compra: cai de campeões, líderes de clã e procurados fortes';
     const n = st.count(m.id);
     const riders = this.world.army.ridersOf(m.id);
+    const knights = this.world.army.soldiers.filter((x) => x.team === 0 && !x.dead && x.mount?.id === m.id && x.knight).map((x) => x.knight!.name);
+    const gear = this.world.army.knightGear();
+    const kInfo = has ? (knights.length ? `Cavaleiros: ${knights.join(', ')}` : `Cavaleiro precisa de: montaria livre + arma e armadura sobrando na mochila${gear ? ' (você tem)' : ' (falta)'}`) : '';
     const herd = has ? `Rebanho: ${n}${st.active === m.id ? ' · 1 é a sua' : ''}${riders ? ` · ${riders} com cavaleiro${riders > 1 ? 's' : ''}` : ''} · ${Math.max(0, st.free(m.id))} livre${st.free(m.id) === 1 ? '' : 's'}` : '';
     const cubs = st.breeding.filter((b) => b.id === m.id).map((b) => `filhote em ${Math.max(0, Math.ceil((b.readyAt - Date.now()) / 60000))} min`);
     const breed = has ? `Procriar: ${HQ.costText(Stable.breedCost(m))} · ${Stable.breedMinutes(m)} min · baias ${st.breeding.length}/${st.breedSlots}${cubs.length ? ` · ${cubs.join(', ')}` : ''}` : '';
-    this.info.setText([`${m.name}${has ? '  (sua)' : ''} · velocidade ×${m.speed.toFixed(2).replace('.', ',')}${bonus ? ` · ${bonus}` : ''}`, `${m.desc} ${how}.`, herd, breed].filter(Boolean).join('\n'));
-    this.knight.setVisible(has).setColor(st.free(m.id) > 0 ? 'blue' : 'dark');
+    this.info.setText([`${m.name}${has ? '  (sua)' : ''} · velocidade ×${m.speed.toFixed(2).replace('.', ',')}${bonus ? ` · ${bonus}` : ''}`, `${m.desc} ${how}.`, herd, kInfo, breed].filter(Boolean).join('\n'));
+    this.knight.setVisible(has).setColor(st.free(m.id) > 0 && gear ? 'blue' : 'dark');
     this.recallBtn.setVisible(has && riders > 0);
     this.breedBtn.setVisible(has).setColor(st.breedBlock(m.id) ? 'dark' : 'gold');
     const city = this.world.market.cityHere();

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { TILE } from '../config';
+import { ITEMS } from '../data/items';
 import { MOUNTS, type MountDef } from '../data/mounts';
 import { SKIN_CELL, SKIN_COLS, SKIN_FOOT, SKINS } from '../data/skins';
 import { DEPTH } from '../entities/Creature';
@@ -133,6 +134,9 @@ export class Soldier implements Hittable {
   mount: MountDef | null = null;
   /** Cavaleiro do herói: dano extra (o dos inimigos vem de dmgK). */
   cavK = 1;
+  /** Cavaleiro nomeado: nome (com o da casa), arma e armadura que recebeu e a qualidade delas. */
+  knight: Knight | null = null;
+  nameTag?: Phaser.GameObjects.Text;
   mountSpr?: Phaser.GameObjects.Sprite;
   home: { x: number; y: number } | null = null;
   onDeath?: () => void;
@@ -214,6 +218,8 @@ export class Soldier implements Hittable {
     if (this.team === 0) amount *= Math.max(0.5, 1 - 0.05 * this.army.upg.def);
     // montaria com barda/couro: defesa extra
     if (this.mount) amount *= 1 - this.mount.guard;
+    // a armadura do cavaleiro nomeado segura mais um quarto do golpe
+    if (this.knight) amount *= 0.75;
     this.hp -= amount;
     this.lastHurt = this.army.scene.time.now;
     this.flashUntil = this.army.scene.time.now + 120;
@@ -241,8 +247,21 @@ export class Soldier implements Hittable {
     this.ring.destroy();
     this.icon.destroy();
     this.mountSpr?.destroy();
+    this.nameTag?.destroy();
   }
 }
+
+/** Cavaleiro nomeado: nome completo, itens recebidos e a qualidade (0–4) de cada um. */
+export interface Knight {
+  name: string;
+  w: string;
+  a: string;
+  wt: number;
+  at: number;
+}
+
+const KNIGHT_M = ['Aldric', 'Bertrand', 'Cedric', 'Dorian', 'Edmund', 'Gareth', 'Hugo', 'Ivar', 'Leoric', 'Merek', 'Osric', 'Roland', 'Tristan', 'Ulric', 'Wilhelm'];
+const KNIGHT_F = ['Adela', 'Brienne', 'Catrin', 'Elara', 'Freya', 'Gwen', 'Isolde', 'Lyra', 'Maren', 'Rowena', 'Sigrid', 'Ysolde'];
 
 interface Shot {
   img: Phaser.GameObjects.Image;
@@ -364,7 +383,7 @@ export class Army extends Phaser.Events.EventEmitter {
         this.garrison.push(g);
         continue;
       }
-      const s = this.addAlly(g.t, p[0], p[1], g.k, false, true, g.m);
+      const s = this.addAlly(g.t, p[0], p[1], g.k, false, true, g.m, g.kn);
       s.postX = p[0];
       s.postY = p[1];
       n++;
@@ -425,9 +444,9 @@ export class Army extends Phaser.Events.EventEmitter {
   private warCheck = 0;
   readonly heroT: Hittable;
   /** Soldados salvos esperando as folhas ficarem prontas. */
-  private pending: { t: SoldierType; k: number; st?: boolean; m?: string }[] = [];
+  private pending: { t: SoldierType; k: number; st?: boolean; m?: string; kn?: Knight }[] = [];
   /** Aquartelados em Brumavale (fora do campo; voltam com Convocar, curados). */
-  garrison: { t: SoldierType; k: number; m?: string }[] = [];
+  garrison: { t: SoldierType; k: number; m?: string; kn?: Knight }[] = [];
   /** Campo de fluxo (distância em passos até o herói) para contornar obstáculos. */
   private flow = new Uint16Array((FLOW_R * 2 + 1) ** 2);
   private flowOX = 0;
@@ -578,7 +597,7 @@ export class Army extends Phaser.Events.EventEmitter {
       this.ready = true;
       const p = this.scene.player;
       for (const r of this.pending.splice(0)) {
-        const s = this.addAlly(r.t, p.x, p.y + 30, r.k, false, !!r.st, r.m);
+        const s = this.addAlly(r.t, p.x, p.y + 30, r.k, false, !!r.st, r.m, r.kn);
         if (s.station) {
           // guardas nascem no posto
           this.assignPosts();
@@ -595,11 +614,11 @@ export class Army extends Phaser.Events.EventEmitter {
   }
 
   // ------------------------------------------------------------------ elenco
-  private addAlly(type: SoldierType, x: number, y: number, kills = 0, save = true, station = false, mount?: string) {
+  private addAlly(type: SoldierType, x: number, y: number, kills = 0, save = true, station = false, mount?: string, kn?: Knight) {
     const s = new Soldier(this, 0, type, x + Phaser.Math.Between(-10, 10), y + Phaser.Math.Between(-6, 6), kills);
     s.station = station;
     this.soldiers.push(s);
-    if (mount && MOUNTS[mount]) this.rideAlly(s, mount);
+    if (mount && MOUNTS[mount]) this.rideAlly(s, mount, kn);
     if (save) this.save();
     return s;
   }
@@ -798,7 +817,7 @@ export class Army extends Phaser.Events.EventEmitter {
     s.target = null;
     s.onDeath?.();
     const sc = this.scene;
-    if (s.team === 0 && s.mount) sc.events.emit('toast', `Um cavaleiro caiu · ${s.mount.name} voltou ferida ao estábulo`);
+    if (s.team === 0 && s.mount) sc.events.emit('toast', `${s.knight?.name ?? 'Um cavaleiro'} caiu · ${s.mount.name} voltou ferida ao estábulo`);
     if (by && !by.dead) {
       const before = by.rank;
       by.kills++;
@@ -844,10 +863,10 @@ export class Army extends Phaser.Events.EventEmitter {
     const sc = this.scene;
     for (const s of this.soldiers) {
       if (s.team !== 0 || s.dead || s.station) continue;
-      this.garrison.push({ t: s.type, k: s.kills, m: s.mount?.id });
+      this.garrison.push({ t: s.type, k: s.kills, m: s.mount?.id, kn: s.knight ?? undefined });
       s.dead = true;
       sc.fx.burst(s.x, s.y - 10, 0xbfe0ff, 3);
-      sc.tweens.add({ targets: [s.sprite, s.ring, s.icon, ...(s.mountSpr ? [s.mountSpr] : [])], alpha: 0, duration: 400, onComplete: () => s.destroy() });
+      sc.tweens.add({ targets: [s.sprite, s.ring, s.icon, ...(s.mountSpr ? [s.mountSpr] : []), ...(s.nameTag ? [s.nameTag] : [])], alpha: 0, duration: 400, onComplete: () => s.destroy() });
     }
     this.save();
     this.emit('change');
@@ -862,7 +881,7 @@ export class Army extends Phaser.Events.EventEmitter {
     const bx = p.x - this.faceX * 140;
     const by = p.y - this.faceY * 140;
     for (const g of this.garrison.splice(0)) {
-      const s = this.addAlly(g.t, bx + Phaser.Math.Between(-30, 30), by + Phaser.Math.Between(-20, 20), g.k, false, false, g.m);
+      const s = this.addAlly(g.t, bx + Phaser.Math.Between(-30, 30), by + Phaser.Math.Between(-20, 20), g.k, false, false, g.m, g.kn ?? undefined);
       // se nasceu dentro de algo, nasce junto do herói
       if (this.solidAt(s.x, s.y)) {
         s.x = p.x;
@@ -1024,11 +1043,25 @@ export class Army extends Phaser.Events.EventEmitter {
 
   // ------------------------------------------------------------------ cavalaria
   /** Soldado do herói monta: mais vida e dano (cavaleiro), mais rápido. */
-  private rideAlly(s: Soldier, id: string) {
+  private rideAlly(s: Soldier, id: string, kn?: Knight) {
     const m = MOUNTS[id];
-    s.cavK = 1.4 + m.power;
-    s.maxHp = s.hp = Math.round(s.maxHp * 1.6);
+    s.knight = kn ?? null;
+    const wt = kn?.wt ?? 0;
+    const at = kn?.at ?? 0;
+    // a qualidade da arma e da armadura que ele recebeu pesa muito
+    // cavaleiro nomeado: bem mais forte que um soldado montado comum
+    s.cavK = (1.4 + m.power) * (1 + 0.22 * wt) * (kn ? 1.5 : 1);
+    s.maxHp = s.hp = Math.round(s.maxHp * 1.6 * (1 + 0.3 * at) * (kn ? 2.2 : 1));
     this.mountChampion(s, id);
+    if (kn) {
+      // pele de elite e o nome sobre a cabeça
+      this.dress(s, 3);
+      s.nameTag = this.scene.add
+        .text(s.x, s.y - 50, kn.name, { fontFamily: 'Tiny5, monospace', fontSize: '7px', color: '#ffe9a8', stroke: '#1e1a24', strokeThickness: 2 })
+        .setOrigin(0.5)
+        .setResolution(4)
+        .setDepth(4245);
+    }
   }
 
   private unrideAlly(s: Soldier) {
@@ -1036,6 +1069,15 @@ export class Army extends Phaser.Events.EventEmitter {
     s.mountSpr = undefined;
     s.mount = null;
     s.cavK = 1;
+    // o cavaleiro devolve a arma e a armadura
+    if (s.knight) {
+      const inv = this.scene.inventory;
+      for (const id of [s.knight.w, s.knight.a]) if (id) inv.add(id, 1);
+      s.knight = null;
+      s.nameTag?.destroy();
+      s.nameTag = undefined;
+      this.dress(s, this.upTier);
+    }
     s.maxHp = Math.round(SOLDIERS[s.type].hp * s.hpMul);
     s.hp = Math.min(s.hp, s.maxHp);
     s.sprite.setOrigin(0.5, FOOT / CELL);
@@ -1055,21 +1097,54 @@ export class Army extends Phaser.Events.EventEmitter {
     return this.soldiers.filter((s) => s.team === 0 && !s.dead && s.mount).length + this.garrison.filter((g) => g.m).length;
   }
 
-  /** Promove um soldado do campo a cavaleiro na montaria `id` (quebra-escudos e espadas primeiro). */
+  /** Melhor arma e armadura sobrando na mochila (para nomear um cavaleiro). */
+  knightGear(): { w: string; a: string } | null {
+    const inv = this.scene.inventory;
+    let w = '';
+    let a = '';
+    for (const sl of inv.slots) {
+      const d = sl && ITEMS[sl.id];
+      if (!d?.equip) continue;
+      if (d.equip.kind === 'weapon' && (!w || (d.tier ?? 0) > (ITEMS[w].tier ?? 0))) w = d.id;
+      if (d.equip.kind === 'armor' && (!a || (d.tier ?? 0) > (ITEMS[a].tier ?? 0))) a = d.id;
+    }
+    return w && a ? { w, a } : null;
+  }
+
+  /**
+   * Nomeia um cavaleiro: um soldado recebe a montaria `id` e a melhor arma e
+   * armadura sobrando na mochila (a arma define o tipo: arco vira arqueiro
+   * montado). Ganha um nome com o da casa do herói.
+   */
   promote(id: string): string {
     const st = this.scene.stable;
     if (!MOUNTS[id] || st.free(id) <= 0) return st.count(id) > 1 ? 'Todas as cópias estão em uso (procrie mais)' : 'Sem montaria livre desta espécie (procrie para ter outra)';
-    const order: SoldierType[] = ['greatsword', 'sword', 'bow', 'staff'];
+    const gear = this.knightGear();
+    if (!gear) return 'Faltam uma arma e uma armadura sobrando na mochila para o cavaleiro';
+    const wd = ITEMS[gear.w];
+    const wantType = (wd.equip as { id: SoldierType }).id;
+    const order: SoldierType[] = [wantType, 'greatsword', 'sword', 'bow', 'staff'];
     const pick = this.soldiers
       .filter((s) => s.team === 0 && !s.dead && !s.mount && !s.station)
       .sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type) || b.kills - a.kills)[0];
-    if (!pick) return 'Nenhum soldado com você para montar (convoque o exército)';
-    this.rideAlly(pick, id);
-    this.scene.fx.burst(pick.x, pick.y - 14, 0xffd77a, 14);
-    this.scene.fx.floatText(pick.x, pick.y - 40, 'CAVALEIRO!', '#ffd77a');
+    if (!pick) return 'Nenhum soldado com você para nomear (convoque o exército)';
+    const inv = this.scene.inventory;
+    inv.remove(gear.w, 1);
+    inv.remove(gear.a, 1);
+    const female = Math.random() < 0.35;
+    const first = female ? KNIGHT_F[Math.floor(Math.random() * KNIGHT_F.length)] : KNIGHT_M[Math.floor(Math.random() * KNIGHT_M.length)];
+    const name = `${female ? 'Dama' : 'Sir'} ${first} ${this.scene.clans.player.name}`;
+    this.rideAlly(pick, id, { name, w: gear.w, a: gear.a, wt: wd.tier ?? 0, at: ITEMS[gear.a].tier ?? 0 });
+    this.scene.fx.burst(pick.x, pick.y - 14, 0xffd77a, 18);
+    this.scene.events.emit('area', 'CAVALEIRO NOMEADO!', `${name} · ${MOUNTS[id].name} · ${wd.name} · ${ITEMS[gear.a].name}`);
     this.save();
     this.emit('change');
-    return `Um ${SOLDIERS[pick.type].name} agora monta ${MOUNTS[id].name}`;
+    return `${name} jurou lealdade à casa`;
+  }
+
+  /** Cavaleiros nomeados (no campo, de guarda e aquartelados). */
+  get knights(): Knight[] {
+    return [...this.soldiers.filter((s) => s.team === 0 && !s.dead && s.knight).map((s) => s.knight!), ...this.garrison.filter((g) => g.kn).map((g) => g.kn!)];
   }
 
   /** Tira a montaria `id` de um cavaleiro (volta para o estábulo). */
@@ -1471,9 +1546,11 @@ export class Army extends Phaser.Events.EventEmitter {
       s.ring.setVisible(vis);
       s.icon.setVisible(vis);
       s.mountSpr?.setVisible(vis);
+      s.nameTag?.setVisible(vis);
       if (!vis) continue;
       s.icon.setPosition(Math.round(s.x), Math.round(s.y - 25 - (s.mount ? s.mount.seat * s.sizeK : 0)));
       // montaria na frente das pernas do cavaleiro (sentado na sela)
+      if (s.nameTag) s.nameTag.setPosition(Math.round(s.x), Math.round(s.y - 34 - (s.mount ? s.mount.seat * s.sizeK : 0))).setVisible(vis);
       if (s.mountSpr) s.mountSpr.setFrame(s.dir * 6 + (moving ? Math.floor(s.animT * 0.75) % 6 : 0)).setPosition(Math.round(s.x), Math.round(s.y)).setDepth(DEPTH.entities + s.y + 0.4);
       s.sprite.setFrame(s.dir * COLS + col).setPosition(s.x, s.y).setDepth(DEPTH.entities + s.y);
       if (time < s.flashUntil) s.sprite.setTintFill(0xffffff);
@@ -1635,7 +1712,7 @@ export class Army extends Phaser.Events.EventEmitter {
   // ------------------------------------------------------------------ salvar
   save() {
     try {
-      const roster = this.soldiers.filter((s) => s.team === 0 && !s.dead).map((s) => ({ t: s.type, k: s.kills, st: s.station || undefined, m: s.mount?.id }));
+      const roster = this.soldiers.filter((s) => s.team === 0 && !s.dead).map((s) => ({ t: s.type, k: s.kills, st: s.station || undefined, m: s.mount?.id, kn: s.knight ?? undefined }));
       localStorage.setItem(SAVE_KEY, JSON.stringify({ roster: [...roster, ...this.pending], garrison: this.garrison, pools: Object.fromEntries(this.pools), formation: this.formation }));
     } catch {
       /* sem armazenamento */
@@ -1655,8 +1732,9 @@ export class Army extends Phaser.Events.EventEmitter {
       }
       if (d.formation in FORMATIONS) this.formation = d.formation;
       const m = (v: unknown) => (typeof v === 'string' && MOUNTS[v] ? v : undefined);
-      if (Array.isArray(d.roster)) for (const r of d.roster) if (SOLDIER_TYPES.includes(r.t)) this.pending.push({ t: r.t, k: Number(r.k) || 0, st: !!r.st, m: m(r.m) });
-      if (Array.isArray(d.garrison)) for (const r of d.garrison) if (SOLDIER_TYPES.includes(r.t)) this.garrison.push({ t: r.t, k: Number(r.k) || 0, m: m(r.m) });
+      const kn = (v: unknown): Knight | undefined => (v && typeof v === 'object' && typeof (v as Knight).name === 'string' ? (v as Knight) : undefined);
+      if (Array.isArray(d.roster)) for (const r of d.roster) if (SOLDIER_TYPES.includes(r.t)) this.pending.push({ t: r.t, k: Number(r.k) || 0, st: !!r.st, m: m(r.m), kn: kn(r.kn) });
+      if (Array.isArray(d.garrison)) for (const r of d.garrison) if (SOLDIER_TYPES.includes(r.t)) this.garrison.push({ t: r.t, k: Number(r.k) || 0, m: m(r.m), kn: kn(r.kn) });
     } catch {
       /* sem save */
     }

@@ -94,12 +94,13 @@ export const DEFS: Record<BuildId, Def> = {
 };
 
 export const BUILD_ORDER: BuildId[] = ['hall', 'barracks', 'arsenal', 'infirmary', 'treasury', 'warehouse', 'wall0', 'wall1', 'wall2', 'wall3', 'tower0', 'tower1', 'tower2', 'tower3'];
-const TOWER_AT: [number, number][] = [
-  [2, 3],
-  [HQ_W - 3, 3],
-  [2, HQ_H - 3],
-  [HQ_W - 3, HQ_H - 3],
+/** Tamanho da sede por era: cresce sozinha quando tudo chega ao nível 2, depois ao 3. */
+export const HQ_SIZES: [number, number][] = [
+  [HQ_W, HQ_H],
+  [38, 30],
+  [46, 36],
 ];
+export const ERA_NAME = ['Acampamento', 'Vila Fortificada', 'Cidadela'];
 const STATION_CAP = [0, 15, 40, 80];
 const HEAL = [0.08, 0.16, 0.28];
 const HALL_INCOME = [0, 5, 12, 25];
@@ -133,6 +134,8 @@ interface State {
   /** Coletores contratados por material e o que já juntaram (estoque do Armazém). */
   workers: Record<Material, number>;
   stock: Record<Material, number>;
+  /** Era da sede (0..2): o tamanho cresce quando tudo chega ao nível 2, depois ao 3. */
+  size: number;
 }
 
 const fresh = (): State => ({
@@ -147,6 +150,7 @@ const fresh = (): State => ({
   raid: null,
   workers: { wood: 0, stone: 0, fiber: 0, ore: 0, crystal: 0 },
   stock: { wood: 0, stone: 0, fiber: 0, ore: 0, crystal: 0 },
+  size: 0,
 });
 
 /** Ponto que os inimigos atacam (um por construção; várias por lado de muralha). */
@@ -206,6 +210,20 @@ export class HQ extends Phaser.Events.EventEmitter {
     return this.st.founded;
   }
 
+  /** Tamanho atual (tiles) e deslocamento do miolo (as construções ficam no meio). */
+  get W() {
+    return HQ_SIZES[this.st.size][0];
+  }
+  get H() {
+    return HQ_SIZES[this.st.size][1];
+  }
+  private get dx() {
+    return (this.W - HQ_W) >> 1;
+  }
+  private get dy() {
+    return (this.H - HQ_H) >> 1;
+  }
+
   get gold() {
     return Math.floor(this.st.gold);
   }
@@ -215,11 +233,12 @@ export class HQ extends Phaser.Events.EventEmitter {
   }
 
   get chestSize() {
-    return CHEST[this.st.lv.warehouse];
+    const n = CHEST[this.st.lv.warehouse];
+    return n ? n + this.st.size * 12 : 0;
   }
 
   get stationCap() {
-    return this.st.lv.hall > 0 ? STATION_CAP[this.st.lv.barracks] : 0;
+    return this.st.lv.hall > 0 && this.st.lv.barracks > 0 ? STATION_CAP[this.st.lv.barracks] + this.st.size * 20 : 0;
   }
 
   get incomePerMin() {
@@ -229,12 +248,12 @@ export class HQ extends Phaser.Events.EventEmitter {
 
   /** Centro do pátio (px), em frente ao Salão. */
   get center(): { x: number; y: number } {
-    return { x: (this.st.ox + HQ_W / 2) * TILE, y: (this.st.oy + 13) * TILE };
+    return { x: (this.st.ox + this.W / 2) * TILE, y: (this.st.oy + 13 + this.dy) * TILE };
   }
 
   /** Lado de fora do portão (px). */
   get gate(): { x: number; y: number } {
-    return { x: (this.st.ox + HQ_W / 2) * TILE, y: (this.st.oy + HQ_H + 1) * TILE + 8 };
+    return { x: (this.st.ox + this.W / 2) * TILE, y: (this.st.oy + this.H + 1) * TILE + 8 };
   }
 
   /** (x, y) em px está dentro da sede? `pad` em tiles. */
@@ -242,7 +261,7 @@ export class HQ extends Phaser.Events.EventEmitter {
     if (!this.founded) return false;
     const tx = x / TILE - this.st.ox;
     const ty = y / TILE - this.st.oy;
-    return tx >= -pad && ty >= -pad && tx <= HQ_W + pad && ty <= HQ_H + pad;
+    return tx >= -pad && ty >= -pad && tx <= this.W + pad && ty <= this.H + pad;
   }
 
   get heroInside() {
@@ -265,16 +284,16 @@ export class HQ extends Phaser.Events.EventEmitter {
     if (s.clans.tier(s.clans.player) < 1) return 'Só um Clã (600 de Glória) pode erguer sede — hoje vocês são um Bando';
     const [ox, oy] = this.originHere();
     const m = s.map;
-    if (ox < 3 || oy < 3 || ox + HQ_W > m.width - 3 || oy + HQ_H > m.height - 3) return 'Perto demais da borda do mundo';
+    if (ox < 3 || oy < 3 || ox + this.W > m.width - 3 || oy + this.H > m.height - 3) return 'Perto demais da borda do mundo';
     for (const c of m.cities) {
-      if (ox < c.x1 + 4 && ox + HQ_W > c.x0 - 4 && oy < c.y1 + 4 && oy + HQ_H > c.y0 - 4) return 'Longe dos muros: a sede fica nas vizinhanças da cidade, não dentro';
+      if (ox < c.x1 + 4 && ox + this.W > c.x0 - 4 && oy < c.y1 + 4 && oy + this.H > c.y0 - 4) return 'Longe dos muros: a sede fica nas vizinhanças da cidade, não dentro';
     }
-    if (s.forts?.overlaps(ox, oy, HQ_W, HQ_H)) return 'Perto demais de um forte de clã';
-    const near = m.cities.some((c) => Math.max(c.x0 - (ox + HQ_W), ox - c.x1, c.y0 - (oy + HQ_H), oy - c.y1) < 60);
+    if (s.forts?.overlaps(ox, oy, this.W, this.H)) return 'Perto demais de um forte de clã';
+    const near = m.cities.some((c) => Math.max(c.x0 - (ox + this.W), ox - c.x1, c.y0 - (oy + this.H), oy - c.y1) < 60);
     if (!near) return 'Longe demais: a sede precisa ficar a até 60 tiles de uma cidade';
     let bad = 0;
-    for (let y = oy - 1; y <= oy + HQ_H; y++)
-      for (let x = ox - 1; x <= ox + HQ_W; x++) {
+    for (let y = oy - 1; y <= oy + this.H; y++)
+      for (let x = ox - 1; x <= ox + this.W; x++) {
         const i = y * m.width + x;
         if (m.water[i] >= 0 || m.cliffs[i] >= 0) bad++;
       }
@@ -287,7 +306,7 @@ export class HQ extends Phaser.Events.EventEmitter {
 
   private originHere(): [number, number] {
     const p = this.scene.player;
-    return [Math.floor(p.x / TILE) - (HQ_W >> 1), Math.floor(p.y / TILE) - 13];
+    return [Math.floor(p.x / TILE) - (this.W >> 1), Math.floor(p.y / TILE) - 13];
   }
 
   found(): string {
@@ -402,6 +421,8 @@ export class HQ extends Phaser.Events.EventEmitter {
     this.scene.cameras.main.flash(120, 255, 240, 200);
     this.save();
     this.emit('change');
+    // tudo no nível novo: a sede cresce logo depois do brilho da obra
+    if (this.eraEarned > this.st.size) this.scene.time.delayedCall(700, () => this.checkGrow(true));
     return '';
   }
 
@@ -426,6 +447,111 @@ export class HQ extends Phaser.Events.EventEmitter {
     this.save();
     this.emit('change');
     return '';
+  }
+
+  // ------------------------------------------------------------ crescimento
+  /** Era que as construções já merecem: tudo no nível 2 (ou no máximo dele) → 1; tudo no 3 → 2. */
+  get eraEarned(): number {
+    let era = 0;
+    for (let n = 1; n < HQ_SIZES.length; n++) {
+      const ok = BUILD_ORDER.every((b) => this.st.lv[b] >= Math.min(n + 1, DEFS[b].cost.length - 1));
+      if (!ok) break;
+      era = n;
+    }
+    return era;
+  }
+
+  /** O que falta para a próxima era (lista curta de construções). */
+  get nextEraNeeds(): string {
+    const n = this.st.size + 1;
+    if (n >= HQ_SIZES.length) return '';
+    const miss = BUILD_ORDER.filter((b) => this.st.lv[b] < Math.min(n + 1, DEFS[b].cost.length - 1)).map((b) => DEFS[b].name);
+    return miss.length > 3 ? `${miss.slice(0, 3).join(', ')} e mais ${miss.length - 3}` : miss.join(', ');
+  }
+
+  private growTry = 0;
+  private growWarned = -1;
+
+  /** Cabe a sede maior com canto em (ox, oy)? */
+  private roomFor(ox: number, oy: number, W: number, H: number): boolean {
+    const s = this.scene;
+    const m = s.map;
+    if (ox < 3 || oy < 3 || ox + W > m.width - 3 || oy + H > m.height - 3) return false;
+    for (const c of m.cities) if (ox < c.x1 + 2 && ox + W > c.x0 - 2 && oy < c.y1 + 2 && oy + H > c.y0 - 2) return false;
+    if (s.forts?.overlaps(ox, oy, W, H)) return false;
+    const o = this.st;
+    for (let y = oy - 1; y <= oy + H; y++)
+      for (let x = ox - 1; x <= ox + W; x++) {
+        // o que já é da sede não conta (as muralhas são "penhasco" no mapa)
+        if (x >= o.ox - 1 && x <= o.ox + this.W && y >= o.oy - 1 && y <= o.oy + this.H) continue;
+        const i = y * m.width + x;
+        if (m.water[i] >= 0 || m.cliffs[i] >= 0) return false;
+      }
+    return true;
+  }
+
+  /** Quando todas as construções sobem de nível, a sede cresce (muralha nova, pátio maior). */
+  private checkGrow(force = false) {
+    if (!this.founded || this.scene.army.war?.siege) return;
+    const era = this.eraEarned;
+    if (era <= this.st.size) return;
+    const now = this.scene.time.now;
+    if (!force && now < this.growTry) return;
+    this.growTry = now + 30000;
+    const next = this.st.size + 1;
+    const [W, H] = HQ_SIZES[next];
+    const o = this.st;
+    const gx = W - this.W;
+    const gy = H - this.H;
+    // de preferência cresce por igual para todos os lados; senão encosta onde der
+    const xs = [o.ox - (gx >> 1), o.ox - gx, o.ox];
+    const ys = [o.oy - (gy >> 1), o.oy - gy, o.oy];
+    let at: [number, number] | null = null;
+    for (const y of ys) for (const x of xs) if (!at && this.roomFor(x, y, W, H)) at = [x, y];
+    if (!at) {
+      if (this.growWarned !== next) {
+        this.growWarned = next;
+        this.scene.events.emit('toast', 'A sede quer crescer, mas não há espaço plano e seco em volta (água, montanha, cidade ou forte perto)');
+      }
+      return;
+    }
+    const s = this.scene;
+    // o calçamento antigo volta a ser chão natural (o novo é desenhado no lugar certo)
+    const m = s.map;
+    const count = new Map<number, number>();
+    for (let x = at[0] - 2; x <= at[0] + W + 1; x++)
+      for (const y of [at[1] - 2, at[1] + H + 1]) {
+        const g = m.ground[y * m.width + x];
+        if (g !== T.COBBLE && g !== T.PLAZA && m.water[y * m.width + x] < 0) count.set(g, (count.get(g) ?? 0) + 1);
+      }
+    const natural = [...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    this.clear();
+    if (natural !== undefined)
+      for (let y = o.oy; y < o.oy + this.H; y++)
+        for (let x = o.ox; x < o.ox + this.W; x++) {
+          const g = m.ground[y * m.width + x];
+          if (g === T.COBBLE || g === T.PLAZA) s.tiles.set('ground', x, y, natural);
+        }
+    o.ox = at[0];
+    o.oy = at[1];
+    o.size = next;
+    this.apply();
+    this.makeWorkers();
+    // quem ficou em cima da muralha nova vai para dentro
+    const p = s.player;
+    if (s.isSolidAt(p.x, p.y) && !p.mount?.flies) s.teleport(this.center.x, this.center.y + 3 * TILE);
+    for (const a of s.army.allies)
+      if (s.isSolidAt(a.x, a.y)) {
+        a.x = this.center.x + (Math.random() - 0.5) * 80;
+        a.y = this.center.y + 40 + Math.random() * 40;
+      }
+    const c = this.center;
+    s.fx.burst(c.x, c.y - 30, 0xffe08a, 40);
+    s.cameras.main.flash(260, 255, 236, 180);
+    s.events.emit('area', 'A SEDE CRESCEU!', `Agora é uma ${ERA_NAME[next]}: +20 de guarda, +4 coletores, +12 no baú`);
+    s.clans.log(`A sede do ${s.clans.player.name} cresceu: agora é uma ${ERA_NAME[next]}.`, true);
+    this.save();
+    this.emit('change');
   }
 
   // ------------------------------------------------------------ treino
@@ -461,7 +587,7 @@ export class HQ extends Phaser.Events.EventEmitter {
 
   // ------------------------------------------------------------ coletores
   get workerCap() {
-    return this.st.hp.hall > 0 ? WORKER_CAP[this.st.lv.hall] : 0;
+    return this.st.hp.hall > 0 ? WORKER_CAP[this.st.lv.hall] + this.st.size * 4 : 0;
   }
 
   get workerCount() {
@@ -515,12 +641,14 @@ export class HQ extends Phaser.Events.EventEmitter {
   ];
   private pileAt(job: number) {
     const [x, y] = HQ.PILE[job];
-    return { x: (this.st.ox + x) * TILE + 8, y: (this.st.oy + y) * TILE + 8 };
+    // na sede maior, as pilhas se abrem para os lados do pátio
+    const spread = x < HQ_W / 2 ? -this.dx : this.dx;
+    return { x: (this.st.ox + x + this.dx + (spread >> 1)) * TILE + 8, y: (this.st.oy + y + this.dy) * TILE + 8 };
   }
   private storeAt() {
     const o = this.st;
     const [x, y] = o.lv.warehouse > 0 ? [22, 17] : [15, 12];
-    return { x: (o.ox + x) * TILE + 8, y: (o.oy + y) * TILE + 8 };
+    return { x: (o.ox + x + this.dx) * TILE + 8, y: (o.oy + y + this.dy) * TILE + 8 };
   }
   private makeWorkers() {
     for (const w of this.walkers) w.s.destroy();
@@ -589,6 +717,24 @@ export class HQ extends Phaser.Events.EventEmitter {
     return '';
   }
 
+  /**
+   * O que os coletores juntaram vira itens na mochila (da região da sede):
+   * dá para levar e vender no mercador.
+   */
+  takeStock(m: Material): string {
+    if (!this.heroInside) return 'O estoque fica no Armazém da sede';
+    const n = Math.floor(this.st.stock[m] ?? 0);
+    if (n <= 0) return `Sem ${MATERIAL_NAME[m]} no estoque`;
+    const c = this.center;
+    const region = (['green', 'green', 'snow', 'block', 'black', 'dust'] as const)[this.scene.biomeAt(c.x, c.y)] ?? 'green';
+    const got = this.scene.inventory.add(`${m}_${region}`, n);
+    if (!got) return 'Mochila cheia';
+    this.st.stock[m] -= got;
+    this.save();
+    this.emit('change');
+    return `${got} de ${MATERIAL_NAME[m]} para a mochila`;
+  }
+
   // ------------------------------------------------------------ guarda e cura
   private healAt(x: number, y: number): number {
     if (!this.founded) {
@@ -608,14 +754,14 @@ export class HQ extends Phaser.Events.EventEmitter {
     if (!this.postsCache.length) {
       const pts: [number, number][] = [];
       const add = (tx: number, ty: number) => pts.push([(this.st.ox + tx) * TILE + 8, (this.st.oy + ty) * TILE + 8]);
-      for (let x = 4; x <= HQ_W - 5; x += 2) add(x, 3);
-      for (let y = 5; y <= HQ_H - 5; y += 2) {
+      for (let x = 4; x <= this.W - 5; x += 2) add(x, 3);
+      for (let y = 5; y <= this.H - 5; y += 2) {
         add(2, y);
-        add(HQ_W - 3, y);
+        add(this.W - 3, y);
       }
-      for (let x = 3; x <= HQ_W - 4; x += 2) if (Math.abs(x - HQ_W / 2) > GATE) add(x, HQ_H - 4);
+      for (let x = 3; x <= this.W - 4; x += 2) if (Math.abs(x - this.W / 2) > GATE) add(x, this.H - 4);
       // o resto em fila dupla no pátio, na frente do Salão
-      for (let r = 0; r < 4; r++) for (let x = 11; x <= 19; x += 1) add(x, 13 + r);
+      for (let r = 0; r < 4; r++) for (let x = 11; x <= 19; x += 1) add(x + this.dx, 13 + r + this.dy);
       this.postsCache = pts;
     }
     return this.postsCache[i % this.postsCache.length] ?? null;
@@ -625,23 +771,23 @@ export class HQ extends Phaser.Events.EventEmitter {
   private pos(b: BuildId): { x: number; y: number } {
     const o = this.st;
     if (b.startsWith('tower')) {
-      const [tx, ty] = TOWER_AT[Number(b[5])];
+      const [tx, ty] = [[2, 3], [this.W - 3, 3], [2, this.H - 3], [this.W - 3, this.H - 3]][Number(b[5])];
       return { x: (o.ox + tx) * TILE + 16, y: (o.oy + ty + 1) * TILE };
     }
     if (b.startsWith('wall')) {
       const k = Number(b[4]);
-      const cx = (o.ox + HQ_W / 2) * TILE;
-      const cy = (o.oy + HQ_H / 2) * TILE;
+      const cx = (o.ox + this.W / 2) * TILE;
+      const cy = (o.oy + this.H / 2) * TILE;
       return [
         { x: cx, y: (o.oy + 2) * TILE },
-        { x: (o.ox + HQ_W) * TILE, y: cy },
-        { x: cx, y: (o.oy + HQ_H) * TILE },
+        { x: (o.ox + this.W) * TILE, y: cy },
+        { x: cx, y: (o.oy + this.H) * TILE },
         { x: o.ox * TILE, y: cy },
       ][k];
     }
     const wt = this.footW(b);
     const [ax, ay] = DEFS[b].at!;
-    return { x: (o.ox + ax) * TILE + (wt % 2 ? 8 : 0), y: (o.oy + ay + 1) * TILE };
+    return { x: (o.ox + ax + this.dx) * TILE + (wt % 2 ? 8 : 0), y: (o.oy + ay + this.dy + 1) * TILE };
   }
 
   /** Largura (tiles) da base da construção no nível atual. */
@@ -657,8 +803,8 @@ export class HQ extends Phaser.Events.EventEmitter {
     const m = s.map;
     this.postsCache = [];
     // terreno: pátio limpo dentro, sem árvores nem pedras
-    for (let y = o.oy - 1; y <= o.oy + HQ_H; y++)
-      for (let x = o.ox - 1; x <= o.ox + HQ_W; x++) {
+    for (let y = o.oy - 1; y <= o.oy + this.H; y++)
+      for (let x = o.ox - 1; x <= o.ox + this.W; x++) {
         const i = y * m.width + x;
         if (m.decor[i] >= 0) s.tiles.set('decor', x, y, -1);
         if (m.canopy[i] >= 0) s.tiles.set('canopy', x, y, -1);
@@ -666,9 +812,9 @@ export class HQ extends Phaser.Events.EventEmitter {
         const lx = x - o.ox;
         const ly = y - o.oy;
         // pátio calçado: rua de pedras do portão ao Salão, largo na frente dele e calçadas das casas
-        const road = Math.abs(lx + 0.5 - HQ_W / 2) <= GATE / 2 && ly >= 10 && ly <= HQ_H;
-        const plaza = lx >= 10 && lx <= 19 && ly >= 10 && ly <= 13;
-        const walk = ly >= 1 && ly < HQ_H - 2 && lx >= 1 && lx < HQ_W - 1 && (ly === 10 || ly === 17);
+        const road = Math.abs(lx + 0.5 - this.W / 2) <= GATE / 2 && ly >= 10 + this.dy && ly <= this.H;
+        const plaza = lx >= 10 + this.dx && lx <= 19 + this.dx && ly >= 10 + this.dy && ly <= 13 + this.dy;
+        const walk = ly >= 1 && ly < this.H - 2 && lx >= 1 && lx < this.W - 1 && (ly === 10 + this.dy || ly === 17 + this.dy);
         const t = plaza ? T.PLAZA : road || walk ? T.COBBLE : -1;
         if (t >= 0) {
           if (m.edge[i] >= 0) s.tiles.set('edge', x, y, -1);
@@ -680,18 +826,18 @@ export class HQ extends Phaser.Events.EventEmitter {
     // muralhas
     const side = (x: number, y: number): number => {
       if (y <= 1) return 0;
-      if (y >= HQ_H - 2) return Math.abs(x + 0.5 - HQ_W / 2) < GATE / 2 + 0.5 ? -1 : 2;
-      if (x === HQ_W - 1) return 1;
+      if (y >= this.H - 2) return Math.abs(x + 0.5 - this.W / 2) < GATE / 2 + 0.5 ? -1 : 2;
+      if (x === this.W - 1) return 1;
       if (x === 0) return 3;
       return -1;
     };
     const isWall = (x: number, y: number) => {
-      if (x < 0 || y < 0 || x >= HQ_W || y >= HQ_H) return false;
+      if (x < 0 || y < 0 || x >= this.W || y >= this.H) return false;
       const k = side(x, y);
       return k >= 0 && o.lv[`wall${k}` as BuildId] > 0 && o.hp[`wall${k}` as BuildId] > 0;
     };
-    for (let y = 0; y < HQ_H; y++)
-      for (let x = 0; x < HQ_W; x++) {
+    for (let y = 0; y < this.H; y++)
+      for (let x = 0; x < this.W; x++) {
         if (!isWall(x, y)) continue;
         const k = side(x, y);
         const stone = o.lv[`wall${k}` as BuildId] >= 2;
@@ -742,8 +888,8 @@ export class HQ extends Phaser.Events.EventEmitter {
       this.gateSpr?.destroy();
       this.gateSpr = undefined;
     } else {
-      const gx = (o.ox + HQ_W / 2) * TILE;
-      const gy = (o.oy + HQ_H) * TILE;
+      const gx = (o.ox + this.W / 2) * TILE;
+      const gy = (o.oy + this.H) * TILE;
       if (!this.gateSpr) this.gateSpr = s.add.image(gx, gy, 'hq-gate', 0).setOrigin(0.5, 1);
       this.gateSpr.setPosition(gx, gy).setDepth(DEPTH.entities + gy);
     }
@@ -755,8 +901,8 @@ export class HQ extends Phaser.Events.EventEmitter {
     this.banners = [];
     const clan = s.clans.player;
     for (const dx of [-GATE / 2 - 1.5, GATE / 2 + 1.5]) {
-      const x = (o.ox + HQ_W / 2 + dx) * TILE;
-      const y = (o.oy + HQ_H - 3) * TILE;
+      const x = (o.ox + this.W / 2 + dx) * TILE;
+      const y = (o.oy + this.H - 3) * TILE;
       const pole = s.add.rectangle(x, y, 2, 30, 0x6e4426).setOrigin(0.5, 1).setDepth(DEPTH.entities + y);
       const shield = s.add.image(x, y - 30, 'crest-shield').setTint(clan.color).setDepth(DEPTH.entities + y + 1);
       const emblem = s.add.image(x, y - 31, 'crests', clan.crest).setDepth(DEPTH.entities + y + 2);
@@ -774,19 +920,19 @@ export class HQ extends Phaser.Events.EventEmitter {
       }
       const k = Number(b[4]);
       // vários pontos ao longo do lado
-      for (let t = 2; t < (k % 2 ? HQ_H : HQ_W) - 2; t += 5) {
-        const x = k === 0 || k === 2 ? (o.ox + t) * TILE + 8 : (o.ox + (k === 1 ? HQ_W - 1 : 0)) * TILE + 8;
-        const y = k === 1 || k === 3 ? (o.oy + t) * TILE + 8 : (o.oy + (k === 0 ? 2 : HQ_H)) * TILE + 4;
-        if (k === 2 && Math.abs(t - HQ_W / 2) < GATE) continue;
+      for (let t = 2; t < (k % 2 ? this.H : this.W) - 2; t += 5) {
+        const x = k === 0 || k === 2 ? (o.ox + t) * TILE + 8 : (o.ox + (k === 1 ? this.W - 1 : 0)) * TILE + 8;
+        const y = k === 1 || k === 3 ? (o.oy + t) * TILE + 8 : (o.oy + (k === 0 ? 2 : this.H)) * TILE + 4;
+        if (k === 2 && Math.abs(t - this.W / 2) < GATE) continue;
         this.targets.push(new Target(this, b, x, y));
       }
       // o portão fechado também é alvo (é parte da muralha sul)
-      if (k === 2) this.targets.push(new Target(this, b, (o.ox + HQ_W / 2) * TILE, (o.oy + HQ_H) * TILE + 4));
+      if (k === 2) this.targets.push(new Target(this, b, (o.ox + this.W / 2) * TILE, (o.oy + this.H) * TILE + 4));
     }
     // o herói renasce na sede
     const g = this.gate;
     s.player.spawnX = g.x;
-    s.player.spawnY = (o.oy + HQ_H - 5) * TILE + 8;
+    s.player.spawnY = (o.oy + this.H - 5) * TILE + 8;
     s.army.assignPosts();
   }
 
@@ -808,19 +954,19 @@ export class HQ extends Phaser.Events.EventEmitter {
     const shut = up && this.gateK < 0.5;
     if (shut === this.gateShut) return;
     this.gateShut = shut;
-    for (let y = HQ_H - 2; y < HQ_H; y++)
-      for (let x = 0; x < HQ_W; x++) if (Math.abs(x + 0.5 - HQ_W / 2) < GATE / 2 + 0.5) this.scene.setSolid(o.ox + x, o.oy + y, shut);
+    for (let y = this.H - 2; y < this.H; y++)
+      for (let x = 0; x < this.W; x++) if (Math.abs(x + 0.5 - this.W / 2) < GATE / 2 + 0.5) this.scene.setSolid(o.ox + x, o.oy + y, shut);
   }
 
   /** Abre quando o herói ou um soldado aliado chega perto; fecha com inimigos na porta. */
   private updateGate(delta: number) {
     if (!this.gateSpr) return;
     const s = this.scene;
-    const gx = (this.st.ox + HQ_W / 2) * TILE;
-    const gy = (this.st.oy + HQ_H - 1) * TILE;
+    const gx = (this.st.ox + this.W / 2) * TILE;
+    const gy = (this.st.oy + this.H - 1) * TILE;
     const near = (x: number, y: number, r: number) => Math.abs(x - gx) < r * TILE && Math.abs(y - gy) < r * TILE;
     // alguém do lado de cá parado no vão: não fecha em cima dele (ficaria preso na parede)
-    const inDoor = (x: number, y: number) => Math.abs(x - gx) < (GATE / 2 + 0.4) * TILE && y > (this.st.oy + HQ_H - 2.4) * TILE && y < (this.st.oy + HQ_H + 0.4) * TILE;
+    const inDoor = (x: number, y: number) => Math.abs(x - gx) < (GATE / 2 + 0.4) * TILE && y > (this.st.oy + this.H - 2.4) * TILE && y < (this.st.oy + this.H + 0.4) * TILE;
     const p = s.player;
     let blocked = inDoor(p.x, p.y);
     for (const a of s.army.allies) if (!blocked && inDoor(a.x, a.y)) blocked = true;
@@ -848,8 +994,8 @@ export class HQ extends Phaser.Events.EventEmitter {
   private clear() {
     const s = this.scene;
     const o = this.st;
-    for (let y = 0; y < HQ_H; y++)
-      for (let x = 0; x < HQ_W; x++) {
+    for (let y = 0; y < this.H; y++)
+      for (let x = 0; x < this.W; x++) {
         if (s.map.cliffs[(o.oy + y) * s.map.width + o.ox + x] >= 0) s.tiles.set('cliffs', o.ox + x, o.oy + y, -1);
         s.setSolid(o.ox + x, o.oy + y, false);
       }
@@ -912,7 +1058,7 @@ export class HQ extends Phaser.Events.EventEmitter {
       s.bands.engaged = band;
       s.army.prepare(() => {
         s.army.garrisonToPosts();
-        s.army.declareWar(n, { name: c.name, color: c.color, clan: c.id }, { origin: { x: band.x, y: band.y }, exact: true, vet, siege: { x: ctr.x, y: (this.st.oy + 11) * TILE } });
+        s.army.declareWar(n, { name: c.name, color: c.color, clan: c.id }, { origin: { x: band.x, y: band.y }, exact: true, vet, siege: { x: ctr.x, y: (this.st.oy + 11 + this.dy) * TILE } });
         s.events.emit('area', 'A SEDE ESTÁ SOB ATAQUE!', `${c.name} chega com ${n} soldados`);
       });
       this.save();
@@ -1077,6 +1223,7 @@ export class HQ extends Phaser.Events.EventEmitter {
       w.s.setFrame(dir * SKIN_COLS + 1 + (Math.floor(w.anim / 75) % 8)).setDepth(DEPTH.entities + w.s.y);
     }
     this.updateGate(delta);
+    this.checkGrow();
     // torres
     const foes = s.army.war ? s.army.soldiers : null;
     for (let k = 0; k < 4; k++) {
@@ -1135,7 +1282,7 @@ export class HQ extends Phaser.Events.EventEmitter {
     if (why) return why;
     this.returnAt = this.scene.time.now;
     // dentro do pátio, na rua de pedras (não no vão do portão, que pode estar fechado)
-    this.scene.teleport(this.gate.x, (this.st.oy + HQ_H - 5) * TILE + 8);
+    this.scene.teleport(this.gate.x, (this.st.oy + this.H - 5) * TILE + 8);
     return '';
   }
 
@@ -1167,6 +1314,7 @@ export class HQ extends Phaser.Events.EventEmitter {
       st.train = { ...fresh().train, ...(d.train ?? {}) };
       st.workers = { ...fresh().workers, ...(d.workers ?? {}) };
       st.stock = { ...fresh().stock, ...(d.stock ?? {}) };
+      st.size = Math.max(0, Math.min(HQ_SIZES.length - 1, Number(d.size) || 0));
       st.chest = Array.isArray(d.chest) ? d.chest.map((c: ItemStack | null) => (c && ITEMS[c.id] ? c : null)) : [];
       delete (st as { savedAt?: number }).savedAt;
       this.st = st;

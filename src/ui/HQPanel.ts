@@ -3,7 +3,7 @@ import { RARITY } from '../data/gear';
 import { ITEMS, type ItemDef } from '../data/items';
 import type { WorldScene } from '../scenes/WorldScene';
 import { HQ_ART } from '../data/hqArt';
-import { BUILD_ORDER, DEFS, HQ, hireCost, MATERIAL_NAME, MATERIALS, TRAIN_MAX, TRAIN_NAME, trainCost, WORK_RATE, type BuildId, type Material, type Train } from '../systems/HQ';
+import { BUILD_ORDER, DEFS, ERA_NAME, HQ, hireCost, MATERIAL_NAME, MATERIALS, TRAIN_MAX, TRAIN_NAME, trainCost, WORK_RATE, type BuildId, type Material, type Train } from '../systems/HQ';
 import { Inventory } from '../systems/Inventory';
 import { Button, COLOR, drawBar, fit, frame, label, sizeFrame, Window } from './kit';
 
@@ -86,6 +86,9 @@ export class HQPanel {
   // baú
   private bagTitle: Txt;
   private chestTitle: Txt;
+  /** Estoque dos coletores no baú: ícone, quantidade e PEGAR por material. */
+  private stockRow: { m: Material; icon: Phaser.GameObjects.Image; n: Txt; btn: Button }[] = [];
+  private stockTitle!: Txt;
   private bagCells: Cell[] = [];
   private chestCells: Cell[] = [];
   private workTitle!: Txt;
@@ -197,6 +200,16 @@ export class HQPanel {
     this.bagTitle = label(scene, 'MOCHILA (toque para guardar)', 9, COLOR.blue);
     this.chestTitle = label(scene, 'BAÚ (toque para pegar)', 9, COLOR.gold);
     w.add(this.bagTitle, this.chestTitle);
+    this.stockTitle = label(scene, 'COLETADO PELOS TRABALHADORES (pegue para a mochila e venda no mercador)', 8, COLOR.green, 1, false);
+    w.add(this.stockTitle);
+    for (const m of MATERIALS) {
+      const [sh, f] = RES_ICON[m];
+      const icon = scene.add.image(0, 0, sh, f);
+      const n = label(scene, '', 9, COLOR.text).setOrigin(0, 0.5);
+      const btn = new Button(scene, { label: 'PEGAR', color: 'green', size: 8, onTap: () => { const msg = world.hq.takeStock(m); this.say(msg, /para a mochila/.test(msg)); } }).addTo(w.root);
+      w.add(icon, n);
+      this.stockRow.push({ m, icon, n, btn });
+    }
     const cell = (list: Cell[], from: 'bag' | 'chest', i: number) => {
       const box = frame(scene, 'frame-inner').setInteractive({ useHandCursor: true });
       box.on('pointerdown', () => this.say(world.hq.move(from, i)));
@@ -290,7 +303,7 @@ export class HQPanel {
     const inv = w.inventory;
     this.win.sub.setText(
       founded
-        ? `perto de ${hq.city.name} · ${hq.gold} ouro (+${hq.incomePerMin}/min) · guarda ${w.army.stationed.length}/${hq.stationCap}${hq.st.raid ? ' · ATAQUE A CAMINHO' : ''}`
+        ? `${ERA_NAME[hq.st.size]} perto de ${hq.city.name} · ${hq.gold} ouro (+${hq.incomePerMin}/min) · guarda ${w.army.stationed.length}/${hq.stationCap}${hq.st.raid ? ' · ATAQUE A CAMINHO' : ''}${hq.nextEraNeeds ? ` · para crescer: ${hq.nextEraNeeds} no nível ${hq.st.size + 2}` : ''}`
         : `${hq.gold} ouro · ainda sem sede`,
     );
     for (const [t, b] of Object.entries(this.tabs) as [Tab, Button][]) b.setVisible(founded).setColor(t === this.tab ? 'blue' : 'dark');
@@ -460,6 +473,16 @@ export class HQPanel {
       const s = hq.st.chest[i];
       this.setIcon(c, s ? ITEMS[s.id] : null, s?.qty ?? 0, cs);
     });
+    this.stockTitle.setVisible(ch);
+    for (const r of this.stockRow) {
+      r.icon.setVisible(ch);
+      r.n.setVisible(ch);
+      r.btn.setVisible(ch);
+      if (!ch) continue;
+      const n = Math.floor(hq.st.stock[r.m] ?? 0);
+      r.n.setText(String(n));
+      r.btn.setColor(n > 0 ? 'green' : 'dark');
+    }
     if (ch) this.chestTitle.setText(size ? `BAÚ ${hq.st.chest.filter(Boolean).length}/${size} (toque para pegar)` : 'BAÚ: construa o Armazém');
   }
 
@@ -534,7 +557,7 @@ export class HQPanel {
     fit(this.guardInfo, 8.5, u).setPosition(gx + 10 * u, top + 84 * u).setWordWrapWidth(gw - 20 * u);
     // baú: mochila à esquerda, baú à direita
     const half = (win.W - pad * 3) / 2;
-    const cs = Math.floor(Math.min(half / 8, (win.H - top - pad - 16 * u) / 6));
+    const cs = Math.floor(Math.min(half / 8, (win.H - top - pad - 16 * u - 44 * u) / 6));
     this.cellSize = cs;
     fit(this.bagTitle, 9, u).setPosition(pad, top);
     fit(this.chestTitle, 9, u).setPosition(pad * 2 + half, top);
@@ -548,6 +571,16 @@ export class HQPanel {
       });
     grid(this.bagCells, pad);
     grid(this.chestCells, pad * 2 + half);
+    // estoque dos coletores embaixo do baú
+    const sy = win.H - pad - 40 * u;
+    fit(this.stockTitle, 8, u).setPosition(pad * 2 + half, sy).setWordWrapWidth(half);
+    const sw = half / MATERIALS.length;
+    this.stockRow.forEach((r, i) => {
+      const x = pad * 2 + half + i * sw;
+      r.icon.setScale((12 * u) / 16).setPosition(x + 8 * u, sy + 22 * u);
+      fit(r.n, 9, u).setPosition(x + 16 * u, sy + 22 * u);
+      r.btn.place(x + sw - 46 * u, sy + 13 * u, u, 42 * u, 18 * u);
+    });
     this.refresh(true);
   }
 }
