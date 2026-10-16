@@ -4,9 +4,11 @@
  * o material específico (a coleta vai servir para erguer a sede do clã). Ícones em items.png (16×16), na ordem de `icon`.
  */
 import { HERO_SHEETS, OUTFITS, type LookId, type OutfitId, type WeaponId } from '../entities/heroSheets';
+import { EGG_ICONS } from './bossArt';
 import { GEAR, RARITY } from './gear';
+import { MOUNT_ART } from './mountsGen';
 
-export type Family = 'wood' | 'stone' | 'ore' | 'crystal' | 'fiber' | 'ice' | 'fruit' | 'weapon' | 'armor';
+export type Family = 'wood' | 'stone' | 'ore' | 'crystal' | 'fiber' | 'ice' | 'fruit' | 'weapon' | 'armor' | 'egg';
 export type Region = 'green' | 'snow' | 'block' | 'black' | 'dust';
 
 export interface ItemDef {
@@ -14,7 +16,7 @@ export interface ItemDef {
   name: string;
   icon: number;
   /** Folha do ícone (padrão: items). */
-  sheet?: 'items' | 'ui-icons' | 'armor-icons';
+  sheet?: 'items' | 'ui-icons' | 'armor-icons' | 'egg-icons';
   /** Equipável: arma ou armadura (sempre completa, corpo inteiro). */
   equip?: { kind: 'weapon'; id: WeaponId; look: LookId } | { kind: 'armor'; id: OutfitId };
   /** Linha de atributos para a mochila. */
@@ -38,7 +40,7 @@ export const REGION_NAME: Record<Region, string> = {
   dust: 'Dustland',
 };
 
-const FAMILY: Record<Exclude<Family, 'weapon' | 'armor'>, { name: string; weight: number; icon: Partial<Record<Region, number>> & { any: number } }> = {
+const FAMILY: Record<Exclude<Family, 'weapon' | 'armor' | 'egg'>, { name: string; weight: number; icon: Partial<Record<Region, number>> & { any: number } }> = {
   wood: { name: 'Madeira', weight: 1, icon: { any: 0, green: 0, snow: 1, black: 2, block: 2, dust: 3 } },
   stone: { name: 'Pedra', weight: 1.5, icon: { any: 4, green: 4, snow: 5, block: 6, black: 6, dust: 9 } },
   ore: { name: 'Minério', weight: 2, icon: { any: 7 } },
@@ -100,3 +102,8 @@ for (const g of Object.values(GEAR)) {
     ITEMS[g.id] = { ...b, id: g.id, name: g.name, icon: own ? own.icon : b.icon, equip: { kind: 'armor', id: (own ? g.id : g.base) as OutfitId }, tier: g.tier, tint: own ? undefined : g.tint, glow: g.glow, info: `${R.name} · defesa ${pct(o.defense + R.guard)}${o.bonus ? ` · ${o.desc}` : ''}` };
   }
 }
+
+// ovos de montaria (caem dos gigantes; chocam no estábulo)
+EGG_ICONS.forEach((m, i) => {
+  ITEMS[`egg_${m}`] = { id: `egg_${m}`, name: `Ovo de ${MOUNT_ART.find((a) => a.id === m)?.name ?? m}`, icon: i, sheet: 'egg-icons', weight: 3, family: 'egg', info: 'choque no estábulo (CHOCAR OVO): vira montaria do seu exército' };
+});

@@ -25,6 +25,7 @@ import { Dialog, type DialogSpec } from '../ui/Dialog';
 import { MapPanel } from '../ui/MapPanel';
 import { Minimap } from '../ui/Minimap';
 import { MountReveal } from '../ui/MountReveal';
+import { BossBar } from '../ui/BossBar';
 import type { WorldScene } from './WorldScene';
 
 type PanelId = 'bag' | 'attrs' | 'army' | 'hq' | 'market' | 'stable' | 'missions' | 'clans' | 'map' | 'debug';
@@ -75,6 +76,7 @@ export class UIScene extends Phaser.Scene {
   /** Selo NOVA no estábulo (montaria ganha e ainda não vista). */
   private stableBadge!: Phaser.GameObjects.Text;
   private reveal!: MountReveal;
+  private bossBar!: BossBar;
   private dialog!: Dialog;
   private clock!: Phaser.GameObjects.Text;
   private areaText!: Phaser.GameObjects.Text;
@@ -219,6 +221,7 @@ export class UIScene extends Phaser.Scene {
     this.stablePanel = new StablePanel(this, world);
     this.clanCreate = new ClanCreate(this, world);
     this.reveal = new MountReveal(this, world);
+    this.bossBar = new BossBar(this, world);
     this.dialog = new Dialog(this);
     world.events.on('dialog', (spec: DialogSpec) => this.dialog.show(spec));
     world.stable.on('change', () => this.updateHud());
@@ -408,6 +411,7 @@ export class UIScene extends Phaser.Scene {
     }
     this.stableBadge.setFontSize(Math.round(9 * u)).setPadding(Math.round(3 * u), Math.round(1 * u), Math.round(3 * u), Math.round(1 * u));
     this.reveal.layout(u);
+    this.bossBar.layout(u, m + barH + 18 * u);
     this.dialog.layout(u);
     this.pointsBadge.setFontSize(Math.round(10 * u)).setPadding(Math.round(3 * u), Math.round(1 * u), Math.round(3 * u), Math.round(1 * u));
     const mw = Math.min(150 * u, width * 0.2);
@@ -517,6 +521,7 @@ export class UIScene extends Phaser.Scene {
     }
     const now = this.time.now;
     this.reveal.update(now);
+    this.bossBar.update();
     this.dialog.update();
     this.clock.setText(`${this.registry.get('clock') ?? ''} · ${this.registry.get('weather') ?? ''}`);
     this.minimap.update(now);

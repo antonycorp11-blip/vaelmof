@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { reachDist } from './Hittable';
 import { shade } from '../systems/MountFx';
 import { PLAYER } from '../config';
 import { BUFFS, WEAPONS, type BuffId, type Effect, type Move, type WeaponDef } from '../data/weapons';
@@ -137,6 +138,13 @@ export class Player extends Creature {
   spawnY: number;
   /** Multiplicador de velocidade (modo voo do debug). */
   speedMul = 1;
+  /** Lentidão (veneno, gelo dos gigantes) até este instante. */
+  private slowedUntil = 0;
+
+  applySlow(ms: number) {
+    this.slowedUntil = Math.max(this.slowedUntil, this.scene.time.now + ms);
+    this.flash(0x9fe8ff, 200);
+  }
   /** Peso da mochila (1 = normal; menor = carregado demais). */
   weightMul = 1;
   /** Debug: não toma dano. */
@@ -541,7 +549,7 @@ export class Player extends Creature {
       const dx = e.fx - this.fx;
       const dy = e.fy - this.fy;
       const d = Math.hypot(dx, dy);
-      if (d > range) continue;
+      if (d - (e.size ?? 0) > range) continue;
       const front = (dx * this.facing.x + dy * this.facing.y) / (d || 1);
       const score = d * (1.4 - front * 0.4);
       if (score < bestScore) {
@@ -695,7 +703,7 @@ export class Player extends Creature {
     }
     // montaria na terra dela (lobo na neve, raptor no deserto…) corre 30% mais
     const terrain = this.mount && this.mount.home === this.scene.biome ? 1.3 : 1;
-    let speed = PLAYER.speed * O.speed * this.speedMul * this.weightMul * this.scene.progress.moveMul * (this.mount ? this.mount.speed * terrain : 1);
+    let speed = (this.scene.time.now < this.slowedUntil ? 0.55 : 1) * PLAYER.speed * O.speed * this.speedMul * this.weightMul * this.scene.progress.moveMul * (this.mount ? this.mount.speed * terrain : 1);
 
     // montado: galope (andando um tempo, acelera), disparada (botão de esquiva) e habilidade da montaria
     const m = this.mount;
@@ -918,7 +926,7 @@ export class Player extends Creature {
     const dmg = Math.max(1, Math.round(M.damage * this.dmgMul));
     for (const e of s.hostiles) {
       if (e.dead) continue;
-      const d = Phaser.Math.Distance.Between(cx, cy, e.fx, e.fy);
+      const d = reachDist(cx, cy, e);
       if (d > M.range + 6) continue;
       const diff = Math.abs(Phaser.Math.Angle.Wrap(Phaser.Math.Angle.Between(cx, cy, e.fx, e.fy) - angle));
       if (diff <= half || d < 10) {
@@ -991,7 +999,7 @@ export class Player extends Creature {
       const dx = e.fx - this.fx;
       const dy = e.fy - this.fy;
       const d = Math.hypot(dx, dy);
-      if (d > range) continue;
+      if (d - (e.size ?? 0) > range) continue;
       const cos = (dx * aim.x + dy * aim.y) / (d || 1);
       if (cos < 0.6) continue;
       const score = d * (2 - cos);
@@ -1008,7 +1016,7 @@ export class Player extends Creature {
     let hit = false;
     for (const e of this.scene.hostiles) {
       if (!e.targetable) continue;
-      if (Phaser.Math.Distance.Between(x, y, e.fx, e.fy) > r) continue;
+      if (reachDist(x, y, e) > r) continue;
       e.takeDamage(Math.max(1, Math.round(dmg)), x, y, kb);
       if (stun) e.stun(stun);
       s0.fx.impact(e.fx, e.fy - 8);
@@ -1152,7 +1160,7 @@ export class Player extends Creature {
     const s = this.scene;
     for (const e of s.hostiles) {
       if (!e.targetable || this.trampled.has(e)) continue;
-      if (Phaser.Math.Distance.Between(this.fx, this.fy, e.fx, e.fy) > 16) continue;
+      if (reachDist(this.fx, this.fy, e) > 16) continue;
       this.trampled.add(e);
       e.takeDamage(Math.max(1, Math.round(this.chargeDmg * this.dmgMul)), this.fx, this.fy, 260);
       if (this.chargeStun) e.stun(this.chargeStun);
@@ -1210,8 +1218,8 @@ export class Player extends Creature {
             if (!e.targetable) continue;
             const dx = e.fx - mx;
             const dy = e.fy - 6 - my;
-            const d = Math.hypot(dx, dy);
-            if (d > range || Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - ang)) > 0.5) continue;
+            const d = Math.hypot(dx, dy) - (e.size ?? 0);
+            if (d > range || Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - ang)) > 0.5 + (e.size ? 0.4 : 0)) continue;
             e.takeDamage(Math.max(1, Math.round((0.45 + 0.25 * p) * mul)), mx, my, 40);
             s.fx.ember(e.fx, e.fy - 10);
           }
@@ -1224,7 +1232,7 @@ export class Player extends Creature {
         const stun = 2200 * p;
         s.time.delayedCall(90, () => {
           for (const e of s.hostiles) {
-            if (!e.targetable || Phaser.Math.Distance.Between(x, y, e.fx, e.fy) > r) continue;
+            if (!e.targetable || reachDist(x, y, e) > r) continue;
             e.takeDamage(Math.max(1, Math.round(2 * p * mul)), x, y, 60);
             e.stun(stun);
             F.freeze(e, stun);

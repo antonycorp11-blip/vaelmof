@@ -234,6 +234,17 @@ export class MapPanel {
       g.fillStyle(0xb070ff, 1).fillCircle(x, y, r);
       g.fillStyle(0xffd77a, 1).fillRect(x - r, y - r - 2 * u, 2 * r, 2 * u);
     });
+    // gigante acordado
+    const gs = w.giants?.st;
+    if (gs) {
+      const [x, y] = at(gs.x, gs.y);
+      const r = 7 * u;
+      g.fillStyle(0x0b0d14, 1).fillCircle(x, y, r + u);
+      g.fillStyle(0xff7a2a, 1).fillCircle(x, y, r);
+      g.fillStyle(0xfff0c0, 1).fillTriangle(x - r, y - r * 0.4, x - r * 0.4, y - r * 0.7, x - r * 1.1, y - r * 1.6);
+      g.fillStyle(0xfff0c0, 1).fillTriangle(x + r, y - r * 0.4, x + r * 0.4, y - r * 0.7, x + r * 1.1, y - r * 1.6);
+      g.fillStyle(0x1a0a0a, 1).fillRect(x - r * 0.5, y - u, 2 * u, 2 * u).fillRect(x + r * 0.5 - 2 * u, y - u, 2 * u, 2 * u);
+    }
     if (w.hq.founded) {
       const c = w.hq.center;
       const [x, y] = at(c.x, c.y);

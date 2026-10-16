@@ -33,6 +33,7 @@ export class StablePanel {
   private knight: Button;
   private recallBtn: Button;
   private breedBtn: Button;
+  private hatchBtn: Button;
   private raceBtn: Button;
   private status: Txt;
   private u = 1;
@@ -70,6 +71,7 @@ export class StablePanel {
       if (why) this.say(why);
       else this.setOpen(false);
     } }).addTo(w.root);
+    this.hatchBtn = new Button(scene, { label: 'CHOCAR OVO', color: 'gold', size: 9, onTap: () => this.say(world.stable.hatch()) }).addTo(w.root);
     this.breedBtn = new Button(scene, { label: 'PROCRIAR', icon: 14, color: 'gold', size: 9, onTap: () => this.say(world.stable.breed(this.sel.id)) }).addTo(w.root);
     w.add(this.info, this.status);
     world.stable.on('change', () => this.refresh());
@@ -149,12 +151,14 @@ export class StablePanel {
     const gear = this.world.army.knightGear();
     const kInfo = has ? (knights.length ? `Cavaleiros: ${knights.join(', ')}` : `Cavaleiro precisa de: montaria livre + arma e armadura sobrando na mochila${gear ? ' (você tem)' : ' (falta)'}`) : '';
     const herd = has ? `Rebanho: ${n}${st.active === m.id ? ' · 1 é a sua' : ''}${riders ? ` · ${riders} com cavaleiro${riders > 1 ? 's' : ''}` : ''} · ${Math.max(0, st.free(m.id))} livre${st.free(m.id) === 1 ? '' : 's'}` : '';
-    const cubs = st.breeding.filter((b) => b.id === m.id).map((b) => `filhote em ${Math.max(0, Math.ceil((b.readyAt - Date.now()) / 60000))} min`);
+    const cubs = st.breeding.filter((b) => b.id === m.id).map((b) => `${b.egg ? 'ovo choca' : 'filhote'} em ${Math.max(0, Math.ceil((b.readyAt - Date.now()) / 60000))} min`);
     const breed = has ? `Procriar: ${HQ.costText(Stable.breedCost(m))} · ${Stable.breedMinutes(m)} min · baias ${st.breeding.length}/${st.breedSlots}${cubs.length ? ` · ${cubs.join(', ')}` : ''}` : '';
     this.info.setText([`${m.name}${has ? '  (sua)' : ''} · velocidade ×${m.speed.toFixed(2).replace('.', ',')}${bonus ? ` · ${bonus}` : ''}`, `${m.desc} ${how}.`, herd, kInfo, breed].filter(Boolean).join('\n'));
     this.knight.setVisible(has).setColor(st.free(m.id) > 0 && gear ? 'blue' : 'dark');
     this.recallBtn.setVisible(has && riders > 0);
     this.breedBtn.setVisible(has).setColor(st.breedBlock(m.id) ? 'dark' : 'gold');
+    const eggs = st.eggs().length;
+    this.hatchBtn.setVisible(eggs > 0).setLabel(`CHOCAR OVO (${eggs})`).setColor(st.breeding.length < st.breedSlots ? 'gold' : 'dark');
     const city = this.world.market.cityHere();
     const best = city ? this.world.races.best[city.name] : undefined;
     this.raceBtn.setVisible(!!city).setColor(this.world.races.startBlock(city) ? 'dark' : 'green').setLabel(best ? `CORRIDA (${best} s)` : 'CORRIDA');
@@ -191,6 +195,7 @@ export class StablePanel {
     this.recallBtn.place(bx + 136 * u, by + 28 * u, u, 74 * u, 24 * u);
     this.breedBtn.place(bx + 214 * u, by + 28 * u, u, 86 * u, 24 * u);
     this.raceBtn.place(pad, win.H - pad - 24 * u, u, 140 * u, 22 * u);
+    this.hatchBtn.place(pad + 146 * u, win.H - pad - 24 * u, u, 150 * u, 22 * u);
     fit(this.status, 9, u).setPosition(bx, by + 58 * u).setWordWrapWidth(300 * u);
     this.refresh(true);
   }

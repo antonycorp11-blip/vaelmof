@@ -47,6 +47,7 @@ import { Races } from '../systems/Races';
 import { Streamer } from '../systems/Streamer';
 import { TileWindow } from '../systems/TileWindow';
 import { Tyrants } from '../systems/Tyrants';
+import { WorldBosses } from '../systems/WorldBosses';
 import { WeatherSystem } from '../systems/WeatherSystem';
 
 export interface Light {
@@ -93,6 +94,7 @@ export class WorldScene extends Phaser.Scene {
   diplomacy!: Diplomacy;
   /** Um chefe único por bioma. */
   tyrants!: Tyrants;
+  giants!: WorldBosses;
   /** Corridas de montaria em volta das cidades. */
   races!: Races;
   /** Bandos dos clãs rivais andando pelo mapa. */
@@ -181,6 +183,7 @@ export class WorldScene extends Phaser.Scene {
     this.forts = new Forts(this);
     this.diplomacy = new Diplomacy(this);
     this.tyrants = new Tyrants(this);
+    this.giants = new WorldBosses(this);
     this.races = new Races(this);
     // um save estranho nunca pode impedir o jogo de abrir: na dúvida, desmonta
     try {
@@ -443,6 +446,9 @@ export class WorldScene extends Phaser.Scene {
     const rt = this.races?.target;
     if (rt) out.unshift({ x: rt.x, y: rt.y, name: rt.name, color: 0xffd34a });
     // forte do herói com ataque marcado
+    // gigante acordado
+    const gs = this.giants?.st;
+    if (gs) out.push({ x: gs.x, y: gs.y, name: this.giants.label, color: 0xff7a2a });
     const r = this.forts?.retake;
     if (r) {
       const f = this.forts.forts.find((x) => this.forts.key(x) === r.fort);
@@ -681,6 +687,8 @@ export class WorldScene extends Phaser.Scene {
     for (const s of this.army.soldiers) if (s.team === 1 && !s.dead) H.push(s);
     // cerco: portão, torres e Salão do forte rival também são alvos do herói
     for (const t of this.forts.hostileStructures()) H.push(t);
+    // gigante acordado por perto
+    for (const g of this.giants.targets) H.push(g);
     // duelo: só o duelista é alvo
     if (this.army.duel) {
       H.length = 0;
@@ -706,6 +714,7 @@ export class WorldScene extends Phaser.Scene {
     this.forts.update(time, dt);
     this.diplomacy.update(time);
     this.tyrants.update(time);
+    this.giants.update(time, dt);
     this.races.update(time);
     this.market.update(dt);
     const pl = this.player;

@@ -4,7 +4,7 @@ import { ITEMS } from '../data/items';
 import { MOUNTS, type MountDef } from '../data/mounts';
 import { SKIN_CELL, SKIN_COLS, SKIN_FOOT, SKINS } from '../data/skins';
 import { DEPTH } from '../entities/Creature';
-import type { Hittable } from '../entities/Hittable';
+import { reachDist, type Hittable } from '../entities/Hittable';
 import { HERO } from '../entities/heroSheet';
 import type { WorldScene } from '../scenes/WorldScene';
 import type { City } from './Cities';
@@ -1270,9 +1270,7 @@ export class Army extends Phaser.Events.EventEmitter {
     let bd = range * range;
     const consider = (t: Hittable) => {
       if (!t.targetable) return;
-      const dx = t.fx - s.x;
-      const dy = t.fy - s.y;
-      const d = dx * dx + dy * dy;
+      const d = t.size ? reachDist(s.x, s.y, t) ** 2 : (t.fx - s.x) ** 2 + (t.fy - s.y) ** 2;
       if (d < bd) {
         bd = d;
         best = t;
@@ -1301,7 +1299,11 @@ export class Army extends Phaser.Events.EventEmitter {
     }
     // o exército do herói também enfrenta as criaturas do mapa — menos em guerra,
     // quando só um bicho colado nele tira o foco do exército inimigo
-    else if (!this.war) for (const e of this.scene.enemies) consider(e);
+    else if (!this.war) {
+      for (const e of this.scene.enemies) consider(e);
+      // o gigante acordado é o alvo de todos que estiverem por perto
+      for (const g of this.scene.giants?.targets ?? []) consider(g);
+    }
     else {
       // cerco: portão, torres e Salão do forte rival também são alvos
       for (const t of this.siegeTargets()) consider(t);
@@ -1422,7 +1424,7 @@ export class Army extends Phaser.Events.EventEmitter {
       } else if (s.target) {
         const dx = s.target.fx - s.x;
         const dy = s.target.fy - s.y;
-        const d = Math.hypot(dx, dy);
+        const d = Math.hypot(dx, dy) - (s.target.size ?? 0);
         if (d > D.range * 0.85) {
           gx = s.target.fx;
           gy = s.target.fy;
@@ -1591,7 +1593,7 @@ export class Army extends Phaser.Events.EventEmitter {
     const D = SOLDIERS[s.type];
     const dmg = D.damage * s.mul;
     if (!D.ranged) {
-      if (Math.hypot(t.fx - s.x, t.fy - s.y) <= D.range + 8) this.hit(t, dmg, s);
+      if (reachDist(s.x, s.y, t) <= D.range + 8) this.hit(t, dmg, s);
       return;
     }
     // flecha / raio: voa até o ponto onde o alvo estava
@@ -1627,7 +1629,7 @@ export class Army extends Phaser.Events.EventEmitter {
         this.scene.fx.burst(sh.tx, sh.ty, sh.team === 0 ? 0x9fd0ff : 0xff9a9a, 6);
         for (const o of this.soldiers) if (o.team !== sh.team && o.targetable && Math.hypot(o.x - sh.tx, o.y - sh.ty - 6) < sh.aoe) this.damageFrom(o, sh.damage, sh);
         if (sh.team === 1 && Math.hypot(this.heroT.fx - sh.tx, this.heroT.fy - sh.ty - 6) < sh.aoe) this.heroT.takeDamage(sh.damage, sh.sx, sh.sy);
-      } else if (sh.target.targetable && Math.hypot(sh.target.fx - sh.tx, sh.target.fy - sh.ty - 6) < 16) this.damageFrom(sh.target, sh.damage, sh);
+      } else if (sh.target.targetable && reachDist(sh.tx, sh.ty + 6, sh.target) < 16) this.damageFrom(sh.target, sh.damage, sh);
       sh.img.setVisible(false);
       this.shotPool.push(sh.img);
       this.shots.splice(i, 1);

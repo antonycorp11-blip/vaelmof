@@ -526,6 +526,38 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - **Viagem rápida:** no mapa, toque na sua sede, num forte seu ou numa cidade
   do seu território (30 de ouro, 60 s de espera, fora de guerra).
 
+### Gigantes — chefes de mundo (`src/systems/WorldBosses.ts`, `scripts/boss-art.mjs`)
+- **Cinco criaturas enormes** (~4× a altura do herói), esculpidas por código
+  com o mesmo motor das montarias (`scripts/sdf.mjs`): **Ormund, o Colosso de
+  Pedra** (cristais nas costas e núcleo aceso no peito), **Thalassa, a Hidra
+  das Marés** (três cabeças), **Vermithrax, o Dragão Ancestral** (asas,
+  brasas no couro, peito que acende antes do fogo), **Sarkath, o
+  Escorpião-Rei** (cauda em gomos, pinças que abrem) e **Yrrsa, a Mãe do
+  Gelo** (mamute com presas e gelo no lombo). Cada um tem 16 quadros: andar,
+  ataque (preparo → golpe) e especial; o jogo os espelha para a esquerda.
+- **Despertam sozinhos** a cada 20–35 min (relógio dos clãs) num lugar aberto
+  a 45–110 tiles do herói, no bioma deles: anúncio, marca laranja com chifres
+  no minimapa e no mapa e a seta de objetivo. Ficam 25 min acordados (se
+  ninguém estiver lutando, voltam a dormir); longe da luta, curam devagar.
+- **Muita vida** (7.000 + 1.200 por patente, × a espécie) e **três fases**:
+  a 66% ganham um especial novo, a 33% ficam FURIOSOS (mais rápidos e
+  fortes, tom avermelhado). Barra de vida grande no alto da tela com as
+  marcas das fases.
+- **Ataques que avisam no chão** (marca vermelha que se enche): pancada com os
+  dois punhos e chuva de rochas / estrela de cristais (Colosso); bote das três
+  cabeças e cusparada de veneno que deixa poças (Hidra); garras, sopro de fogo
+  em leque e chuva de meteoros (Dragão); pinça, ferroada em linha que deixa
+  lento e explosões de areia (Escorpião); pisão, rugido gelado em volta e
+  chuva de gelo (Mamute). O dano no herói é proporcional à vida dele; o
+  exército também sofre — e ataca o gigante sozinho.
+- **Alvos grandes:** golpes, flechas, magias e o exército acertam a borda do
+  corpo (não só os pés).
+- **Recompensa:** ovo de montaria da espécie do gigante (dois na primeira vez,
+  35% de chance de um segundo depois), uma peça rara, 600+ de ouro e muita
+  Glória. **Ovos** vão para a mochila (vendem a 400) e **chocam no estábulo**
+  (CHOCAR OVO, numa baia, metade do tempo de procriar, sem custo): nasce uma
+  espécie nova para você ou mais uma cópia para a cavalaria.
+
 ### Patentes e Glória (`src/systems/Ranks.ts`, `src/systems/Progress.ts`)
 - Teren **não tem nível**: tem **patente**. Sobe quando **todos os 4
   atributos** chegam ao mínimo e, em algumas, depois de **vencer um campeão**

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { ITEMS } from '../data/items';
 import { MOUNTS, type MountDef } from '../data/mounts';
 import type { WorldScene } from '../scenes/WorldScene';
 import type { Cost } from './HQ';
@@ -19,7 +20,7 @@ export class Stable extends Phaser.Events.EventEmitter {
   /** Rebanho: cópias além da primeira de cada espécie (nascidas da procriação). */
   extra: Record<string, number> = {};
   /** Filhotes a caminho (hora real em que nascem: continua com o jogo fechado). */
-  breeding: { id: string; readyAt: number }[] = [];
+  breeding: { id: string; readyAt: number; egg?: boolean }[] = [];
 
   constructor(private scene: WorldScene) {
     super();
@@ -130,6 +131,33 @@ export class Stable extends Phaser.Events.EventEmitter {
     return `Cruzamento começou: um filhote de ${m.name} em ${Stable.breedMinutes(m)} min`;
   }
 
+  /** Ovos de montaria na mochila (id do item). */
+  eggs(): string[] {
+    const out: string[] = [];
+    for (const sl of this.scene.inventory.slots) if (sl && ITEMS[sl.id]?.family === 'egg') for (let i = 0; i < sl.qty; i++) out.push(sl.id);
+    return out;
+  }
+
+  /**
+   * Choca um ovo dos gigantes numa baia (metade do tempo de procriar, sem
+   * custo): nasce uma montaria — nova espécie para você, ou mais uma cópia
+   * para a cavalaria.
+   */
+  hatch(): string {
+    const egg = this.eggs()[0];
+    if (!egg) return 'Nenhum ovo na mochila (os gigantes deixam cair)';
+    if (this.breeding.length >= this.breedSlots) return `Baias cheias (${this.breedSlots}); espere um filhote nascer`;
+    const id = egg.slice(4);
+    const m = MOUNTS[id];
+    if (!m) return 'Ovo estranho';
+    this.scene.inventory.remove(egg, 1);
+    const min = Math.max(2, Math.round(Stable.breedMinutes(m) / 2));
+    this.breeding.push({ id, readyAt: Date.now() + min * 60000, egg: true });
+    this.save();
+    this.emit('change');
+    return `O ovo de ${m.name} está chocando: nasce em ${min} min`;
+  }
+
   private checkAt = 0;
   /** Filhotes prontos viram montarias do rebanho. */
   update(time: number) {
@@ -140,6 +168,11 @@ export class Stable extends Phaser.Events.EventEmitter {
     if (!born.length) return;
     this.breeding = this.breeding.filter((b) => b.readyAt > now);
     for (const b of born) {
+      // ovo de uma espécie que você não tinha: ganha a espécie (com o cartão)
+      if (!this.owned.has(b.id)) {
+        this.give(b.id);
+        continue;
+      }
       this.extra[b.id] = (this.extra[b.id] ?? 0) + 1;
       this.unseen.add(b.id);
       this.emit('born', b.id);
@@ -186,7 +219,7 @@ export class Stable extends Phaser.Events.EventEmitter {
       this.riding = !!d.riding && !!this.active;
       this.unseen = new Set((d.unseen ?? []).filter((id: string) => this.owned.has(id)));
       if (d.extra && typeof d.extra === 'object') for (const [k, v] of Object.entries(d.extra)) if (MOUNTS[k] && typeof v === 'number' && v > 0) this.extra[k] = Math.floor(v);
-      if (Array.isArray(d.breeding)) this.breeding = d.breeding.filter((b: { id: string; readyAt: number }) => MOUNTS[b?.id] && Number.isFinite(b.readyAt));
+      if (Array.isArray(d.breeding)) this.breeding = d.breeding.filter((b: { id: string; readyAt: number; egg?: boolean }) => MOUNTS[b?.id] && Number.isFinite(b.readyAt));
     } catch {
       /* sem save */
     }

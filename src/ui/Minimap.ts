@@ -158,6 +158,20 @@ export class Minimap {
       g.fillStyle(0xb070ff, 1).fillCircle(pt[0], pt[1], r);
       g.fillStyle(0xffd77a, 1).fillRect(pt[0] - r, pt[1] - r - 1.5 * u, 2 * r, 1.5 * u);
     });
+    // gigante acordado: marca laranja com chifres (pisca)
+    const gs = w.giants?.st;
+    if (gs) {
+      const pt = this.toScreen(gs.x, gs.y);
+      if (pt) {
+        const r = 4.5 * u;
+        const on = Math.floor(w.time.now / 400) % 2 === 0;
+        g.fillStyle(0x0b0d14, 1).fillCircle(pt[0], pt[1], r + u);
+        g.fillStyle(on ? 0xff7a2a : 0xd04a1a, 1).fillCircle(pt[0], pt[1], r);
+        g.fillStyle(0xfff0c0, 1).fillTriangle(pt[0] - r, pt[1] - r * 0.4, pt[0] - r * 0.4, pt[1] - r * 0.7, pt[0] - r * 1.1, pt[1] - r * 1.5);
+        g.fillStyle(0xfff0c0, 1).fillTriangle(pt[0] + r, pt[1] - r * 0.4, pt[0] + r * 0.4, pt[1] - r * 0.7, pt[0] + r * 1.1, pt[1] - r * 1.5);
+        g.fillStyle(0x1a0a0a, 1).fillRect(pt[0] - r * 0.5, pt[1] - u * 0.5, u * 1.5, u * 1.5).fillRect(pt[0] + r * 0.5 - u * 1.5, pt[1] - u * 0.5, u * 1.5, u * 1.5);
+      }
+    }
     // spots de up
     for (const sp of w.spots.spots) {
       const pt = this.toScreen(sp.x, sp.y);

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { reachDist } from './Hittable';
 import type { WorldScene } from '../scenes/WorldScene';
 import { DEPTH } from './Creature';
 
@@ -59,7 +60,7 @@ export class Projectile extends Phaser.GameObjects.Sprite {
     if (this.def.texture === 'bolt' && Math.random() < 0.4) this.scene.fx.burst(this.x, this.y, this.def.color, 1);
     for (const e of this.scene.hostiles) {
       if (e.dead || this.hitSet.has(e)) continue;
-      if (Phaser.Math.Distance.Between(this.x, this.y + 6, e.fx, e.fy) < 11) {
+      if (reachDist(this.x, this.y + 6, e) < 11) {
         this.hitSet.add(e);
         e.takeDamage(Math.max(1, Math.round(this.def.damage * this.mul)), this.x - this.vx * 0.05, this.y - this.vy * 0.05, this.def.knockback);
         if (this.def.slow) e.slow(this.def.slow.ms);

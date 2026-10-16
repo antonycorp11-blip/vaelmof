@@ -7,7 +7,7 @@ import type { SoldierType } from './Army';
 import type { City } from './Cities';
 
 /** Preço base por unidade de material. */
-const BASE: Record<string, number> = { wood: 1, stone: 1, fiber: 1, fruit: 1, ice: 2, ore: 4, crystal: 8 };
+const BASE: Record<string, number> = { wood: 1, stone: 1, fiber: 1, fruit: 1, ice: 2, ore: 4, crystal: 8, egg: 400 };
 /** Peças: base (comum) e por raridade. */
 const GEAR_PRICE = [15, 80, 250, 700, 2000];
 /** Caixa de cada mercador (ouro que ele pode pagar) e quanto renova por minuto. */

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { reachDist } from './Hittable';
 import { PLAYER } from '../config';
 import type { WorldScene } from '../scenes/WorldScene';
 import { DEPTH } from './Creature';
@@ -41,7 +42,7 @@ export class Flame extends Phaser.GameObjects.Sprite {
     this.traveled += Math.hypot(this.vx, this.vy) * dt;
     this.light.setPosition(this.x, this.y).setAlpha(0.35 + this.scene.dayNight.lightLevel * 0.5);
     if (Math.random() < 0.5) this.scene.fx.ember(this.x, this.y);
-    const hitEnemy = this.scene.hostiles.some((e) => !e.dead && Phaser.Math.Distance.Between(this.x, this.y + 4, e.fx, e.fy) < 10);
+    const hitEnemy = this.scene.hostiles.some((e) => !e.dead && reachDist(this.x, this.y + 4, e) < 10);
     if (hitEnemy || this.traveled >= PLAYER.flame.range || this.scene.blocksProjectile(this.x, this.y + 4)) this.explode();
   }
 
@@ -50,7 +51,7 @@ export class Flame extends Phaser.GameObjects.Sprite {
     const R = PLAYER.flame.radius;
     for (const e of s.hostiles) {
       if (e.dead) continue;
-      if (Phaser.Math.Distance.Between(this.x, this.y + 4, e.fx, e.fy) <= R) e.takeDamage(Math.max(1, Math.round(PLAYER.flame.damage * this.mul)), this.x, this.y, 190);
+      if (reachDist(this.x, this.y + 4, e) <= R) e.takeDamage(Math.max(1, Math.round(PLAYER.flame.damage * this.mul)), this.x, this.y, 190);
     }
     const boom = s.add.sprite(this.x, this.y, 'explosion', 0).setDepth(DEPTH.fx);
     boom.play('explosion');

@@ -30,6 +30,7 @@ export class BootScene extends Phaser.Scene {
     sheet('arrow', 'arrow.png');
     sheet('bolt', 'bolt.png');
     sheet('items', 'items.png');
+    sheet('egg-icons', 'egg-icons.png');
     sheet('wraith', 'wraith.png', WRAITH_SHEET.frameW, WRAITH_SHEET.frameH);
     sheet('bandit', 'bandit.png', 48, 48);
     // criaturas dos biomas

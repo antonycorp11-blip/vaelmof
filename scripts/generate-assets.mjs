@@ -18,6 +18,7 @@ import { drawMounts } from './mount-art.mjs';
 import { drawWorkers } from './worker-art.mjs';
 import { drawHQ } from './hq-art.mjs';
 import { drawFx } from './fx-art.mjs';
+import { BOSS_FRAME, drawBosses, drawEggIcons } from './boss-art.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'public');
@@ -2515,6 +2516,15 @@ writeFileSync(
   writeFileSync(
     new URL('../src/data/mountsGen.ts', import.meta.url),
     `// Gerado por scripts/mount-art.mjs — não editar à mão.\n/** Montarias na ordem da folha mounts.png (linha = índice), com a altura da sela (px). */\nexport const MOUNT_ART = ${JSON.stringify(mounts)} as const;\n`,
+  );
+}
+
+{
+  const bosses = drawBosses({ Img, save });
+  const eggs = drawEggIcons({ Img, save });
+  writeFileSync(
+    new URL('../src/data/bossArt.ts', import.meta.url),
+    `// Gerado por scripts/boss-art.mjs — não editar à mão.\n/** Chefes de mundo gigantes (um atlas por chefe) e o quadro da arte. */\nexport const BOSS_ART = ${JSON.stringify(bosses)} as const;\nexport const BOSS_FRAME = ${JSON.stringify(BOSS_FRAME)} as const;\n/** Ovos de montaria na ordem de egg-icons.png. */\nexport const EGG_ICONS = ${JSON.stringify(eggs)} as const;\n`,
   );
 }
 
