@@ -11,3 +11,8 @@
   Content-Type: application/manifest+json
 /assets/hero/*
   Cache-Control: no-cache
+
+# ATHG: só a plataforma (e o próprio jogo / dev local) pode exibir o jogo em iframe.
+/*
+  Content-Security-Policy: frame-ancestors 'self' https://athg.antonycorp11.workers.dev http://localhost:*
+  X-Content-Type-Options: nosniff

@@ -15,3 +15,10 @@
   for = "/manifest.json"
   [headers.values]
     Content-Type = "application/manifest+json"
+
+# ATHG: só a plataforma (e o próprio jogo / dev local) pode exibir o jogo em iframe
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors 'self' https://athg.antonycorp11.workers.dev http://localhost:*"
+    X-Content-Type-Options = "nosniff"
