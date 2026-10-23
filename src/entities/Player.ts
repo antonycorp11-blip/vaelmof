@@ -977,7 +977,7 @@ export class Player extends Creature {
         this.areaHit(cx, cy, E.radius, E.damage * mul, E.knockback, E.stun);
         this.ring(cx, cy, E.radius, E.color, E.style === 'quake' ? 320 : 420);
         if (E.style === 'quake') {
-          s.cameras.main.shake(140, 0.003);
+          s.shake(140, 0.003);
           for (let k = 0; k < 10; k++) {
             const a = (k / 10) * Math.PI * 2;
             s.fx.burst(cx + Math.cos(a) * E.radius * 0.6, cy + Math.sin(a) * E.radius * 0.45, E.color, 2);

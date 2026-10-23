@@ -131,8 +131,15 @@ export class Minimap {
       const pt = this.toScreen(c.cx * TILE, c.cy * TILE);
       if (!pt) continue;
       const r = (c.capital ? 4 : 3) * u;
+      const owner = w.forts.ownerOf(c);
+      const col = owner === 'player' ? w.clans.player.color : owner ? (w.clans.byId(owner)?.color ?? 0xf3ead2) : (c.capital ? 0xffd77a : 0xf3ead2);
+      if (owner) {
+        g.fillStyle(col, owner === 'player' ? 0.34 : 0.2).fillCircle(pt[0], pt[1], r + 5 * u);
+        g.lineStyle(Math.max(1, u), col, 0.8).strokeCircle(pt[0], pt[1], r + 4 * u);
+      }
       g.fillStyle(0x0b0d14, 1).fillRect(pt[0] - r - u, pt[1] - r - u, r * 2 + 2 * u, r * 2 + 2 * u);
-      g.fillStyle(c.capital ? 0xffd77a : 0xf3ead2, 1).fillRect(pt[0] - r, pt[1] - r, r * 2, r * 2);
+      g.fillStyle(col, 1).fillRect(pt[0] - r, pt[1] - r, r * 2, r * 2);
+      if (owner === 'player') g.fillStyle(0xffd77a, 1).fillRect(pt[0] - u, pt[1] - u, 2 * u, 2 * u);
     }
     // fortes: torre com a cor do dono (o seu com miolo dourado)
     for (const f of w.forts.forts) {

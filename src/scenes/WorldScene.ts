@@ -49,6 +49,11 @@ import { TileWindow } from '../systems/TileWindow';
 import { Tyrants } from '../systems/Tyrants';
 import { WorldBosses } from '../systems/WorldBosses';
 import { WeatherSystem } from '../systems/WeatherSystem';
+import { AudioSystem } from '../systems/AudioSystem';
+import { Territories } from '../systems/Territories';
+import { Prologue } from '../systems/Prologue';
+import { identityOf } from '../systems/Cities';
+import { saves } from '../systems/SaveManager';
 
 export interface Light {
   img: Phaser.GameObjects.Image;
@@ -95,6 +100,10 @@ export class WorldScene extends Phaser.Scene {
   /** Um chefe único por bioma. */
   tyrants!: Tyrants;
   giants!: WorldBosses;
+  territories!: Territories;
+  prologue!: Prologue;
+  /** Áudio e preferências carregados antes dos sistemas visuais. */
+  audio = new AudioSystem();
   /** Corridas de montaria em volta das cidades. */
   races!: Races;
   /** Bandos dos clãs rivais andando pelo mapa. */
@@ -163,7 +172,7 @@ export class WorldScene extends Phaser.Scene {
     // jogador
     this.player = new Player(this, map.start.x, map.start.y);
 
-    for (let i = 0; i < BIRD_COUNT; i++) new Bird(this, W, H);
+    for (let i = 0; i < (this.audio.settings.quality === 'high' ? BIRD_COUNT : 6); i++) new Bird(this, W, H);
 
     this.collision.add(this.player.body);
     // criaturas, casas, tochas e luzes nascem por região, perto da câmera
@@ -181,10 +190,16 @@ export class WorldScene extends Phaser.Scene {
     this.market.placeMerchants();
     this.stable = new Stable(this);
     this.forts = new Forts(this);
+    this.territories = new Territories(this);
     this.diplomacy = new Diplomacy(this);
     this.tyrants = new Tyrants(this);
     this.giants = new WorldBosses(this);
     this.races = new Races(this);
+    this.prologue = new Prologue(this);
+    this.input.once('pointerdown', () => this.audio.unlock());
+    this.input.keyboard?.once('keydown', () => this.audio.unlock());
+    this.events.on('fort-captured', () => saves.achievement('first-territory'));
+    this.events.on('giant-killed', () => saves.achievement('giant-slayer'));
     // um save estranho nunca pode impedir o jogo de abrir: na dúvida, desmonta
     try {
       if (this.stable.riding && this.stable.mount) this.player.setMount(this.stable.mount);
@@ -449,6 +464,8 @@ export class WorldScene extends Phaser.Scene {
     // gigante acordado
     const gs = this.giants?.st;
     if (gs) out.push({ x: gs.x, y: gs.y, name: this.giants.label, color: 0xff7a2a });
+    const prologue = this.prologue?.objective;
+    if (prologue) out.unshift(prologue);
     const r = this.forts?.retake;
     if (r) {
       const f = this.forts.forts.find((x) => this.forts.key(x) === r.fort);
@@ -632,6 +649,7 @@ export class WorldScene extends Phaser.Scene {
         burst.explode(count, x, y);
       },
       impact: (x, y) => {
+        this.audio.sfx('hit');
         const st = take(stars, () => this.add.image(0, 0, 'impact-star').setDepth(DEPTH.fx + 1).setVisible(false));
         const fl = take(flashes, () => this.add.image(0, 0, 'glow').setBlendMode(Phaser.BlendModes.ADD).setDepth(DEPTH.fx).setVisible(false));
         this.tweens.killTweensOf([st, fl]);
@@ -652,6 +670,11 @@ export class WorldScene extends Phaser.Scene {
     if (w.isPaused) return;
     w.pause();
     this.time.delayedCall(ms, () => w.resume());
+  }
+
+  /** Tremor centralizado para respeitar a opção de movimento reduzido. */
+  shake(duration: number, intensity: number) {
+    if (!this.audio.settings.reducedMotion) this.cameras.main.shake(duration, intensity);
   }
 
   // ------------------------------------------------------------------ câmera
@@ -715,6 +738,8 @@ export class WorldScene extends Phaser.Scene {
     this.diplomacy.update(time);
     this.tyrants.update(time);
     this.giants.update(time, dt);
+    this.prologue.update();
+    this.territories.update(time);
     this.races.update(time);
     this.market.update(dt);
     const pl = this.player;
@@ -750,6 +775,7 @@ export class WorldScene extends Phaser.Scene {
     this.updateBiome(dt);
     this.weather.update(time, dt, view);
     this.biomeFx.update(view, this.biomeW);
+    this.audio.update(time, this.biome);
     // luz ambiente = dia/noite × clima, aplicada com MULTIPLY. A margem cobre o
     // movimento da câmera, que só atualiza worldView depois deste update.
     const M = 64;
@@ -1002,7 +1028,9 @@ export class WorldScene extends Phaser.Scene {
       const ty = p.y / TILE;
       if (tx >= c.x0 - 2 && tx <= c.x1 + 2 && ty >= c.y0 - 2 && ty <= c.y1 + 2) {
         name = c.name;
-        sub = `${c.capital ? 'Capital' : 'Cidade'} de ${BIOMES[c.biome].name}`;
+        const id = c.identity ?? identityOf(c);
+        const mine = this.forts.ownerOf(c) === 'player';
+        sub = `${id.epithet} · ${id.specialty} · ${mine ? 'SEU TERRITÓRIO' : `domínio de ${this.territories.ownerName(c)}`}`;
       }
     }
     if (name !== this.area) {

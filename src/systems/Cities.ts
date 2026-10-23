@@ -41,6 +41,41 @@ export interface City {
   y0: number;
   x1: number;
   y1: number;
+  /** Identidade urbana: muda ruas, praça e a apresentação da cidade. */
+  identity: CityIdentity;
+}
+
+export type CityLayout = 'royal' | 'grove' | 'bridge' | 'terraces' | 'ring' | 'harbor' | 'forge' | 'citadel' | 'ruins' | 'spire' | 'crypt' | 'bazaar' | 'oasis' | 'sun';
+
+export interface CityIdentity {
+  layout: CityLayout;
+  epithet: string;
+  specialty: string;
+  /** Distância entre ruas secundárias; cada cidade deixa de usar a mesma grade. */
+  streetX: number;
+  streetY: number;
+}
+
+/** A identidade também aparece ao entrar na cidade e no mapa. */
+export const CITY_IDENTITIES: Record<string, CityIdentity> = {
+  Brumavale: { layout: 'royal', epithet: 'Coração da Bruma', specialty: 'juramentos e comércio', streetX: 12, streetY: 10 },
+  Carvalhal: { layout: 'grove', epithet: 'Cidade dos Carvalhos', specialty: 'madeira e criação', streetX: 15, streetY: 12 },
+  Pontealta: { layout: 'bridge', epithet: 'Encruzilhada do Vale', specialty: 'pontes e caravanas', streetX: 10, streetY: 14 },
+  Pedrafria: { layout: 'terraces', epithet: 'Degraus da Geada', specialty: 'pedra e peles', streetX: 11, streetY: 9 },
+  Invernia: { layout: 'ring', epithet: 'Anel do Inverno', specialty: 'gelo e caça', streetX: 14, streetY: 14 },
+  Gelomar: { layout: 'harbor', epithet: 'Porto Congelado', specialty: 'pesca e cristal', streetX: 9, streetY: 13 },
+  Rochedo: { layout: 'citadel', epithet: 'Bastião de Pedra', specialty: 'pedreiros e muralhas', streetX: 13, streetY: 9 },
+  Forjaval: { layout: 'forge', epithet: 'Fornalha de Vaelmor', specialty: 'minério e armas', streetX: 9, streetY: 11 },
+  'Muralha Velha': { layout: 'ruins', epithet: 'Guarda das Ruínas', specialty: 'relíquias e fortificação', streetX: 16, streetY: 10 },
+  Umbravale: { layout: 'spire', epithet: 'Torres do Crepúsculo', specialty: 'obsidiana e arcanismo', streetX: 10, streetY: 16 },
+  Cinzalva: { layout: 'crypt', epithet: 'Refúgio das Cinzas', specialty: 'cristais e segredos', streetX: 13, streetY: 8 },
+  'Areia Rubra': { layout: 'bazaar', epithet: 'Grande Bazar Rubro', specialty: 'tecidos e especiarias', streetX: 8, streetY: 12 },
+  Miragem: { layout: 'oasis', epithet: 'Jardins do Oásis', specialty: 'frutas e montarias', streetX: 14, streetY: 10 },
+  Solgrave: { layout: 'sun', epithet: 'Portão do Sol', specialty: 'fibras e caravanas', streetX: 11, streetY: 15 },
+};
+
+export function identityOf(city: Pick<City, 'name'>): CityIdentity {
+  return CITY_IDENTITIES[city.name] ?? { layout: 'royal', epithet: 'Cidade Livre', specialty: 'comércio', streetX: 13, streetY: 11 };
 }
 
 export interface Building {
@@ -139,7 +174,7 @@ export function pickCities(ctx: GenCtx, oceanMargin: (x: number, y: number) => n
     }
     if (!best) continue;
     const [cx, cy] = best;
-    cities.push({ name: plan.name, biome: plan.biome, style: STYLE_OF[plan.biome], capital: plan.size === 'capital', cx, cy, x0: cx - Z.hw, y0: cy - Z.hh, x1: cx + Z.hw, y1: cy + Z.hh });
+    cities.push({ name: plan.name, biome: plan.biome, style: STYLE_OF[plan.biome], capital: plan.size === 'capital', cx, cy, x0: cx - Z.hw, y0: cy - Z.hh, x1: cx + Z.hw, y1: cy + Z.hh, identity: CITY_IDENTITIES[plan.name] });
   }
   // reserva: sem água, árvores ou criaturas; as montanhas recuam uma faixa irregular além dela
   for (const c of cities) {
@@ -284,6 +319,7 @@ export function stampCity(ctx: GenCtx, c: City, road: Uint8Array, out: Out) {
   const Z = sizeOf(c);
   const rand = mulberry32(ctx.seed + 7300 + c.cx * 31 + c.cy);
   const si = STYLE_IDX[c.style];
+  const identity = c.identity ?? identityOf(c);
   const i = (x: number, y: number) => y * W + x;
   const setGround = (x: number, y: number, t: number) => (ctx.ground[i(x, y)] = t);
   // limpa a área (dentro e a margem)
@@ -339,14 +375,14 @@ export function stampCity(ctx: GenCtx, c: City, road: Uint8Array, out: Out) {
   ];
   for (const s of [-1, 1]) {
     for (let k = 0; ; k++) {
-      const x = c.cx + s * (Z.pw + 1 + k * 13);
+      const x = c.cx + s * (Z.pw + 1 + k * identity.streetX);
       const a = s < 0 ? x - 1 : x;
       if (a < ix0 + 5 || a + 1 > ix1 - 5) break;
       rect(a, iy0, a + 1, iy1, street);
       vStreets.push([a, a + 1]);
     }
     for (let k = 0; ; k++) {
-      const y = c.cy + s * (Z.ph + 1 + k * 11);
+      const y = c.cy + s * (Z.ph + 1 + k * identity.streetY);
       const a = s < 0 ? y - 1 : y;
       if (a < iy0 + 5 || a + 1 > iy1 - 5) break;
       rect(ix0, a, ix1, a + 1, street);
@@ -366,6 +402,50 @@ export function stampCity(ctx: GenCtx, c: City, road: Uint8Array, out: Out) {
       const dd = Math.max(Math.abs(x - c.cx) / Z.pw, Math.abs(y - c.cy) / Z.ph);
       if (Math.hypot(x - c.cx, (y - c.cy) * 1.3) < 3.6 || (dd > 0.55 && dd < 0.75)) setGround(x, y, T.PLAZA);
     }
+  // assinatura urbana: os quarteirões continuam navegáveis, mas cada cidade
+  // ganha uma silhueta legível no chão em vez da mesma praça em cruz.
+  const plazaPatch = (x0: number, y0: number, x1: number, y1: number, tile: number = T.PLAZA) => {
+    for (let y = Math.max(iy0 + 2, y0); y <= Math.min(iy1 - 2, y1); y++)
+      for (let x = Math.max(ix0 + 2, x0); x <= Math.min(ix1 - 2, x1); x++) {
+        setGround(x, y, tile);
+        mark(x, y);
+      }
+  };
+  switch (identity.layout) {
+    case 'grove':
+    case 'oasis':
+      for (const [ox, oy] of [[-Z.pw - 5, -Z.ph - 4], [Z.pw + 2, -Z.ph - 4], [-Z.pw - 5, Z.ph + 2], [Z.pw + 2, Z.ph + 2]])
+        plazaPatch(c.cx + ox, c.cy + oy, c.cx + ox + 3, c.cy + oy + 2, ctx.baseGround(c.biome, c.cx + ox, c.cy + oy, true));
+      break;
+    case 'bridge':
+    case 'harbor':
+      plazaPatch(c.x0 + 3, c.cy - 2, c.x1 - 3, c.cy + 2, pave);
+      break;
+    case 'terraces':
+    case 'sun':
+      for (let n = -2; n <= 2; n++) plazaPatch(c.cx - Z.pw - 4 + Math.abs(n) * 2, c.cy + n * 4, c.cx + Z.pw + 4 - Math.abs(n) * 2, c.cy + n * 4 + 1, pave);
+      break;
+    case 'ring':
+    case 'crypt':
+      for (let a = 0; a < 48; a++) {
+        const q = (a / 48) * Math.PI * 2;
+        plazaPatch(c.cx + Math.round(Math.cos(q) * (Z.pw + 4)), c.cy + Math.round(Math.sin(q) * (Z.ph + 3)), c.cx + Math.round(Math.cos(q) * (Z.pw + 4)), c.cy + Math.round(Math.sin(q) * (Z.ph + 3)), pave);
+      }
+      break;
+    case 'forge':
+    case 'spire':
+      plazaPatch(c.cx - 3, iy0 + 2, c.cx + 3, iy1 - 2, pave);
+      break;
+    case 'citadel':
+    case 'ruins':
+      plazaPatch(ix0 + 3, iy0 + 3, ix0 + 8, iy0 + 7, pave);
+      plazaPatch(ix1 - 8, iy1 - 7, ix1 - 3, iy1 - 3, pave);
+      break;
+    case 'bazaar':
+      plazaPatch(px0 - 6, py0 - 2, px1 + 6, py0, pave);
+      plazaPatch(px0 - 6, py1, px1 + 6, py1 + 2, pave);
+      break;
+  }
   // muralha (topo/frente na camada de penhascos) com portões
   const wallTop = T.WALL + si * 2;
   const wallFace = wallTop + 1;
@@ -410,11 +490,26 @@ export function stampCity(ctx: GenCtx, c: City, road: Uint8Array, out: Out) {
     tower(c.x0, c.cy + s * ((gw >> 1) + 2) + (s > 0 ? 0 : 0));
     tower(c.x1 - 1, c.cy + s * ((gw >> 1) + 2));
   }
-  // fonte no centro da praça
-  out.props.push({ kind: 'fountain', x: c.cx * 16 + 8, y: (c.cy + 1) * 16 + 6 });
+  // marco central. Antes todas as cidades tinham a mesma fonte; agora a
+  // praça comunica a identidade local mesmo sem abrir o mapa.
+  if (['forge', 'citadel', 'ruins', 'spire', 'crypt'].includes(identity.layout)) {
+    out.props.push({ kind: 'tower', x: c.cx * 16 + 8, y: (c.cy + 2) * 16, frame: si });
+  } else if (identity.layout === 'bridge' || identity.layout === 'harbor') {
+    out.props.push({ kind: 'fountain', x: (c.cx - 4) * 16 + 8, y: (c.cy + 1) * 16 + 6 });
+    out.props.push({ kind: 'fountain', x: (c.cx + 4) * 16 + 8, y: (c.cy + 1) * 16 + 6 });
+  } else {
+    out.props.push({ kind: 'fountain', x: c.cx * 16 + 8, y: (c.cy + 1) * 16 + 6 });
+  }
   for (let x = c.cx - 1; x <= c.cx + 1; x++) {
     ctx.collision[i(x, c.cy)] = 1;
     mark(x, c.cy, 2);
+  }
+  if (identity.layout === 'grove' || identity.layout === 'oasis') {
+    for (const [ox, oy] of [[-4, -3], [4, -3], [-4, 3], [4, 3]]) {
+      ctx.decor[i(c.cx + ox, c.cy + oy)] = identity.layout === 'grove' ? T.BUSH_BERRY : T.FLOWER_POT;
+      ctx.collision[i(c.cx + ox, c.cy + oy)] = 1;
+      mark(c.cx + ox, c.cy + oy);
+    }
   }
   // feira: barracas nas bordas da praça (fora das avenidas)
   for (const y of [py0 + 1, py1 - 1])

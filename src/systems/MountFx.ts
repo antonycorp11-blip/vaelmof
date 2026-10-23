@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DEPTH } from '../entities/Creature';
+import type { WorldScene } from '../scenes/WorldScene';
 
 /**
  * Efeitos das habilidades das montarias. Cada habilidade tem uma coreografia
@@ -70,7 +71,7 @@ export class MountFx {
   /** Núcleo quente (luz somada) na boca, por cima das labaredas. */
   private fireCore: Emitter;
 
-  constructor(private scene: Phaser.Scene) {
+  constructor(private scene: WorldScene) {
     const add = (tex: string, cfg: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig, depth: number) => scene.add.particles(0, 0, tex, { emitting: false, ...cfg }).setDepth(depth);
     this.dust = add('fx-puff', { frame: [0, 1, 2], lifespan: { min: 450, max: 800 }, scale: { start: 0.35, end: 1.15 }, alpha: { start: 0.75, end: 0 }, rotate: { min: 0, max: 360 }, maxAliveParticles: 70 }, LIGHT - 3);
     this.rocks = add('fx-rock', { frame: [0, 1, 2, 3], lifespan: { min: 480, max: 620 }, gravityY: 460, rotate: { start: 0, end: 540 }, alpha: { start: 1, end: 0.6 }, maxAliveParticles: 40 }, LIGHT - 2);
@@ -175,7 +176,7 @@ export class MountFx {
   // ------------------------------------------------------------ COICE / ATROPELAR
   stomp(x: number, y: number, r: number, color: number, p: number) {
     const s = this.scene;
-    s.cameras.main.shake(200, 0.003 + 0.0015 * p);
+    s.shake(200, 0.003 + 0.0015 * p);
     this.flash(x, y - 6, 0xfff4d8, r * 1.4, 160);
     this.decal(x, y, 'fx-crack', (r * 1.5) / 96, 900 + p * 200, 0.95, Math.random() < 0.5 ? 0 : 180);
     this.wave(x, y, r, color, 380);
@@ -191,7 +192,7 @@ export class MountFx {
   // ------------------------------------------------------------ RUGIDO / UIVO
   roar(x: number, y: number, r: number, color: number, allies: { x: number; y: number }[]) {
     const s = this.scene;
-    s.cameras.main.shake(280, 0.0025);
+    s.shake(280, 0.0025);
     const hy = y - 16;
     this.flash(x, hy, color, 70, 420, 0.8);
     for (let k = 0; k < 3; k++) this.sonic(x, hy, r * (0.8 + k * 0.28), shade(color, k * 0.2), 460, k * 120);
@@ -360,7 +361,7 @@ export class MountFx {
   frost(x: number, y: number, r: number, color: number) {
     const s = this.scene;
     const pale = shade(color, 0.55);
-    s.cameras.main.shake(160, 0.002);
+    s.shake(160, 0.002);
     this.flash(x, y - 8, pale, r * 1.6, 260, 0.85);
     this.wave(x, y, r * 1.05, pale, 300);
     this.wave(x, y, r * 0.7, 0xffffff, 360, 60, false, 0.7);

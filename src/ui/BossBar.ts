@@ -49,13 +49,15 @@ export class BossBar {
     const w = this.world;
     const gi = w.giants?.giant;
     const p = w.player;
-    const on = !!gi && !gi.dead && Math.hypot(gi.x - p.x, gi.y - p.y) < 45 * TILE;
+    const mini = !gi ? w.bosses.list.filter((b) => !b.unit.dead).sort((a, b) => Math.hypot(a.unit.x - p.x, a.unit.y - p.y) - Math.hypot(b.unit.x - p.x, b.unit.y - p.y))[0] : undefined;
+    const unit = gi ?? mini?.unit;
+    const on = !!unit && !unit.dead && Math.hypot(unit.x - p.x, unit.y - p.y) < (gi ? 45 : 24) * TILE;
     this.setVisible(on);
-    if (!on || !gi) {
-      this.shown = this.trail = gi ? gi.hp / gi.maxHp : 1;
+    if (!on || !unit) {
+      this.shown = this.trail = unit ? unit.hp / unit.maxHp : 1;
       return;
     }
-    const k = Math.max(0, gi.hp / gi.maxHp);
+    const k = Math.max(0, unit.hp / unit.maxHp);
     this.shown += (k - this.shown) * 0.35;
     this.trail = this.trail > this.shown ? this.trail - 0.004 : this.shown;
     const u = this.u;
@@ -67,14 +69,15 @@ export class BossBar {
     g.fillStyle(0x8a3a1a, 1).fillRect(this.x - 2 * b, this.y - 2 * b, this.w + 4 * b, h + 4 * b);
     g.fillStyle(0x1a1018, 1).fillRect(this.x, this.y, this.w, h);
     g.fillStyle(0xffe0a0, 0.85).fillRect(this.x, this.y, this.w * this.trail, h);
-    const col = gi.phase >= 3 ? 0xff3a2a : gi.phase === 2 ? 0xff8a2a : 0xd8402a;
+    const phase = gi?.phase ?? 1;
+    const col = phase >= 3 ? 0xff3a2a : phase === 2 ? 0xff8a2a : 0xd8402a;
     g.fillStyle(col, 1).fillRect(this.x, this.y, this.w * this.shown, h);
     g.fillStyle(0xffffff, 0.25).fillRect(this.x, this.y, this.w * this.shown, Math.max(1, h * 0.3));
     // marcas das fases (2/3 e 1/3)
     for (const m of [0.66, 0.33]) g.fillStyle(0x0b0d14, 1).fillRect(this.x + this.w * m - b, this.y - b, 2 * b, h + 2 * b);
-    const d = gi.def;
-    this.name.setText(`${d.name}, ${d.title}`);
-    const fury = gi.phase >= 3 ? ' · FURIOSO' : gi.phase === 2 ? ' · enfurecido' : '';
-    this.info.setText(`${Math.ceil(gi.hp).toLocaleString('pt-BR')} / ${gi.maxHp.toLocaleString('pt-BR')}${fury}`).setColor(gi.phase >= 3 ? '#ff8a6a' : COLOR.text);
+    const title = gi ? `${gi.def.name}, ${gi.def.title}` : mini!.spec.name;
+    this.name.setText(title);
+    const fury = phase >= 3 ? ' · FURIOSO' : phase === 2 ? ' · enfurecido' : mini ? ' · MINI-CHEFE' : '';
+    this.info.setText(`${Math.ceil(unit.hp).toLocaleString('pt-BR')} / ${unit.maxHp.toLocaleString('pt-BR')}${fury}`).setColor(phase >= 3 ? '#ff8a6a' : COLOR.text);
   }
 }

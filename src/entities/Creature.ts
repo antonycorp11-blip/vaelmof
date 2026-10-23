@@ -8,12 +8,14 @@ export const DEPTH = {
   decor: 3,
   birdShadow: 6,
   entities: 10, // + y (ordenação por profundidade)
-  canopy: 3000,
-  birds: 3100,
-  weather: 3500,
-  ambient: 4000,
-  lights: 4100,
-  fx: 4200,
+  // Entidades usam `entities + y` e o mundo chega a ~24.600 px de altura.
+  // As camadas globais precisam ficar acima desse intervalo inteiro.
+  canopy: 30000,
+  birds: 31000,
+  weather: 35000,
+  ambient: 40000,
+  lights: 41000,
+  fx: 42000,
 } as const;
 
 /** Sprite com corpo físico nos "pés" e ordenação por y. */

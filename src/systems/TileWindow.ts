@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { TILE } from '../config';
+import { DEPTH } from '../entities/Creature';
 import { ANIM_FRAMES, T } from './Tiles';
 import type { WorldData } from './WorldGenerator';
 
@@ -13,7 +14,7 @@ const LAYERS: [LayerName, number][] = [
   ['edge', 1.5],
   ['cliffs', 2],
   ['decor', 3],
-  ['canopy', 3000],
+  ['canopy', DEPTH.canopy],
 ];
 
 interface AnimTile {

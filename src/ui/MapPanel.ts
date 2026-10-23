@@ -172,7 +172,10 @@ export class MapPanel {
     this.img.setScale((k * m.width * TILE) / this.img.width).setPosition(Math.round(x0), Math.round(y0));
     this.world.map.cities.forEach((c, i) => {
       const [x, y] = this.toScreen(c.cx * TILE, (c.y0 - 4) * TILE);
-      fit(this.names[i], ZOOMS[this.zoom] >= 2.5 ? 10 : 8, this.u).setPosition(Math.round(x), Math.round(y)).setVisible(ZOOMS[this.zoom] >= 1.6);
+      const owner = this.world.forts.ownerOf(c);
+      const col = owner === 'player' ? this.world.clans.player.color : owner ? (this.world.clans.byId(owner)?.color ?? 0xf3ead2) : 0xf3ead2;
+      const detail = ZOOMS[this.zoom] >= 4 && c.identity ? `\n${c.identity.epithet}` : '';
+      fit(this.names[i], ZOOMS[this.zoom] >= 2.5 ? 10 : 8, this.u).setText(c.name + detail).setAlign('center').setColor(`#${col.toString(16).padStart(6, '0')}`).setPosition(Math.round(x), Math.round(y)).setVisible(ZOOMS[this.zoom] >= 1.6);
     });
     this.draw();
   }
@@ -193,8 +196,8 @@ export class MapPanel {
       for (const o of w.map.cities) if (o !== c) nd = Math.min(nd, Math.hypot(o.cx - c.cx, o.cy - c.cy));
       const r = Math.min(70, nd / 2) * TILE * k;
       const [x, y] = at(c.cx * TILE, c.cy * TILE);
-      g.fillStyle(col, owner === 'player' ? 0.28 : 0.16).fillCircle(x, y, r);
-      g.lineStyle(Math.max(1, u), col, 0.6).strokeCircle(x, y, r);
+      g.fillStyle(col, owner === 'player' ? 0.42 : 0.25).fillCircle(x, y, r);
+      g.lineStyle(Math.max(1, u * 1.5), col, owner === 'player' ? 0.95 : 0.72).strokeCircle(x, y, r);
     }
     // fortes
     for (const f of w.forts.forts) {
@@ -212,7 +215,10 @@ export class MapPanel {
       const ww = Math.max(4 * u, (c.x1 - c.x0) * TILE * k);
       const hh = Math.max(4 * u, (c.y1 - c.y0) * TILE * k);
       g.lineStyle(Math.max(1, 1.5 * u), 0x0b0d14, 1).strokeRect(x - u, y - u, ww + 2 * u, hh + 2 * u);
-      g.lineStyle(Math.max(1, u), c.capital ? 0xffd77a : 0xf3ead2, 1).strokeRect(x, y, ww, hh);
+      const owner = w.forts.ownerOf(c);
+      const col = owner === 'player' ? w.clans.player.color : owner ? (w.clans.byId(owner)?.color ?? 0xf3ead2) : (c.capital ? 0xffd77a : 0xf3ead2);
+      g.lineStyle(Math.max(1, 1.5 * u), col, 1).strokeRect(x, y, ww, hh);
+      if (owner === 'player') g.lineStyle(Math.max(1, u), 0xffd77a, 0.9).strokeRect(x + 2 * u, y + 2 * u, Math.max(1, ww - 4 * u), Math.max(1, hh - 4 * u));
     }
     for (const sp of w.spots.spots) {
       const [x, y] = at(sp.x, sp.y);

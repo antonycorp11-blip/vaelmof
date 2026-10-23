@@ -3,6 +3,7 @@ import { setupPwa } from './pwa';
 import { BootScene } from './scenes/BootScene';
 import { UIScene } from './scenes/UIScene';
 import { WorldScene } from './scenes/WorldScene';
+import { restoreBackup, saves } from './systems/SaveManager';
 
 /**
  * O jogo usa Phaser.Scale.FIT com uma resolução interna que acompanha a
@@ -18,6 +19,9 @@ function viewportSize() {
   return { w: Math.round(cssW * r), h: Math.round(cssH * r), r };
 }
 
+// Um snapshot consolidado recupera chaves ausentes/corrompidas antes que cada
+// sistema leia o seu save individual.
+restoreBackup();
 const size = viewportSize();
 
 const game = new Phaser.Game({
@@ -96,7 +100,10 @@ setupPwa();
 // Se algo quebrar enquanto o jogo abre, mostra o erro na tela (no iPhone não há
 // console) em vez de ficar parado na tela de carregamento sem explicação.
 let opened = false;
-game.events.once('vaelmor-ready', () => (opened = true));
+game.events.once('vaelmor-ready', () => {
+  opened = true;
+  saves.start();
+});
 function bootError(msg: string) {
   if (opened || document.getElementById('boot-error')) return;
   const d = document.createElement('div');

@@ -160,7 +160,7 @@ export class Giant implements Hittable {
     for (const t of this.teles) t.g.destroy();
     this.teles = [];
     this.spr.setFrame(ANIM.cast[0]);
-    s.cameras.main.shake(900, 0.008);
+    s.shake(900, 0.008);
     for (let i = 0; i < 6; i++)
       s.time.delayedCall(i * 160, () => {
         s.mountFx.stomp(this.x + (Math.random() - 0.5) * 90, this.y + (Math.random() - 0.5) * 20, 40, this.def.color, 2);
@@ -446,7 +446,7 @@ export class Giant implements Hittable {
         this.circle(at.x, at.y, r, ms, () => {
           F.stomp(at.x, at.y, r * 0.8, move === 'slam' ? 0xcdb894 : 0xd8f0ff, 3);
           if (move === 'stomp') F.frost(at.x, at.y, r * 0.7, 0x9ad8ff);
-          s.cameras.main.shake(320, 0.009);
+          s.shake(320, 0.009);
           this.hitArea(this.inCircle(at.x, at.y, r), 1.2);
         });
         break;
@@ -461,7 +461,7 @@ export class Giant implements Hittable {
         this.cone(o.x, o.y, a, range, half, ms, () => {
           const tip = { x: o.x + Math.cos(a) * range * 0.7, y: o.y + Math.sin(a) * range * 0.7 * FLAT };
           F.chargeHit(tip.x, tip.y, new Phaser.Math.Vector2(Math.cos(a), Math.sin(a)), c, move !== 'bite');
-          s.cameras.main.shake(200, 0.006);
+          s.shake(200, 0.006);
           this.hitArea(this.inCone(o.x, o.y, a, range, half), move === 'pincer' ? 1.1 : 1);
         });
         break;
@@ -505,7 +505,7 @@ export class Giant implements Hittable {
         const y1 = this.y + Math.sin(ang) * L * FLAT;
         this.lane(this.x, this.y, x1, y1, 30, ms, () => {
           for (let k = 1; k <= 5; k++) s.time.delayedCall(k * 30, () => F.chargeHit(lerp(this.x, x1, k / 5), lerp(this.y, y1, k / 5), new Phaser.Math.Vector2(Math.cos(ang), Math.sin(ang)), c, false));
-          s.cameras.main.shake(220, 0.007);
+          s.shake(220, 0.007);
           this.hitArea(this.inLane(this.x, this.y, x1, y1, 30), 1.3, () => {});
           // veneno: lentidão em quem foi picado
           const p = s.player;
@@ -683,7 +683,17 @@ export class WorldBosses {
 
   constructor(readonly scene: WorldScene) {
     this.load();
-    if (!this.nextAt) this.nextAt = scene.clans.now + 5 * 60000;
+    // O primeiro aparecia tarde demais e muitos jogadores nunca o viam.
+    // Depois do primeiro, volta ao ritmo de evento raro do mundo.
+    if (!this.nextAt) this.nextAt = scene.clans.now + (this.slain.length ? 15 : 2) * 60000;
+  }
+
+  /** Garante que o primeiro Gigante entre no horizonte da sessão atual. */
+  hastenFirstAwakening(withinMs: number) {
+    if (this.st || this.slain.length) return;
+    const at = this.scene.clans.now + Math.max(15_000, withinMs);
+    if (!this.nextAt || this.nextAt > at) this.nextAt = at;
+    this.save();
   }
 
   get home() {
@@ -723,8 +733,9 @@ export class WorldBosses {
     this.st = { id: pick, x: spot.x, y: spot.y, hpK: 1, until: s.clans.now + AWAKE };
     const d = GIANTS[pick];
     s.events.emit('area', 'UM GIGANTE DESPERTOU!', `${d.name}, ${d.title} · veja no mapa`);
+    s.audio.sfx('danger');
     s.clans.log(`A terra treme: ${d.name}, ${d.title}, despertou. Quem o derrubar leva ovos de montaria.`, true);
-    s.cameras.main.shake(700, 0.004);
+    s.shake(700, 0.004);
     this.save();
     return true;
   }
@@ -785,7 +796,7 @@ export class WorldBosses {
       s.events.emit('toast', `${GIANTS[st.id].name} voltou a dormir`);
       this.unrealize();
       this.st = null;
-      this.nextAt = now + (20 + Math.random() * 10) * 60000;
+      this.nextAt = now + (12 + Math.random() * 8) * 60000;
       this.save();
       return;
     }
@@ -829,7 +840,7 @@ export class WorldBosses {
   phaseUp(g: Giant) {
     const s = this.scene;
     s.mountFx.roar(g.x, g.y - 60, 160, g.def.color, []);
-    s.cameras.main.shake(500, 0.006);
+    s.shake(500, 0.006);
     if (g.phase === 2) s.events.emit('toast', `${g.def.name} se enfurece: ataques novos!`);
     else {
       g.spr.setTint(0xffb0a0);
@@ -852,6 +863,8 @@ export class WorldBosses {
     s.gainGlory(220 + s.progress.rankIdx * 20, g.x, g.y - 90);
     const names = eggs[1] === eggs[0] ? `2 ovos de ${MOUNTS[eggs[0]]?.name}` : eggs.map((e) => `ovo de ${MOUNTS[e]?.name ?? e}`).join(' e ');
     s.events.emit('area', 'GIGANTE DERRUBADO!', `${d.name} caiu · ${names} · ${gold} ouro`);
+    s.events.emit('giant-killed', g.id);
+    s.audio.sfx('reward');
     s.clans.log(`${s.clans.player.name || 'O herói'} derrubou ${d.name}, ${d.title}!`, true);
     this.st = null;
     this.giant = null;

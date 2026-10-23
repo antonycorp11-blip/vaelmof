@@ -31,6 +31,8 @@ export class ClanCreate {
   private found: Button;
   private dice: Button;
   private input?: HTMLInputElement;
+  private submitButton?: HTMLButtonElement;
+  private submitting = false;
   private crest = 0;
   private color = CLAN_COLORS[0];
   private u = 1;
@@ -89,11 +91,13 @@ export class ClanCreate {
     if (on) {
       if (!this.input) this.makeInput();
       this.input!.style.display = 'block';
+      this.submitButton!.style.display = 'block';
       if (!this.input!.value) this.randomName();
       this.layout(this.u);
       this.scene.scene.pause('World');
     } else {
       if (this.input) this.input.style.display = 'none';
+      if (this.submitButton) this.submitButton.style.display = 'none';
       this.scene.scene.resume('World');
     }
   }
@@ -125,6 +129,27 @@ export class ClanCreate {
     });
     document.body.appendChild(el);
     this.input = el;
+
+    // Botão HTML transparente sobre o botão desenhado no canvas. Em alguns
+    // navegadores, Phaser perde o pointerdown dentro de um iframe; o clique
+    // nativo mantém a fundação utilizável em PC e tablet.
+    const submit = document.createElement('button');
+    submit.type = 'button';
+    submit.setAttribute('aria-label', 'Fundar o clã');
+    Object.assign(submit.style, {
+      position: 'fixed',
+      zIndex: '21',
+      display: 'none',
+      opacity: '0',
+      border: '0',
+      padding: '0',
+      margin: '0',
+      cursor: 'pointer',
+      touchAction: 'manipulation',
+    } as CSSStyleDeclaration);
+    submit.addEventListener('click', () => this.submit());
+    document.body.appendChild(submit);
+    this.submitButton = submit;
   }
 
   private randomName() {
@@ -134,11 +159,19 @@ export class ClanCreate {
   }
 
   private submit() {
+    if (this.submitting) return;
     const name = (this.input?.value ?? '').trim();
     if (!name) return this.randomName();
+    this.submitting = true;
     this.input?.blur();
-    this.world.clans.found(name, this.crest, this.color);
-    this.setOpen(false);
+    try {
+      this.world.clans.found(name, this.crest, this.color);
+    } finally {
+      // Mesmo que um listener de fundação falhe, a tela não pode deixar o
+      // mundo permanentemente pausado.
+      this.setOpen(false);
+      this.submitting = false;
+    }
   }
 
   private refresh() {
@@ -206,6 +239,7 @@ export class ClanCreate {
       .setWordWrapWidth(rw)
       .setPosition(rx, this.pInfo.y + this.pInfo.height + 10 * u);
     this.found.place(rx, y0 + H - pad - 34 * u, u, rw, 34 * u);
+    this.placeSubmit(this.found.x, this.found.y, this.found.w, this.found.h);
     this.refresh();
   }
 
@@ -221,6 +255,19 @@ export class ClanCreate {
       width: `${w * k}px`,
       height: `${h * k}px`,
       fontSize: `${Math.round(14 * u * k)}px`,
+    });
+  }
+
+  private placeSubmit(x: number, y: number, w: number, h: number) {
+    const el = this.submitButton;
+    if (!el) return;
+    const r = this.scene.game.canvas.getBoundingClientRect();
+    const k = r.width / this.scene.scale.width;
+    Object.assign(el.style, {
+      left: `${r.left + x * k}px`,
+      top: `${r.top + y * k}px`,
+      width: `${w * k}px`,
+      height: `${h * k}px`,
     });
   }
 }

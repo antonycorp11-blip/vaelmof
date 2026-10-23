@@ -159,6 +159,9 @@ export class Forts extends Phaser.Events.EventEmitter {
   ownerOf(city: City): string | null {
     const here = this.forts.filter((f) => f.city === city.name);
     if (here.some((f) => f.owner === 'player')) return 'player';
+    // Brumavale é a terra juramentada ao clã do jogador desde a fundação.
+    // Isso garante uma região inicial onde coleta, construção e tutorial funcionam.
+    if (this.scene.clans.founded && city.name === this.scene.clans.player.city) return 'player';
     const hq = this.scene.hq;
     if (hq.founded && this.regionOf(hq.center.x, hq.center.y).name === city.name) return 'player';
     let best: Clan | null = null;
@@ -369,7 +372,7 @@ export class Forts extends Phaser.Events.EventEmitter {
     if (f.hp[p] > 0) return;
     const pos = this.partPos(f, p);
     this.scene.fx.burst(pos.x, pos.y - 16, 0x8a6a4a, 26);
-    this.scene.cameras.main.shake(160, 0.004);
+    this.scene.shake(160, 0.004);
     if (p === 'gate') {
       this.syncGate(f);
       this.scene.events.emit('toast', f.owner === 'player' ? 'O portão do seu forte caiu!' : 'O portão caiu! Para dentro!');

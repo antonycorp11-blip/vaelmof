@@ -78,12 +78,19 @@ const RESPAWN_MS = 150_000;
  */
 export class Gathering {
   private state = new Map<number, NodeState>();
-  private target: { tx: number; ty: number; type: NodeType } | null = null;
+  private target: { tx: number; ty: number; type: NodeType; allowed: boolean; owner: string } | null = null;
   private marker: Phaser.GameObjects.Graphics;
+  private lockLabel: Phaser.GameObjects.Text;
   private lastRespawnCheck = 0;
 
   constructor(private scene: WorldScene) {
     this.marker = scene.add.graphics().setDepth(4300);
+    this.lockLabel = scene.add
+      .text(0, 0, '', { fontFamily: 'Tiny5, monospace', fontSize: '7px', color: '#ff9a8a', stroke: '#1e1a24', strokeThickness: 2, align: 'center' })
+      .setOrigin(0.5, 1)
+      .setResolution(4)
+      .setDepth(4301)
+      .setVisible(false);
   }
 
   private nodeAt(tx: number, ty: number): NodeType | undefined {
@@ -99,9 +106,9 @@ export class Gathering {
     const p = this.scene.player;
     this.findTarget();
     if (p.mountCombat) this.target = null;
-    inputState.canGather = !!this.target && !p.dead;
+    inputState.canGather = !!this.target?.allowed && !p.dead;
     this.drawMarker(time);
-    if (this.target && p.wantsGather(time) && !p.busy) {
+    if (this.target?.allowed && p.wantsGather(time) && !p.busy) {
       const { tx, ty } = this.target;
       const cx = tx * TILE + 8;
       const cy = ty * TILE + 8;
@@ -131,7 +138,11 @@ export class Gathering {
         const d = Math.hypot(tx * TILE + 8 - fx, ty * TILE + 10 - fy);
         if (d < bestD) {
           bestD = d;
-          best = { tx, ty, type };
+          const city = this.scene.forts.regionOf(tx * TILE + 8, ty * TILE + 8);
+          const ownerId = this.scene.forts.ownerOf(city);
+          const allowed = ownerId === 'player';
+          const owner = allowed ? this.scene.clans.player.name : this.scene.territories.ownerName(city);
+          best = { tx, ty, type, allowed, owner };
         }
       }
     this.target = best;
@@ -140,12 +151,13 @@ export class Gathering {
   private drawMarker(time: number) {
     const g = this.marker;
     g.clear();
+    this.lockLabel.setVisible(false);
     if (!this.target) return;
     const x = this.target.tx * TILE;
     const y = this.target.ty * TILE;
     const a = 0.55 + 0.35 * Math.sin(time / 160);
     const L = 4;
-    g.lineStyle(1, 0xffffff, a);
+    g.lineStyle(1, this.target.allowed ? 0xffffff : 0xff5f5f, a);
     for (const [cx, cy, sx, sy] of [
       [x, y, 1, 1],
       [x + TILE, y, -1, 1],
@@ -154,6 +166,9 @@ export class Gathering {
     ]) {
       g.lineBetween(cx, cy, cx + L * sx, cy);
       g.lineBetween(cx, cy, cx, cy + L * sy);
+    }
+    if (!this.target.allowed) {
+      this.lockLabel.setText(`TERRITÓRIO: ${this.target.owner}`).setPosition(x + TILE / 2, y - 3).setVisible(true);
     }
   }
 
@@ -172,6 +187,7 @@ export class Gathering {
     const cx = tx * TILE + 8;
     const cy = ty * TILE + 8;
     s.fx.burst(cx, cy, type.chips, 7);
+    s.audio.sfx('gather');
     if (got > 0) s.fx.floatText(cx, cy - 10, `+${got} ${ITEMS[id].name}`, '#ffe9a8');
     else s.fx.floatText(cx, cy - 10, 'Mochila cheia', '#ff8080');
     st.charges--;

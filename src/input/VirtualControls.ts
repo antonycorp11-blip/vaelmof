@@ -106,16 +106,17 @@ export class VirtualControls {
   layout(width: number, height: number, u: number) {
     this.u = u;
     const safe = safeAreas();
-    const right = width - (safe.right + 18) * u;
-    const bottom = height - (safe.bottom + 16) * u;
-    // habilidades em arco em volta do golpe; esquiva e coleta mais à esquerda
+    const right = width - (safe.right + 8) * u;
+    const bottom = height - (safe.bottom + 8) * u;
+    // Ações principais abraçam o canto inferior direito. As três habilidades
+    // formam um arco compacto em volta do golpe; esquiva e coleta ficam à esquerda.
     const pos: Record<ButtonId, [number, number]> = {
       attack: [right - 44 * u, bottom - 44 * u],
-      flame: [right - 134 * u, bottom - 36 * u],
-      skill2: [right - 112 * u, bottom - 112 * u],
-      skill3: [right - 36 * u, bottom - 134 * u],
-      dodge: [right - 214 * u, bottom - 30 * u],
-      gather: [right - 198 * u, bottom - 108 * u],
+      flame: [right - 118 * u, bottom - 30 * u],
+      skill2: [right - 98 * u, bottom - 100 * u],
+      skill3: [right - 30 * u, bottom - 120 * u],
+      dodge: [right - 190 * u, bottom - 30 * u],
+      gather: [right - 176 * u, bottom - 100 * u],
     };
     for (const b of this.buttons) {
       const [x, y] = pos[b.id];

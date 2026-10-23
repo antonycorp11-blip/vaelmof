@@ -116,6 +116,10 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   grandes — a capital tem ~75), quintais com barris, caixotes, feno e sacos,
   estandartes nos portões e **tochas** nas avenidas. Em Greenland, **fazendas**
   cercadas com plantações e ovelhas do lado de fora.
+- Cada uma tem **traçado, marco e identidade próprios**: jardins em Carvalhal
+  e Miragem, eixo de Pontealta, terraços de Pedrafria, anel de Invernia, bazar
+  de Areia Rubra, cidadela de Rochedo, forja de Forjaval e torres nas cidades
+  de Blackland. O epíteto e a especialidade aparecem ao entrar e no mapa.
 - **Arte por bioma** (`scripts/world-art.mjs`): casas de enxaimel com telhado
   vermelho/palha (Greenland), cabanas de tronco com neve no telhado
   (Snowland), casas de pedra com ardósia (Blockland), pedra escura com
@@ -139,6 +143,9 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - **Todo recurso do mapa é coletável**: árvores, pedras, blocos, minério,
   cristais, gelo, cactos, arbustos (frutas e fibra). Perto de um, aparece o
   botão **COLETAR** e um marcador no recurso; cada golpe rende um pouco.
+- A coleta é **territorial**: Brumavale é a terra inicial do jogador; em terra
+  rival o marcador fica vermelho e mostra o controlador. Para explorar os
+  materiais de outra região, é preciso conquistar o forte daquele território.
 - O item depende do tipo **e da região**: *Madeira de Greenland*, *Madeira
   de Snowland* (pinheiro nevado), *Pedra de Blockland*, *Cristal de
   Blackland*, *Fibra de Dustland*… (`src/data/items.ts`) — as receitas de
@@ -166,6 +173,9 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   patente + escada de patentes com insígnias), **Quartel de Brumavale**
   (cartas com retrato de cada soldado, recrutas, cura explicada, aquartelar e
   guerra), **Mochila** e **Debug**.
+- **Outros menus** reúne Sede, Mercado, Estábulo, Clãs, Debug e
+  **Configurações**. As opções incluem música/efeitos procedurais, movimento
+  reduzido, gráficos leves e exportação/importação do save consolidado.
 
 ### Debug (ícone da engrenagem, vermelho)
 - Teleporte para o coração de cada bioma (Vale, Greenland, Snowland,
@@ -184,6 +194,9 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
 - **Começo:** o jogo abre na tela **FUNDE O TEU CLÃ** (nome com o teclado do
   celular, 12 brasões, 12 cores). A cor vai para os soldados (arte tingida e
   anel no chão) e o brasão para o HUD. O mundo fica pausado até fundar.
+- **Primeiro juramento:** o Lorde de Brumavale apresenta território e mapa e
+  marca Gorvak, o Quebra-Estandartes, no minimapa. O mini-chefe tem barra de
+  vida, saque e recompensa; depois dele o primeiro Gigante desperta em breve.
 - **Objetivo:** fazer o clã subir Bando → Clã → Clã Juramentado → Clã de
   Renome → Clã Lendário → **Casa** (Casa = 30.000 de Glória **e** a última
   patente, Soberano de Vaelmor). A Glória do clã é a do herói.
@@ -475,6 +488,9 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   +8/min de material da região no estoque da sede (madeira no Vale e em
   Greenland, cristal em Snowland, pedra em Blockland, minério em Blackland,
   fibra em Dustland). O mapa pinta cada território com a cor do dono.
+- Os quatro portões exibem o **brasão e a cor do controlador**; mapa e
+  minimapa destacam terras aliadas e rivais. Brumavale pertence ao jogador
+  desde a fundação, e a conquista libera coleta e viagem rápida na nova terra.
 - **Retomadas com hora marcada:** de 8 a 14 min, um clã (o que perdeu o
   forte, ou o mais forte) marcha para retomar um forte seu, com 3 min de aviso
   e o forte marcado como alvo no mapa. Com você por perto, a batalha é de

@@ -26,9 +26,11 @@ import { MapPanel } from '../ui/MapPanel';
 import { Minimap } from '../ui/Minimap';
 import { MountReveal } from '../ui/MountReveal';
 import { BossBar } from '../ui/BossBar';
+import { MorePanel } from '../ui/MorePanel';
+import { SettingsPanel } from '../ui/SettingsPanel';
 import type { WorldScene } from './WorldScene';
 
-type PanelId = 'bag' | 'attrs' | 'army' | 'hq' | 'market' | 'stable' | 'missions' | 'clans' | 'map' | 'debug';
+type PanelId = 'bag' | 'attrs' | 'army' | 'hq' | 'market' | 'stable' | 'missions' | 'clans' | 'map' | 'debug' | 'more' | 'settings';
 
 /**
  * HUD: à esquerda a insígnia da patente, a vida, a Glória e as ordens do
@@ -49,6 +51,8 @@ export class UIScene extends Phaser.Scene {
   private hqPanel!: HQPanel;
   private marketPanel!: MarketPanel;
   private stablePanel!: StablePanel;
+  private morePanel!: MorePanel;
+  private settingsPanel!: SettingsPanel;
   private rideBtn!: Button;
   private goldIcon!: Phaser.GameObjects.Image;
   private goldText!: Phaser.GameObjects.Text;
@@ -179,13 +183,9 @@ export class UIScene extends Phaser.Scene {
       ['bag', 0, 'dark'],
       ['attrs', 1, 'dark'],
       ['army', 2, 'dark'],
-      ['hq', 23, 'dark'],
-      ['market', 22, 'dark'],
-      ['stable', 26, 'dark'],
       ['missions', 18, 'dark'],
-      ['clans', 19, 'dark'],
       ['map', 3, 'dark'],
-      ['debug', 4, 'red'],
+      ['more', 13, 'dark'],
     ];
     this.menuBar = frame(this, 'frame').setDepth(1399);
     for (const [id, icon, color] of menuDefs) this.menu.push({ id, b: new Button(this, { icon, color, onTap: () => this.togglePanel(id) }).setDepth(1400) });
@@ -219,6 +219,8 @@ export class UIScene extends Phaser.Scene {
     this.hqPanel = new HQPanel(this, world);
     this.marketPanel = new MarketPanel(this, world);
     this.stablePanel = new StablePanel(this, world);
+    this.morePanel = new MorePanel(this);
+    this.settingsPanel = new SettingsPanel(this, world);
     this.clanCreate = new ClanCreate(this, world);
     this.reveal = new MountReveal(this, world);
     this.bossBar = new BossBar(this, world);
@@ -226,7 +228,8 @@ export class UIScene extends Phaser.Scene {
     world.events.on('dialog', (spec: DialogSpec) => this.dialog.show(spec));
     world.stable.on('change', () => this.updateHud());
     this.armyPanel.onClans = () => this.togglePanel('clans');
-    this.panels = { bag: this.bag, attrs: this.attrs, army: this.armyPanel, hq: this.hqPanel, market: this.marketPanel, stable: this.stablePanel, missions: this.missionsPanel, clans: this.clansPanel, map: this.mapPanel, debug: this.debug };
+    this.morePanel.onOpen = (id) => this.togglePanel(id);
+    this.panels = { bag: this.bag, attrs: this.attrs, army: this.armyPanel, hq: this.hqPanel, market: this.marketPanel, stable: this.stablePanel, missions: this.missionsPanel, clans: this.clansPanel, map: this.mapPanel, debug: this.debug, more: this.morePanel, settings: this.settingsPanel };
     this.controls.blocker = (x, y) =>
       this.clanCreate.open ||
       this.reveal.open ||
@@ -437,6 +440,8 @@ export class UIScene extends Phaser.Scene {
     this.hqPanel.layout(u);
     this.marketPanel.layout(u);
     this.stablePanel.layout(u);
+    this.morePanel.layout(u);
+    this.settingsPanel.layout(u);
     this.clanCreate.layout(u);
     fit(this.news, 9, u).setPosition(width / 2, 26 * u).setWordWrapWidth(width * 0.5);
     this.controls.hudBottom = this.hudBottom - 20 * u;
@@ -474,7 +479,7 @@ export class UIScene extends Phaser.Scene {
     const free = P.free;
     const pb = this.menu.find((m) => m.id === 'attrs')!.b;
     this.pointsBadge.setVisible(free > 0).setText(`+${free}`).setPosition(pb.x + pb.w - 2 * this.u, pb.y + 2 * this.u);
-    const sb = this.menu.find((m) => m.id === 'stable')!.b;
+    const sb = this.menu.find((m) => m.id === 'more')!.b;
     this.stableBadge.setVisible(w.stable.unseen.size > 0).setPosition(sb.x + sb.w - 4 * this.u, sb.y + 2 * this.u);
   }
 
