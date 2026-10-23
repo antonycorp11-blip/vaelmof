@@ -58,6 +58,7 @@ function platformOrigin(): string | null {
 
 export class SaveManager {
   private timer = 0;
+  private loadRequested = false;
 
   start() {
     this.save();
@@ -66,6 +67,8 @@ export class SaveManager {
     document.addEventListener('visibilitychange', this.onVisibility);
     window.addEventListener('message', this.onMessage);
     this.send('GAME_READY', { version: VERSION });
+    this.send('GAME_STARTED', { version: VERSION });
+    this.requestCloudLoad();
   }
 
   stop() {
@@ -96,7 +99,7 @@ export class SaveManager {
       const data = this.collect();
       const snap: Snapshot = { version: VERSION, savedAt: Date.now(), data, checksum: hash(JSON.stringify(data)) };
       localStorage.setItem(KEY, JSON.stringify(snap));
-      this.send('SAVE_GAME', snap);
+      this.send('SAVE_GAME', { slot: 'default', data: snap }, `save-${snap.savedAt}`);
     } catch {
       /* o restante do jogo ainda funciona */
     }
@@ -136,18 +139,33 @@ export class SaveManager {
     this.send('ACHIEVEMENT_UNLOCKED', { id });
   }
 
-  private send(type: string, payload: unknown) {
+  private send(type: string, payload: unknown, requestId?: string) {
     const origin = platformOrigin();
-    if (origin && window.parent !== window) window.parent.postMessage({ source: 'athg-game', game: 'vaelmor', type, payload }, origin);
+    if (origin && window.parent !== window) window.parent.postMessage({ source: 'athg-game', game: 'vaelmor', type, payload, ...(requestId ? { requestId } : {}) }, origin);
+  }
+
+  private requestCloudLoad() {
+    if (this.loadRequested) return;
+    this.loadRequested = true;
+    this.send('LOAD_GAME', { slot: 'default' }, 'load-default');
   }
 
   private onMessage = (event: MessageEvent) => {
     const origin = platformOrigin();
     if (!origin || event.origin !== origin || event.source !== window.parent) return;
     const msg = event.data;
-    if (msg?.source !== 'athg-platform' || msg?.type !== 'LOAD_GAME') return;
-    const snap = typeof msg.payload === 'string' ? parse(msg.payload) : parse(JSON.stringify(msg.payload));
-    if (!snap) return;
+    if (msg?.source !== 'athg-portal') return;
+    if (msg.type === 'PORTAL_INIT') {
+      this.send('GAME_READY', { version: VERSION });
+      this.loadRequested = false;
+      this.requestCloudLoad();
+      return;
+    }
+    if (msg.type !== 'LOAD_RESULT' || msg.requestId !== 'load-default') return;
+    const data = msg.payload?.data;
+    const snap = typeof data === 'string' ? parse(data) : parse(JSON.stringify(data));
+    const local = parse(localStorage.getItem(KEY));
+    if (!snap || (local && local.savedAt >= snap.savedAt)) return;
     for (const [k, v] of Object.entries(snap.data)) localStorage.setItem(k, v);
     localStorage.setItem(KEY, JSON.stringify(snap));
     location.reload();
