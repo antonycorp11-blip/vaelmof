@@ -1,9 +1,0 @@
-// Cloudflare (Workers com assets estáticos): publica o build do Vite (dist/).
-// Publicar: npm run build && npx wrangler deploy. Os cabeçalhos (frame-ancestors da ATHG) vêm de public/_headers.
-{
-  "name": "vaelmof",
-  "compatibility_date": "2026-10-01",
-  "assets": {
-    "directory": "./dist"
-  }
-}
