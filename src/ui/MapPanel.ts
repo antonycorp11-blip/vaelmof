@@ -158,7 +158,7 @@ export class MapPanel {
     this.zout.place(width - pad - 34 * u, height / 2 + 4 * u, u, 34 * u, 32 * u);
     this.me.place(width - pad - 70 * u, height / 2 + 44 * u, u, 70 * u, 26 * u);
     fit(this.legend, 9, u)
-      .setText(`□ cidade   ▣ forte (cor do dono)   ◯ território   ■ sua sede   ■ bando rival (vermelho = vem atrás de você)   * alvo   ◯ spot   ◆ campeão   ● Tirano (coroa)   ▲ você${this.teleport ? '   · toque para ir' : '   · arraste para andar · toque na sua sede, forte ou território para viajar (30 ouro)'}`)
+      .setText(`□ cidade   ▣ forte   ◯ território   ■ sua sede   ▤ baú rúnico   * alvo   ◯ spot   ◆ campeão   ● masmorra do Tirano   ▲ você${this.teleport ? '   · toque para ir' : '   · arraste para andar · toque na sua sede, forte ou território para viajar (30 ouro)'}`)
       .setPosition(pad, height - pad - 12 * u)
       .setWordWrapWidth(width - pad * 2);
     this.place();
@@ -230,7 +230,15 @@ export class MapPanel {
       const r = 4 * u;
       g.fillStyle(0xff5a5a, 1).fillPoints([{ x, y: y - r }, { x: x + r, y }, { x, y: y + r }, { x: x - r, y }], true);
     }
-    // Tiranos: covil com coroa
+    // baús rúnicos disponíveis
+    for (const c of w.chests.available) {
+      const [x, y] = at(c.x, c.y);
+      const r = 3.5 * u;
+      g.fillStyle(0x0b0d14, 1).fillRect(x - r - u, y - r - u, r * 2 + 2 * u, r * 2 + 2 * u);
+      g.fillStyle(0xffd34a, 1).fillRect(x - r, y - r, r * 2, r * 2);
+      g.fillStyle(0x7a4a16, 1).fillRect(x - r, y - 0.5 * u, r * 2, u);
+    }
+    // Masmorras dos Tiranos: covil com coroa
     TYRANTS.forEach((_, i) => {
       if (!w.tyrants.alive(i)) return;
       const t = w.tyrants.lair(i);

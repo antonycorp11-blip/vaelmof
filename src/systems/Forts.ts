@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { TILE } from '../config';
 import { MOUNTS } from '../data/mounts';
+import { rollJewel } from '../data/enhancement';
 import { DEPTH } from '../entities/Creature';
 import type { Hittable } from '../entities/Hittable';
 import type { WorldScene } from '../scenes/WorldScene';
@@ -474,6 +475,7 @@ export class Forts extends Phaser.Events.EventEmitter {
     const gold = 300 + f.tier * 450;
     s.hq.addGold(gold);
     if (c.gear) s.loot.drop(c.gear, ctr.x, ctr.y + 10);
+    s.time.delayedCall(220, () => s.loot.drop(rollJewel('battle', f.tier + 2), ctr.x + 14, ctr.y + 10));
     // o clã vencido muda a sede para outra cidade e ergue outro forte com o tempo
     const free = s.map.cities.filter((x) => x.name !== f.city && this.ownerOf(x) !== 'player');
     if (free.length) c.city = free[Math.floor(Math.random() * free.length)].name;

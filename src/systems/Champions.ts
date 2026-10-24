@@ -4,6 +4,7 @@ import type { Enemy } from '../entities/Enemy';
 import type { WorldScene } from '../scenes/WorldScene';
 import { rollGear } from '../data/gear';
 import { CHAMPIONS, RANKS, type ChampionId } from './Ranks';
+import { rollJewel } from '../data/enhancement';
 
 interface Live {
   id: ChampionId;
@@ -52,6 +53,7 @@ export class Champions {
       scene.events.emit('champion-defeated', c.id);
       // o campeão deixa cair uma peça rara (mais rara quanto mais alta a patente dele)
       scene.loot.drop(rollGear(1 + Math.floor(CHAMPIONS[c.id].rank / 3)), e.x, e.y);
+      scene.time.delayedCall(220, () => scene.loot.drop(rollJewel('boss', CHAMPIONS[c.id].rank), e.x + 10, e.y));
       const unlock = RANKS.find((r) => r.duel === c.id);
       scene.events.emit('toast', `Você derrotou ${CHAMPIONS[c.id].name}!${unlock ? ` Duelo da patente ${unlock.name} vencido.` : ''}`);
     });

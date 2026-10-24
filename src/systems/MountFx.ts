@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { DEPTH } from '../entities/Creature';
 import type { WorldScene } from '../scenes/WorldScene';
+import type { SkillFxId } from '../data/weapons';
 
 /**
  * Efeitos das habilidades das montarias. Cada habilidade tem uma coreografia
@@ -539,5 +540,117 @@ export class MountFx {
       vel(this.dust, Math.cos(a) * r * 2.4, Math.sin(a) * r * 1.4);
       this.dust.emitParticleAt(x + dir.x * 14, y + dir.y * 8, 1);
     }
+  }
+
+  // ------------------------------------------------------------ HABILIDADES DAS ARMAS
+  /** Preparação própria de cada uma das 12 habilidades. */
+  skillBegin(id: SkillFxId, x: number, y: number, dir: Phaser.Math.Vector2, enhancement = 0) {
+    const color = this.skillColor(id);
+    const magic = id === 'fireball' || id === 'frostlance' || id === 'nova' || id === 'warcry' || id === 'fury';
+    const power = 1 + Math.floor(enhancement / 5) * 0.18;
+    if (magic) {
+      const rune = this.img(x, y, 'fx-rune', 0, GROUND + 1).setTint(color).setScale(0.22, 0.12).setAlpha(0);
+      const st = { k: 0.22, f: 0 };
+      this.scene.tweens.add({
+        targets: st,
+        k: 0.72 * power,
+        f: id === 'fury' ? -8 : 8,
+        duration: 440,
+        ease: 'Cubic.easeOut',
+        onStart: () => rune.setAlpha(0.86),
+        onUpdate: () => rune.setScale(st.k, st.k * FLAT).setFrame(((Math.floor(st.f) % 6) + 6) % 6),
+        onComplete: () => this.scene.tweens.add({ targets: rune, alpha: 0, duration: 180, onComplete: () => rune.destroy() }),
+      });
+      this.rise(x, y, color, 5 + Math.floor(enhancement / 3), 12);
+      this.flash(x, y - 12, color, 34 * power, 260, 0.55);
+      return;
+    }
+    if (id === 'arrowrain' || id === 'multishot' || id === 'piercing') {
+      this.sparkBurst(x + dir.x * 8, y - 12 + dir.y * 5, color, 5 + Math.floor(enhancement / 4), 70, {
+        min: Phaser.Math.RadToDeg(Math.atan2(dir.y, dir.x)) - 25,
+        max: Phaser.Math.RadToDeg(Math.atan2(dir.y, dir.x)) + 25,
+      });
+      return;
+    }
+    this.chargeStart(x, y, dir, color);
+    this.flash(x + dir.x * 8, y - 8, color, 30 * power, 170, 0.55);
+  }
+
+  /** Clarão/liberação no instante exato do golpe ou disparo. */
+  skillRelease(id: SkillFxId, x: number, y: number, dir: Phaser.Math.Vector2, enhancement = 0) {
+    const c = this.skillColor(id);
+    const k = 1 + Math.floor(enhancement / 5) * 0.2;
+    const a = Math.atan2(dir.y, dir.x);
+    if (id === 'charge' || id === 'piercing') {
+      for (let i = -1; i <= 1; i++) {
+        const w = this.img(x - dir.x * 5 - dir.y * i * 5, y - 10 - dir.y * 4 + dir.x * i * 3, 'fx-wind', 0, LIGHT, false)
+          .setTint(i ? c : 0xffffff)
+          .setRotation(a - Math.PI / 2)
+          .setScale(0.35 * k, 0.8 * k);
+        this.scene.tweens.add({ targets: w, x: w.x + dir.x * 42, y: w.y + dir.y * 28, alpha: 0, scaleX: 1.1 * k, duration: 280, onComplete: () => w.destroy() });
+      }
+    } else if (id === 'whirlwind' || id === 'cleave') {
+      for (let i = 0; i < 3; i++) this.wave(x, y, (24 + i * 7) * k, i === 1 ? 0xffffff : c, 300 + i * 90, i * 45, false, 0.8 - i * 0.12);
+      this.dustRing(x, y, 26 * k, 10, 0xcdb894);
+    } else if (id === 'multishot') {
+      for (let i = -1; i <= 1; i++) this.sparkBurst(x + dir.x * 10 - dir.y * i * 4, y - 10 + dir.x * i * 3, i ? c : 0xffffff, 5, 125, { min: Phaser.Math.RadToDeg(a) - 16, max: Phaser.Math.RadToDeg(a) + 16 });
+    } else if (id === 'fireball' || id === 'frostlance') {
+      this.flash(x + dir.x * 8, y - 10, c, 54 * k, 240, 0.85);
+      this.wave(x, y, 18 * k, c, 260, 0, true, 0.8, true);
+      this.sparkBurst(x + dir.x * 10, y - 10, shade(c, 0.45), 10, 135, { min: Phaser.Math.RadToDeg(a) - 35, max: Phaser.Math.RadToDeg(a) + 35 });
+    } else if (id === 'warcry' || id === 'fury') {
+      for (let i = 0; i < 3; i++) this.sonic(x, y - 12, 32 + i * 13, c, 420, i * 90);
+      this.wave(x, y, 42, c, 480, 0, false, 0.8);
+    }
+  }
+
+  /** Coreografia da área atingida (sísmico, nova e chuva). */
+  skillArea(id: SkillFxId, x: number, y: number, radius: number, wave = 0) {
+    const c = this.skillColor(id);
+    if (id === 'quake') {
+      this.stomp(x, y, radius, c, 1.2);
+      return;
+    }
+    if (id === 'nova') {
+      if (!wave) {
+        const rune = this.img(x, y, 'fx-rune', 0, GROUND + 1).setTint(c).setScale(0.35, 0.2).setAlpha(0.9);
+        this.scene.tweens.add({ targets: rune, scaleX: (radius * 2) / 64, scaleY: ((radius * 2) / 64) * FLAT, angle: 90, alpha: 0, duration: 620, ease: 'Cubic.easeOut', onComplete: () => rune.destroy() });
+        this.beam(x, y, shade(c, 0.55), 1, 0);
+      }
+      this.wave(x, y, radius * 1.15, c, 500, wave * 35, false, 0.95, true);
+      this.wave(x, y, radius * 0.7, 0xffffff, 360, wave * 35, true, 0.7, true);
+      this.sparkBurst(x, y - 8, [c, 0xffffff][wave % 2], 18, 190);
+      return;
+    }
+    if (id === 'arrowrain') {
+      this.wave(x, y, radius, wave % 2 ? 0xffd77a : c, 320, 0, false, 0.4);
+      if (!wave) this.dustRing(x, y, radius, 9, 0xcdb894);
+    }
+  }
+
+  /** Trilha rica, porém limitada, para raios, gelo, flechas especiais e fogo. */
+  projectileTrail(x: number, y: number, color: number, kind: 'arrow' | 'bolt' | 'flame', intense = false) {
+    const e = kind === 'flame' ? this.fireCore : kind === 'bolt' ? this.motes : this.sparks;
+    op(e, 'tint', kind === 'flame' ? firePalette(color) : [0xffffff, shade(color, 0.45), color]);
+    vel(e, { min: -14, max: 14 }, { min: -16, max: 10 });
+    e.emitParticleAt(x + Phaser.Math.Between(-2, 2), y + Phaser.Math.Between(-2, 2), intense ? 2 : 1);
+  }
+
+  projectileImpact(x: number, y: number, color: number, kind: 'arrow' | 'bolt' | 'flame', large = false) {
+    const size = large ? 66 : kind === 'flame' ? 54 : 38;
+    this.flash(x, y - 4, shade(color, 0.5), size, large ? 360 : 220, 0.8);
+    this.wave(x, y, size * 0.38, color, large ? 440 : 280, 0, kind !== 'arrow', 0.8, kind !== 'arrow');
+    this.sparkBurst(x, y - 5, color, large ? 20 : 9, large ? 220 : 145);
+    if (kind === 'flame') this.decal(x, y, 'fx-scorch', large ? 1.3 : 0.85, 1900, 0.72, Math.random() * 360);
+  }
+
+  private skillColor(id: SkillFxId): number {
+    if (id === 'fireball' || id === 'fury') return 0xff6a2a;
+    if (id === 'frostlance') return 0x7adfff;
+    if (id === 'nova') return 0xb46cff;
+    if (id === 'warcry' || id === 'arrowrain') return 0xffd34a;
+    if (id === 'quake' || id === 'cleave') return 0xd8a46a;
+    if (id === 'multishot' || id === 'piercing') return 0xb8f08a;
+    return 0xe8f4ff;
   }
 }

@@ -28,9 +28,10 @@ import { MountReveal } from '../ui/MountReveal';
 import { BossBar } from '../ui/BossBar';
 import { MorePanel } from '../ui/MorePanel';
 import { SettingsPanel } from '../ui/SettingsPanel';
+import { ForgePanel } from '../ui/ForgePanel';
 import type { WorldScene } from './WorldScene';
 
-type PanelId = 'bag' | 'attrs' | 'army' | 'hq' | 'market' | 'stable' | 'missions' | 'clans' | 'map' | 'debug' | 'more' | 'settings';
+type PanelId = 'bag' | 'attrs' | 'army' | 'hq' | 'market' | 'forge' | 'stable' | 'missions' | 'clans' | 'map' | 'debug' | 'more' | 'settings';
 
 /**
  * HUD: à esquerda a insígnia da patente, a vida, a Glória e as ordens do
@@ -50,6 +51,7 @@ export class UIScene extends Phaser.Scene {
   private clansPanel!: ClansPanel;
   private hqPanel!: HQPanel;
   private marketPanel!: MarketPanel;
+  private forgePanel!: ForgePanel;
   private stablePanel!: StablePanel;
   private morePanel!: MorePanel;
   private settingsPanel!: SettingsPanel;
@@ -218,6 +220,7 @@ export class UIScene extends Phaser.Scene {
     this.clansPanel.onMap = () => this.togglePanel('map');
     this.hqPanel = new HQPanel(this, world);
     this.marketPanel = new MarketPanel(this, world);
+    this.forgePanel = new ForgePanel(this, world);
     this.stablePanel = new StablePanel(this, world);
     this.morePanel = new MorePanel(this);
     this.settingsPanel = new SettingsPanel(this, world);
@@ -229,7 +232,7 @@ export class UIScene extends Phaser.Scene {
     world.stable.on('change', () => this.updateHud());
     this.armyPanel.onClans = () => this.togglePanel('clans');
     this.morePanel.onOpen = (id) => this.togglePanel(id);
-    this.panels = { bag: this.bag, attrs: this.attrs, army: this.armyPanel, hq: this.hqPanel, market: this.marketPanel, stable: this.stablePanel, missions: this.missionsPanel, clans: this.clansPanel, map: this.mapPanel, debug: this.debug, more: this.morePanel, settings: this.settingsPanel };
+    this.panels = { bag: this.bag, attrs: this.attrs, army: this.armyPanel, hq: this.hqPanel, market: this.marketPanel, forge: this.forgePanel, stable: this.stablePanel, missions: this.missionsPanel, clans: this.clansPanel, map: this.mapPanel, debug: this.debug, more: this.morePanel, settings: this.settingsPanel };
     this.controls.blocker = (x, y) =>
       this.clanCreate.open ||
       this.reveal.open ||
@@ -268,6 +271,11 @@ export class UIScene extends Phaser.Scene {
     if (world.player.mount) this.controls.setButton('dodge', 'DISPARADA', 9);
     // ação de contexto (mercador…): o botão de golpe muda de nome e abre o painel
     world.events.on('action', (id: string) => {
+      if (id === 'chest-open') {
+        const msg = world.chests.openNear();
+        if (msg) this.showToast(msg);
+        return;
+      }
       // fortes: atacar o rival ou deixar/chamar a guarda no seu
       if (id === 'fort-siege' || id === 'fort-guard') {
         const f = world.forts.fortAtGate();
@@ -285,6 +293,10 @@ export class UIScene extends Phaser.Scene {
     });
     onWeapon(world.player.weapon);
     world.events.on('outfit', () => this.showToast(`Vestiu: ${ITEMS[world.inventory.gear.armor].name}`));
+    world.enhancement.on('result', (r: { success: boolean; message: string }) => {
+      this.showToast(r.message, 3600);
+      if (r.success) world.audio.sfx('reward');
+    });
     // clãs, missões e saque
     world.clans.on('chronicle', (text: string, loud: boolean) => (loud ? this.showToast(text, 3600) : this.showNews(text)));
     world.clans.on('change', () => this.updateHud());
@@ -301,7 +313,9 @@ export class UIScene extends Phaser.Scene {
     });
     world.clans.on('fallen', () => this.time.delayedCall(3500, () => this.clanCreate.setOpen(true)));
     world.missions.on('complete', (m: Mission) => this.showArea('MISSÃO CUMPRIDA', `${m.title} · +${m.reward} Glória · +${m.recruits} recrutas`));
-    world.events.on('loot', (d: ItemDef, R: Rarity) => this.showToast(`Saque: ${d.name} (${R.name}) — veja na mochila`, 3000));
+    world.events.on('loot', (d: ItemDef, R: Rarity) =>
+      this.showToast(d.family === 'jewel' ? `Joia obtida: ${d.name} — use na FORJA RÚNICA` : `Saque: ${d.name} (${R.name}) — veja na mochila`, 3000),
+    );
 
     // --- teclado: B mochila · C patentes · G exército · M mapa · 1/2/3/4 ordens
     const kb = this.input.keyboard;
@@ -313,6 +327,7 @@ export class UIScene extends Phaser.Scene {
     kb?.addKey(K.T).on('down', () => this.togglePanel('missions'));
     kb?.addKey(K.H).on('down', () => this.togglePanel('hq'));
     kb?.addKey(K.V).on('down', () => this.togglePanel('market'));
+    kb?.addKey(K.F).on('down', () => this.togglePanel('forge'));
     kb?.addKey(K.X).on('down', () => this.rideBtn.bg.emit('pointerdown', null, 0, 0, null));
     kb?.addKey(K.R).on('down', () => this.togglePanel('clans'));
     kb?.addKey(K.ONE).on('down', () => army.setMode('follow'));
@@ -546,6 +561,7 @@ export class UIScene extends Phaser.Scene {
     this.clansPanel.update(now);
     this.hqPanel.update(now);
     this.marketPanel.update(now);
+    this.forgePanel.update();
     this.stablePanel.update(now);
     // alvo mais perto: nome, distância e direção (vai embaixo das missões)
     if (now - this.objAt > 500) {

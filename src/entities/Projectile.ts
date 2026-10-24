@@ -57,7 +57,7 @@ export class Projectile extends Phaser.GameObjects.Sprite {
     this.y += this.vy * dt;
     this.traveled += this.def.speed * dt;
     this.light?.setPosition(this.x, this.y).setAlpha(0.3 + this.scene.dayNight.lightLevel * 0.5);
-    if (this.def.texture === 'bolt' && Math.random() < 0.4) this.scene.fx.burst(this.x, this.y, this.def.color, 1);
+    if (this.def.texture === 'bolt' || this.def.pierce) this.scene.mountFx.projectileTrail(this.x, this.y, this.def.color, this.def.texture, !!this.def.slow || !!this.def.pierce);
     for (const e of this.scene.hostiles) {
       if (e.dead || this.hitSet.has(e)) continue;
       if (reachDist(this.x, this.y + 6, e) < 11) {
@@ -66,6 +66,7 @@ export class Projectile extends Phaser.GameObjects.Sprite {
         if (this.def.slow) e.slow(this.def.slow.ms);
         this.scene.fx.impact(e.fx, e.fy - 8);
         this.scene.fx.burst(this.x, this.y, this.def.color, 5);
+        this.scene.mountFx.projectileImpact(this.x, this.y, this.def.color, this.def.texture, !!this.def.slow || (this.def.pierce && this.def.damage >= 5));
         if (!this.def.pierce) return this.end();
       }
     }
@@ -74,6 +75,7 @@ export class Projectile extends Phaser.GameObjects.Sprite {
 
   private end() {
     this.scene.fx.burst(this.x, this.y, this.def.color, 3);
+    this.scene.mountFx.projectileImpact(this.x, this.y, this.def.color, this.def.texture);
     this.light?.destroy();
     this.destroy();
   }

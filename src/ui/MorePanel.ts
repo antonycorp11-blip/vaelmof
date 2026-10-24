@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import { Button, Window } from './kit';
 
-export type MoreDestination = 'hq' | 'market' | 'stable' | 'clans' | 'settings' | 'debug';
+export type MoreDestination = 'hq' | 'market' | 'forge' | 'stable' | 'clans' | 'settings' | 'debug';
 
 const ITEMS: { id: MoreDestination; label: string; icon: number; color: 'dark' | 'red' }[] = [
   { id: 'hq', label: 'SEDE DO CLÃ', icon: 23, color: 'dark' },
   { id: 'market', label: 'MERCADO', icon: 22, color: 'dark' },
+  { id: 'forge', label: 'FORJA RÚNICA', icon: 25, color: 'dark' },
   { id: 'stable', label: 'ESTÁBULO', icon: 26, color: 'dark' },
   { id: 'clans', label: 'CLÃS', icon: 19, color: 'dark' },
   { id: 'settings', label: 'CONFIGURAÇÕES', icon: 13, color: 'dark' },
@@ -21,7 +22,7 @@ export class MorePanel {
 
   constructor(scene: Phaser.Scene) {
     this.win = new Window(scene, 'OUTROS MENUS', 13, () => this.setOpen(false));
-    this.win.sub.setText('Sede, comércio, montarias, clãs e opções');
+    this.win.sub.setText('Sede, comércio, forja, montarias, clãs e opções');
     this.buttons = ITEMS.map((item) =>
       new Button(scene, {
         label: item.label,
@@ -56,7 +57,7 @@ export class MorePanel {
   layout(u: number) {
     this.u = u;
     const { width, height } = this.win.root.scene.scale;
-    this.win.place(u, Math.min(width * 0.9, 460 * u), Math.min(height * 0.88, 210 * u));
+    this.win.place(u, Math.min(width * 0.9, 460 * u), Math.min(height * 0.88, 260 * u));
     const pad = this.win.pad;
     const top = this.win.head + pad / 2;
     const gap = 8 * u;

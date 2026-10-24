@@ -121,7 +121,8 @@ export class InventoryPanel {
         return;
       }
       this.setIcon(c.icon, ITEMS[s.id], this.cell);
-      c.qty.setText(s.qty > 1 ? String(s.qty) : '');
+      const up = inv.levelOf(s);
+      c.qty.setText(up ? `+${up}` : s.qty > 1 ? String(s.qty) : '').setColor(up >= 10 ? COLOR.gold : COLOR.text);
       // itens que o herói ainda não pode usar ficam apagados, com borda vermelha
       const locked = !!ITEMS[s.id].equip && !!inv.missing(s.id);
       c.icon.setAlpha(locked ? 0.4 : 1);
@@ -135,7 +136,8 @@ export class InventoryPanel {
     this.eq.forEach((e, i) => {
       const def = ITEMS[eqIds[i]];
       this.setIcon(e.icon, def, this.cell * 1.6);
-      e.name.setText(def.name).setColor(RARITY[def.tier ?? 0].color);
+      const up = inv.gearState[i === 0 ? 'weapon' : 'armor'].level;
+      e.name.setText(`${def.name}${up ? ` +${up}` : ''}`).setColor(up >= 10 ? COLOR.gold : RARITY[def.tier ?? 0].color);
       if (def.tier) e.box.setTint(RARITY[def.tier].frame);
       else e.box.clearTint();
     });
@@ -148,13 +150,14 @@ export class InventoryPanel {
     if (s && d) {
       const extra = d.info ? ` · ${d.info}` : '';
       const req = need ? ` · ${need}` : '';
-      this.detail.setText(`${d.name}${s.qty > 1 ? ` · ${s.qty} un` : ''}${extra} · ${(d.weight * s.qty).toFixed(1)} kg${req}`).setColor(need ? COLOR.red : RARITY[d.tier ?? 0].color);
+      const up = inv.levelOf(s);
+      this.detail.setText(`${d.name}${up ? ` +${up}` : ''}${s.qty > 1 ? ` · ${s.qty} un` : ''}${extra} · ${(d.weight * s.qty).toFixed(1)} kg${req}`).setColor(need ? COLOR.red : up >= 10 ? COLOR.gold : RARITY[d.tier ?? 0].color);
     } else
       this.detail
         .setText(over ? 'Carga acima do máximo: Teren fica mais lento.' : 'Toque num item para ver; armas e armaduras podem ser equipadas.')
         .setColor(over ? COLOR.red : COLOR.dim);
     const city = this.market?.cityHere();
-    const price = s && city ? this.market!.price(s.id, city) * s.qty : 0;
+    const price = s && city ? this.market!.price(s.id, city, inv.levelOf(s)) * s.qty : 0;
     this.sellBtn.setVisible(!!s && !!city && this.open).setLabel(`VENDER ${price}`);
     this.equipBtn.setVisible(!!d?.equip && this.open).setLabel(need ? 'BLOQUEADO' : 'EQUIPAR').setColor(need ? 'dark' : 'green').setEnabled(!need);
   }

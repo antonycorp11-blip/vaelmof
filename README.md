@@ -6,8 +6,8 @@ Vite + Phaser 3** (sem Godot).
 
 O foco é o **mundo vivo** e a jogabilidade básica: Teren explora um mundo
 grande de cinco biomas e 14 cidades muradas, a partir da capital Brumavale,
-com fauna, inimigos, ciclo de dia e noite e clima. Não há história, diálogos, menus, save, economia nem
-música.
+com fauna, inimigos, ciclo de dia e noite, clima, clãs, territórios, economia,
+progressão de equipamento e save local/nuvem pela ATHG.
 
 ---
 
@@ -49,6 +49,7 @@ preciso rodar se você alterar `scripts/generate-assets.mjs`).
 | Ranking de Clãs | ícone da **coroa** | R |
 | Sede do clã | ícone da **casa** | H |
 | Mercado | ícone das **moedas** | V |
+| Forja Rúnica (+1 a +15) | **Outros menus → FORJA RÚNICA** | F |
 | Montar / desmontar | botão do **cavalo** (começo das ordens) | X |
 | Ordens do exército | botões **seguir / atacar / segurar** sob a vida | 1 / 2 / 3 |
 | Aquartelar / convocar (andar sozinho) | botão da **tenda** (vira corneta com o exército no quartel) | 4 |
@@ -152,9 +153,8 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   craft vão pedir o material específico de cada região.
 - Recursos se esgotam (árvore vira toco, pedra some) e voltam depois de
   2,5 min, quando o herói estiver longe.
-- **Mochila** no estilo Albion (sem slots de equipamento por enquanto):
-  48 espaços, pilhas de 999, peso total (máx. 300 kg; acima disso Teren fica
-  mais lento).
+- **Mochila** no estilo Albion: 48 espaços, arma e armadura equipadas, pilhas
+  de 999 e peso total (máx. 300 kg; acima disso Teren fica mais lento).
 
 ### Interface (`src/ui/`)
 - **Kit visual** (`src/ui/kit.ts`, arte em `scripts/ui-art.mjs`): molduras
@@ -173,9 +173,25 @@ Exemplo para ver a noite chuvosa rapidamente: `http://localhost:5173/?time=0.9&w
   patente + escada de patentes com insígnias), **Quartel de Brumavale**
   (cartas com retrato de cada soldado, recrutas, cura explicada, aquartelar e
   guerra), **Mochila** e **Debug**.
-- **Outros menus** reúne Sede, Mercado, Estábulo, Clãs, Debug e
+- **Outros menus** reúne Sede, Mercado, **Forja Rúnica**, Estábulo, Clãs, Debug e
   **Configurações**. As opções incluem música/efeitos procedurais, movimento
   reduzido, gráficos leves e exportação/importação do save consolidado.
+
+### Magias e Forja Rúnica (`src/data/weapons.ts`, `src/systems/MountFx.ts`, `src/systems/Enhancement.ts`)
+- As **12 habilidades** das quatro classes têm preparação, liberação, trilha e
+  impacto próprios: runas, colunas de luz, ondas, rachaduras, gelo, fogo,
+  vento, flechas e partículas que escalam com o aprimoramento da arma.
+- Armas e armaduras sobem individualmente de **+1 a +15**. Armas ganham até
+  60% de dano e redução de recarga nos marcos +5/+10/+15; armaduras recebem
+  até 14% de defesa adicional. O brilho muda em seis patamares visuais.
+- A tentativa usa **Joia de Forja** (+1–+5), **Joia Rúnica** (+6–+10) ou
+  **Joia Ancestral** (+11–+15), além de ouro. Falhar nunca quebra nem rebaixa
+  a peça; as falhas ficam salvas nela e ativam uma tentativa garantida.
+- Joias vêm de **baús rúnicos** espalhados pelas cidades, Chefes, Gigantes,
+  vitórias de campo/fortes e das **masmorras dos Tiranos**. Baús reaparecem
+  depois de 18 minutos e são marcados no minimapa e mapa completo.
+- O nível acompanha a peça ao equipar, guardar no baú, vender ou entregar a
+  um cavaleiro. Saves anteriores são migrados como equipamento +0.
 
 ### Debug (ícone da engrenagem, vermelho)
 - Teleporte para o coração de cada bioma (Vale, Greenland, Snowland,

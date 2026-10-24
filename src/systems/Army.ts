@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { TILE } from '../config';
 import { ITEMS } from '../data/items';
+import { armorEnhancementGuard, weaponEnhancementPower } from '../data/enhancement';
 import { MOUNTS, type MountDef } from '../data/mounts';
 import { SKIN_CELL, SKIN_COLS, SKIN_FOOT, SKINS } from '../data/skins';
 import { DEPTH } from '../entities/Creature';
@@ -258,6 +259,8 @@ export interface Knight {
   a: string;
   wt: number;
   at: number;
+  wu?: number;
+  au?: number;
 }
 
 const KNIGHT_M = ['Aldric', 'Bertrand', 'Cedric', 'Dorian', 'Edmund', 'Gareth', 'Hugo', 'Ivar', 'Leoric', 'Merek', 'Osric', 'Roland', 'Tristan', 'Ulric', 'Wilhelm'];
@@ -1050,8 +1053,8 @@ export class Army extends Phaser.Events.EventEmitter {
     const at = kn?.at ?? 0;
     // a qualidade da arma e da armadura que ele recebeu pesa muito
     // cavaleiro nomeado: bem mais forte que um soldado montado comum
-    s.cavK = (1.4 + m.power) * (1 + 0.22 * wt) * (kn ? 1.5 : 1);
-    s.maxHp = s.hp = Math.round(s.maxHp * 1.6 * (1 + 0.3 * at) * (kn ? 2.2 : 1));
+    s.cavK = (1.4 + m.power) * (1 + 0.22 * wt) * weaponEnhancementPower(kn?.wu ?? 0) * (kn ? 1.5 : 1);
+    s.maxHp = s.hp = Math.round(s.maxHp * 1.6 * (1 + 0.3 * at) * (1 + armorEnhancementGuard(kn?.au ?? 0)) * (kn ? 2.2 : 1));
     this.mountChampion(s, id);
     if (kn) {
       // pele de elite e o nome sobre a cabeça
@@ -1072,7 +1075,8 @@ export class Army extends Phaser.Events.EventEmitter {
     // o cavaleiro devolve a arma e a armadura
     if (s.knight) {
       const inv = this.scene.inventory;
-      for (const id of [s.knight.w, s.knight.a]) if (id) inv.add(id, 1);
+      if (s.knight.w) inv.add(s.knight.w, 1, s.knight.wu ?? 0);
+      if (s.knight.a) inv.add(s.knight.a, 1, s.knight.au ?? 0);
       s.knight = null;
       s.nameTag?.destroy();
       s.nameTag = undefined;
@@ -1098,17 +1102,30 @@ export class Army extends Phaser.Events.EventEmitter {
   }
 
   /** Melhor arma e armadura sobrando na mochila (para nomear um cavaleiro). */
-  knightGear(): { w: string; a: string } | null {
+  knightGear(): { w: string; a: string; wi: number; ai: number; wu: number; au: number } | null {
     const inv = this.scene.inventory;
     let w = '';
     let a = '';
-    for (const sl of inv.slots) {
+    let wi = -1;
+    let ai = -1;
+    let wu = 0;
+    let au = 0;
+    inv.slots.forEach((sl, i) => {
       const d = sl && ITEMS[sl.id];
-      if (!d?.equip) continue;
-      if (d.equip.kind === 'weapon' && (!w || (d.tier ?? 0) > (ITEMS[w].tier ?? 0))) w = d.id;
-      if (d.equip.kind === 'armor' && (!a || (d.tier ?? 0) > (ITEMS[a].tier ?? 0))) a = d.id;
-    }
-    return w && a ? { w, a } : null;
+      if (!d?.equip || !sl) return;
+      const score = (d.tier ?? 0) * 100 + inv.levelOf(sl);
+      if (d.equip.kind === 'weapon' && (!w || score > (ITEMS[w].tier ?? 0) * 100 + wu)) {
+        w = d.id;
+        wi = i;
+        wu = inv.levelOf(sl);
+      }
+      if (d.equip.kind === 'armor' && (!a || score > (ITEMS[a].tier ?? 0) * 100 + au)) {
+        a = d.id;
+        ai = i;
+        au = inv.levelOf(sl);
+      }
+    });
+    return w && a ? { w, a, wi, ai, wu, au } : null;
   }
 
   /**
@@ -1129,12 +1146,12 @@ export class Army extends Phaser.Events.EventEmitter {
       .sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type) || b.kills - a.kills)[0];
     if (!pick) return 'Nenhum soldado com você para nomear (convoque o exército)';
     const inv = this.scene.inventory;
-    inv.remove(gear.w, 1);
-    inv.remove(gear.a, 1);
+    inv.removeAt(gear.wi, 1);
+    inv.removeAt(gear.ai, 1);
     const female = Math.random() < 0.35;
     const first = female ? KNIGHT_F[Math.floor(Math.random() * KNIGHT_F.length)] : KNIGHT_M[Math.floor(Math.random() * KNIGHT_M.length)];
     const name = `${female ? 'Dama' : 'Sir'} ${first} ${this.scene.clans.player.name}`;
-    this.rideAlly(pick, id, { name, w: gear.w, a: gear.a, wt: wd.tier ?? 0, at: ITEMS[gear.a].tier ?? 0 });
+    this.rideAlly(pick, id, { name, w: gear.w, a: gear.a, wt: wd.tier ?? 0, at: ITEMS[gear.a].tier ?? 0, wu: gear.wu, au: gear.au });
     this.scene.fx.burst(pick.x, pick.y - 14, 0xffd77a, 18);
     this.scene.events.emit('area', 'CAVALEIRO NOMEADO!', `${name} · ${MOUNTS[id].name} · ${wd.name} · ${ITEMS[gear.a].name}`);
     this.save();

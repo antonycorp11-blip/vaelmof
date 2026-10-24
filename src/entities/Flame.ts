@@ -42,6 +42,7 @@ export class Flame extends Phaser.GameObjects.Sprite {
     this.traveled += Math.hypot(this.vx, this.vy) * dt;
     this.light.setPosition(this.x, this.y).setAlpha(0.35 + this.scene.dayNight.lightLevel * 0.5);
     if (Math.random() < 0.5) this.scene.fx.ember(this.x, this.y);
+    this.scene.mountFx.projectileTrail(this.x, this.y, 0xff7a2a, 'flame', true);
     const hitEnemy = this.scene.hostiles.some((e) => !e.dead && reachDist(this.x, this.y + 4, e) < 10);
     if (hitEnemy || this.traveled >= PLAYER.flame.range || this.scene.blocksProjectile(this.x, this.y + 4)) this.explode();
   }
@@ -57,6 +58,7 @@ export class Flame extends Phaser.GameObjects.Sprite {
     boom.play('explosion');
     boom.once('animationcomplete', () => boom.destroy());
     s.fx.burst(this.x, this.y, 0xff9a2a, 12);
+    s.mountFx.projectileImpact(this.x, this.y, 0xff6a20, 'flame', true);
     const light = this.light;
     light.setScale(2.2).setAlpha(0.5 + s.dayNight.lightLevel * 0.5);
     s.tweens.add({ targets: light, alpha: 0, scale: 2.8, duration: 450, onComplete: () => light.destroy() });

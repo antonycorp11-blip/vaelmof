@@ -5,6 +5,7 @@ import { PLAYER } from '../config';
 import { BUFFS, WEAPONS, type BuffId, type Effect, type Move, type WeaponDef } from '../data/weapons';
 import { ITEMS } from '../data/items';
 import { RARITY } from '../data/gear';
+import { armorEnhancementGuard, enhancementColor, enhancementCooldownMul, weaponEnhancementPower } from '../data/enhancement';
 import type { MountDef, MountSkill } from '../data/mounts';
 import { consume, inputState } from '../input/InputState';
 import type { WorldScene } from '../scenes/WorldScene';
@@ -205,7 +206,8 @@ export class Player extends Creature {
     const P = this.scene.progress;
     const id = this.weapon.id;
     const base = id === 'bow' ? P.rangedMul : id === 'staff' ? P.magicMul : P.meleeMul;
-    let k = base * RARITY[ITEMS[this.scene.inventory.gear.weapon]?.tier ?? 0].power * (1 + (this.mount?.power ?? 0));
+    const up = this.scene.inventory.gearState.weapon.level;
+    let k = base * RARITY[ITEMS[this.scene.inventory.gear.weapon]?.tier ?? 0].power * weaponEnhancementPower(up) * (1 + (this.mount?.power ?? 0));
     for (const b of this.activeBuffs) k *= BUFFS[b].dmg;
     return k;
   }
@@ -219,7 +221,8 @@ export class Player extends Creature {
 
   /** Quanto do dano a armadura (e o grito de guerra) absorve. */
   get defense(): number {
-    let d = OUTFITS[this.outfit].defense + RARITY[ITEMS[this.scene.inventory.gear.armor]?.tier ?? 0].guard + (this.mount?.guard ?? 0);
+    const up = this.scene.inventory.gearState.armor.level;
+    let d = OUTFITS[this.outfit].defense + RARITY[ITEMS[this.scene.inventory.gear.armor]?.tier ?? 0].guard + armorEnhancementGuard(up) + (this.mount?.guard ?? 0);
     for (const b of this.activeBuffs) d += BUFFS[b].defense;
     return Math.min(0.8, d);
   }
@@ -274,7 +277,7 @@ export class Player extends Creature {
 
   /** Recarga da habilidade `i`: traje arcano −30%, Energia até −50%. */
   skillCooldown(i: number): number {
-    return this.weapon.skills[i].cooldown * (OUTFITS[this.outfit].bonus === 'cooldown' ? 0.7 : 1) * this.scene.progress.cooldownMul;
+    return this.weapon.skills[i].cooldown * (OUTFITS[this.outfit].bonus === 'cooldown' ? 0.7 : 1) * this.scene.progress.cooldownMul * enhancementCooldownMul(this.scene.inventory.gearState.weapon.level);
   }
 
   private get dodgeCooldown(): number {
@@ -380,9 +383,13 @@ export class Player extends Creature {
       fx.clear();
       if (color) fx.addGlow(color, 3 * k, 0, false, 0.1, 6);
     };
-    glow(this.wFg, w?.glow);
-    glow(this.wBg, w?.glow);
-    glow(this, a?.glow, 0.6);
+    const wg = enhancementColor(inv.gearState.weapon.level) ?? w?.glow;
+    const ag = enhancementColor(inv.gearState.armor.level) ?? a?.glow;
+    const wi = 1 + Math.floor(inv.gearState.weapon.level / 5) * 0.2;
+    const ai = 0.6 + Math.floor(inv.gearState.armor.level / 5) * 0.12;
+    glow(this.wFg, wg, wi);
+    glow(this.wBg, wg, wi);
+    glow(this, ag, ai);
   }
 
   // ---------------------------------------------------------------- equipamento
@@ -875,6 +882,8 @@ export class Player extends Creature {
     this.facing.copy(aim);
     this.updateDir(aim.x, aim.y);
     this.hitDone = false;
+    const skill = this.weapon.skills.find((x) => x === M);
+    if (skill) this.scene.mountFx.skillBegin(skill.fx, this.fx, this.fy, aim, this.scene.inventory.gearState.weapon.level);
     if (M.projectile === 'flame') this.scene.fx.burst(this.x, this.y - 14, 0xffb040, 6);
   }
 
@@ -884,6 +893,8 @@ export class Player extends Creature {
     // sai do corpo (não à frente): um inimigo colado também é atingido
     const ox = this.fx + Math.cos(a) * 3;
     const oy = this.fy - 10 + Math.sin(a) * 2;
+    const skill = this.weapon.skills.find((x) => x === M);
+    if (skill) this.scene.mountFx.skillRelease(skill.fx, this.fx, this.fy, aim, this.scene.inventory.gearState.weapon.level);
     if (M.effect) {
       this.effect(M.effect, aim);
       return;
@@ -962,8 +973,10 @@ export class Player extends Creature {
     }
     const mul = this.dmgMul;
     const waves = E.waves ?? 1;
+    const skillFx = this.weapon.skills.find((x) => x === this.move)?.fx;
     for (let w = 0; w < waves; w++)
       s.time.delayedCall(w * (E.every ?? 0), () => {
+        if (skillFx) s.mountFx.skillArea(skillFx, cx, cy, E.radius, w);
         if (E.style === 'rain') {
           // flechas caindo em pontos sorteados; o dano sai na queda
           for (let k = 0; k < 4; k++) {

@@ -7,7 +7,7 @@ import { T } from './Tiles';
 import { Biome } from './WorldGenerator';
 
 interface NodeType {
-  family: Exclude<Family, 'weapon' | 'armor' | 'egg'>;
+  family: Exclude<Family, 'weapon' | 'armor' | 'egg' | 'jewel'>;
   /** Golpes até esgotar. */
   charges: number;
   /** Quantidade por golpe [mín, máx]. */

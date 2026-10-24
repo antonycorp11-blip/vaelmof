@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { WorldScene } from '../scenes/WorldScene';
 import type { Soldier, SoldierType } from './Army';
+import { rollJewel } from '../data/enhancement';
 
 export interface BossSpec {
   name: string;
@@ -66,6 +67,8 @@ export class Bosses {
           live.label?.destroy();
           s.gainGlory(spec.points * 4, unit.x, unit.y - 50);
           if (spec.loot) s.loot.drop(spec.loot, unit.x, unit.y);
+          // Todo personagem nomeado alimenta a progressão da Forja.
+          s.time.delayedCall(180, () => s.loot.drop(rollJewel('boss', spec.rank), unit.x + 10, unit.y + 4));
           spec.onKill?.();
         },
       });

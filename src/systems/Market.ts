@@ -93,10 +93,10 @@ export class Market extends Phaser.Events.EventEmitter {
   }
 
   /** Quanto este mercador paga por uma unidade do item. */
-  price(itemId: string, c: City): number {
+  price(itemId: string, c: City, level = 0): number {
     const d = ITEMS[itemId];
     if (!d) return 0;
-    if (d.equip) return GEAR_PRICE[d.tier ?? 0];
+    if (d.equip) return GEAR_PRICE[d.tier ?? 0] + Math.max(0, level) * (20 + (d.tier ?? 0) * 35);
     const base = BASE[d.family] ?? 1;
     // material de outra região vale o dobro aqui
     const here = BIOME_REGION[c.biome];
@@ -112,11 +112,11 @@ export class Market extends Phaser.Events.EventEmitter {
     if (!st) return '';
     const d = ITEMS[st.id];
     if (d.equip && (inv.gear.weapon === st.id || inv.gear.armor === st.id)) return 'Tire o item antes de vender';
-    const each = this.price(st.id, c);
+    const each = this.price(st.id, c, inv.levelOf(st));
     const purse = this.purseOf(c);
     const k = Math.min(qty, st.qty, each > 0 ? Math.floor(purse / each) : 0);
     if (k <= 0) return `O mercador de ${c.name} está sem ouro (volta aos poucos)`;
-    inv.remove(st.id, k);
+    inv.removeAt(i, k);
     const gold = k * each;
     this.purse.set(c.name, purse - gold);
     this.scene.hq.addGold(gold);

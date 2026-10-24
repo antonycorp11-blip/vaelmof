@@ -3,6 +3,7 @@ import { TILE } from '../config';
 import type { WorldScene } from '../scenes/WorldScene';
 import { BIOMES } from '../systems/WorldGenerator';
 import { rollGear } from '../data/gear';
+import { JEWEL_INFO, type JewelId } from '../data/enhancement';
 import { Button, COLOR, fit, frame, label, sizeFrame, type BtnColor } from './kit';
 
 /**
@@ -90,6 +91,10 @@ export class DebugPanel {
     add('+500 glória', () => world.progress.addGlory(500), 'gold');
     add('Zerar tudo (recomeça)', () => world.resetAll(), 'red');
     add('Saque raro aqui', () => world.loot.drop(rollGear(1 + Math.floor(Math.random() * 4)), world.player.x + 24, world.player.y), 'gold');
+    add('Kit da Forja', () => {
+      for (const id of Object.keys(JEWEL_INFO) as JewelId[]) world.inventory.add(id, 30);
+      world.hq.addGold(50000);
+    }, 'gold');
     add('+200 materiais, +2000 ouro', () => {
       for (const f of ['wood_green', 'stone_green', 'ore_green', 'fiber_green', 'crystal_green']) world.inventory.add(f, 200);
       world.hq.addGold(2000);

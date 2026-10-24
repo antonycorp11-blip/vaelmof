@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { TILE } from '../config';
 import { BOSS_ART, BOSS_FRAME } from '../data/bossArt';
 import { rollGear } from '../data/gear';
+import { rollJewel } from '../data/enhancement';
 import { MOUNTS } from '../data/mounts';
 import { DEPTH } from '../entities/Creature';
 import type { Hittable } from '../entities/Hittable';
@@ -858,6 +859,8 @@ export class WorldBosses {
     if (first || Math.random() < 0.35) eggs.push(d.eggs[Math.floor(Math.random() * d.eggs.length)]);
     eggs.forEach((e, i) => s.time.delayedCall(900 + i * 300, () => s.loot.drop(`egg_${e}`, g.x + (i - 0.5) * 30, g.y + 6)));
     s.time.delayedCall(1300, () => s.loot.drop(rollGear(Math.min(4, 3 + Math.floor(s.progress.rankIdx / 6))), g.x - 20, g.y - 4));
+    s.time.delayedCall(1500, () => s.loot.drop(rollJewel('giant', s.progress.rankIdx), g.x + 4, g.y));
+    s.time.delayedCall(1750, () => s.loot.drop(rollJewel('giant', s.progress.rankIdx), g.x + 22, g.y + 2));
     const gold = 600 + s.progress.rankIdx * 120;
     s.hq.addGold(gold);
     s.gainGlory(220 + s.progress.rankIdx * 20, g.x, g.y - 90);

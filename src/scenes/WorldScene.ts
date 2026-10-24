@@ -54,6 +54,9 @@ import { Territories } from '../systems/Territories';
 import { Prologue } from '../systems/Prologue';
 import { identityOf } from '../systems/Cities';
 import { saves } from '../systems/SaveManager';
+import { Enhancement } from '../systems/Enhancement';
+import { TreasureChests } from '../systems/TreasureChests';
+import { rollJewel } from '../data/enhancement';
 
 export interface Light {
   img: Phaser.GameObjects.Image;
@@ -93,6 +96,9 @@ export class WorldScene extends Phaser.Scene {
   loot!: Loot;
   /** Sede do clã. */
   hq!: HQ;
+  /** Forja de equipamento +1…+15. */
+  enhancement!: Enhancement;
+  chests!: TreasureChests;
   /** Fortes dos clãs e territórios. */
   forts!: Forts;
   /** Conversas com líderes, tréguas e duelos. */
@@ -185,6 +191,14 @@ export class WorldScene extends Phaser.Scene {
     this.clans = new Clans(this);
     this.missions = new Missions(this);
     this.hq = new HQ(this);
+    this.enhancement = new Enhancement(this);
+    this.chests = new TreasureChests(this);
+    // Vitórias de campo também sustentam a Forja, mesmo sem um Chefe presente.
+    this.army.on('war-end', (w: { won: boolean; fled?: boolean; killed: number; start: number }) => {
+      if (!w.won || w.fled || w.killed < 3) return;
+      const power = Math.max(1, Math.floor(Math.max(w.killed, w.start) / 18));
+      this.time.delayedCall(500, () => this.loot.drop(rollJewel('battle', power), this.player.x + 12, this.player.y));
+    });
     this.bands = new Bands(this);
     this.market = new Market(this);
     this.market.placeMerchants();
@@ -724,12 +738,14 @@ export class WorldScene extends Phaser.Scene {
       const f = this.forts.fortAtGate();
       if (f) inputState.action = f.owner === 'player' ? { id: 'fort-guard', label: f.guards?.length ? 'CHAMAR GUARDA' : 'DEIXAR GUARDA', icon: 10 } : { id: 'fort-siege', label: 'ATACAR FORTE', icon: 5 };
     }
+    if (!inputState.action && this.chests.near()) inputState.action = { id: 'chest-open', label: 'ABRIR BAÚ', icon: 24 };
     this.player.update(time);
     this.stable.update(time);
     this.army.update(time, dt);
     this.champions.update(time);
     this.bosses.update();
     this.loot.update(time);
+    this.chests.update(time);
     this.clans.update(dt);
     this.missions.update(time);
     this.hq.update(time, dt);

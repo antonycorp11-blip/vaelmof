@@ -6,9 +6,10 @@
 import { HERO_SHEETS, OUTFITS, type LookId, type OutfitId, type WeaponId } from '../entities/heroSheets';
 import { EGG_ICONS } from './bossArt';
 import { GEAR, RARITY } from './gear';
+import { JEWEL_INFO, type JewelId } from './enhancement';
 import { MOUNT_ART } from './mountsGen';
 
-export type Family = 'wood' | 'stone' | 'ore' | 'crystal' | 'fiber' | 'ice' | 'fruit' | 'weapon' | 'armor' | 'egg';
+export type Family = 'wood' | 'stone' | 'ore' | 'crystal' | 'fiber' | 'ice' | 'fruit' | 'weapon' | 'armor' | 'egg' | 'jewel';
 export type Region = 'green' | 'snow' | 'block' | 'black' | 'dust';
 
 export interface ItemDef {
@@ -40,7 +41,9 @@ export const REGION_NAME: Record<Region, string> = {
   dust: 'Dustland',
 };
 
-const FAMILY: Record<Exclude<Family, 'weapon' | 'armor' | 'egg'>, { name: string; weight: number; icon: Partial<Record<Region, number>> & { any: number } }> = {
+export const ITEMS: Record<string, ItemDef> = {};
+
+const FAMILY: Record<Exclude<Family, 'weapon' | 'armor' | 'egg' | 'jewel'>, { name: string; weight: number; icon: Partial<Record<Region, number>> & { any: number } }> = {
   wood: { name: 'Madeira', weight: 1, icon: { any: 0, green: 0, snow: 1, black: 2, block: 2, dust: 3 } },
   stone: { name: 'Pedra', weight: 1.5, icon: { any: 4, green: 4, snow: 5, block: 6, black: 6, dust: 9 } },
   ore: { name: 'Minério', weight: 2, icon: { any: 7 } },
@@ -50,7 +53,24 @@ const FAMILY: Record<Exclude<Family, 'weapon' | 'armor' | 'egg'>, { name: string
   fruit: { name: 'Frutas', weight: 0.1, icon: { any: 12 } },
 };
 
-export const ITEMS: Record<string, ItemDef> = {};
+// Joias de aprimoramento. Usam o cristal da folha base com paletas distintas;
+// a moldura/feixe do saque segue o tier para continuarem legíveis no chão.
+for (const [id, j] of Object.entries(JEWEL_INFO) as [JewelId, (typeof JEWEL_INFO)[JewelId]][]) {
+  const tier = id === 'jewel_forge' ? 1 : id === 'jewel_rune' ? 2 : 4;
+  ITEMS[id] = {
+    id,
+    name: j.name,
+    icon: 8,
+    sheet: 'items',
+    weight: 0.1,
+    family: 'jewel',
+    tier,
+    tint: j.color,
+    glow: j.color,
+    info: `aprimora equipamento de ${j.band} · consumida na Forja Rúnica`,
+  };
+}
+
 for (const family of Object.keys(FAMILY) as (keyof typeof FAMILY)[])
   for (const region of Object.keys(REGION_NAME) as Region[]) {
     const f = FAMILY[family];

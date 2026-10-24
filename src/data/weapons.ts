@@ -65,7 +65,23 @@ export interface Skill extends Move {
   label: string;
   icon: number;
   cooldown: number;
+  /** Coreografia visual única desta habilidade. */
+  fx: SkillFxId;
 }
+
+export type SkillFxId =
+  | 'charge'
+  | 'whirlwind'
+  | 'warcry'
+  | 'cleave'
+  | 'quake'
+  | 'fury'
+  | 'fireball'
+  | 'frostlance'
+  | 'nova'
+  | 'multishot'
+  | 'piercing'
+  | 'arrowrain';
 
 export interface WeaponDef {
   id: WeaponId;
@@ -104,9 +120,9 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
       { anim: 'spin', frames: [45, 45, 40, 45, 45, 45, 45, 110], hit: 3, damage: 3, range: 26, arcDeg: 360, knockback: 240, lunge: 70 },
     ],
     skills: [
-      { label: 'INVESTIDA', icon: 9, cooldown: 3000, anim: 'slash', cols: [1, 2, 3, 4, 5, 5], frames: [40, 60, 50, 60, 70, 90], hit: 3, damage: 4, range: 26, arcDeg: 120, knockback: 260, lunge: 240, sweep: -1 },
-      { label: 'REDEMOINHO', icon: 4, cooldown: 5000, anim: 'spin', frames: [40, 40, 35, 40, 40, 40, 40, 100], hit: 3, damage: 5, range: 32, arcDeg: 360, knockback: 260, lunge: 150 },
-      { label: 'GRITO', icon: 13, cooldown: 14000, anim: 'cast', frames: CAST, hit: 3, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, effect: { kind: 'buff', buff: 'war', ms: 8000 } },
+      { label: 'INVESTIDA', fx: 'charge', icon: 9, cooldown: 3000, anim: 'slash', cols: [1, 2, 3, 4, 5, 5], frames: [40, 60, 50, 60, 70, 90], hit: 3, damage: 4, range: 26, arcDeg: 120, knockback: 260, lunge: 240, sweep: -1 },
+      { label: 'REDEMOINHO', fx: 'whirlwind', icon: 4, cooldown: 5000, anim: 'spin', frames: [40, 40, 35, 40, 40, 40, 40, 100], hit: 3, damage: 5, range: 32, arcDeg: 360, knockback: 260, lunge: 150 },
+      { label: 'GRITO', fx: 'warcry', icon: 13, cooldown: 14000, anim: 'cast', frames: CAST, hit: 3, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, effect: { kind: 'buff', buff: 'war', ms: 8000 } },
     ],
   },
   greatsword: {
@@ -122,9 +138,9 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
       { anim: 'thrust', frames: [55, 55, 60, 60, 90, 80, 70, 70], hit: 4, damage: 5, range: 36, arcDeg: 60, knockback: 320, lunge: 160 },
     ],
     skills: [
-      { label: 'GIRO', icon: 4, cooldown: 4000, anim: 'spin', frames: [60, 60, 50, 55, 55, 55, 55, 140], hit: 3, damage: 4, range: 34, arcDeg: 360, knockback: 280, lunge: 40 },
-      { label: 'SÍSMICO', icon: 14, cooldown: 7000, anim: 'slash', frames: [90, 110, 70, 60, 130, 160], hit: 3, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 30, effect: { kind: 'aoe', style: 'quake', at: 'front', radius: 44, damage: 6, knockback: 220, stun: 1200, color: 0xc8a070 } },
-      { label: 'FÚRIA', icon: 15, cooldown: 16000, anim: 'cast', frames: CAST, hit: 3, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, effect: { kind: 'buff', buff: 'fury', ms: 7000 } },
+      { label: 'GIRO', fx: 'cleave', icon: 4, cooldown: 4000, anim: 'spin', frames: [60, 60, 50, 55, 55, 55, 55, 140], hit: 3, damage: 4, range: 34, arcDeg: 360, knockback: 280, lunge: 40 },
+      { label: 'SÍSMICO', fx: 'quake', icon: 14, cooldown: 7000, anim: 'slash', frames: [90, 110, 70, 60, 130, 160], hit: 3, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 30, effect: { kind: 'aoe', style: 'quake', at: 'front', radius: 44, damage: 6, knockback: 220, stun: 1200, color: 0xc8a070 } },
+      { label: 'FÚRIA', fx: 'fury', icon: 15, cooldown: 16000, anim: 'cast', frames: CAST, hit: 3, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, effect: { kind: 'buff', buff: 'fury', ms: 7000 } },
     ],
   },
   staff: {
@@ -136,9 +152,9 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     attackIcon: 6,
     combo: [{ anim: 'thrust', frames: [30, 30, 35, 40, 70, 50, 40, 40], hit: 4, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, projectile: BOLT }],
     skills: [
-      { label: 'CHAMA', icon: 2, cooldown: 4000, anim: 'thrust', frames: [40, 40, 50, 60, 90, 60, 50, 50], hit: 4, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, projectile: 'flame' },
-      { label: 'GELO', icon: 16, cooldown: 5000, anim: 'thrust', frames: [40, 40, 45, 50, 80, 60, 50, 50], hit: 4, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, projectile: ICE },
-      { label: 'NOVA', icon: 17, cooldown: 9000, anim: 'cast', frames: CAST, hit: 4, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, effect: { kind: 'aoe', style: 'nova', at: 'self', radius: 48, damage: 4, knockback: 280, stun: 500, color: 0xb46cec } },
+      { label: 'CHAMA', fx: 'fireball', icon: 2, cooldown: 4000, anim: 'thrust', frames: [40, 40, 50, 60, 90, 60, 50, 50], hit: 4, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, projectile: 'flame' },
+      { label: 'GELO', fx: 'frostlance', icon: 16, cooldown: 5000, anim: 'thrust', frames: [40, 40, 45, 50, 80, 60, 50, 50], hit: 4, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, projectile: ICE },
+      { label: 'NOVA', fx: 'nova', icon: 17, cooldown: 9000, anim: 'cast', frames: CAST, hit: 4, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, effect: { kind: 'aoe', style: 'nova', at: 'self', radius: 48, damage: 4, knockback: 280, stun: 500, color: 0xb46cec } },
     ],
   },
   bow: {
@@ -150,9 +166,9 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     attackIcon: 7,
     combo: [{ anim: 'shoot', frames: [25, 25, 25, 30, 30, 30, 35, 35, 40, 35, 35, 35, 40], hit: 8, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, projectile: ARROW }],
     skills: [
-      { label: 'TRIPLO', icon: 8, cooldown: 3500, anim: 'shoot', frames: SHOT, hit: 8, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, projectile: { ...ARROW, pierce: true }, count: 3, spread: 14 },
-      { label: 'PERFURANTE', icon: 18, cooldown: 4500, anim: 'shoot', frames: SHOT.map((f) => f * 1.25), hit: 8, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, projectile: HEAVY_ARROW },
-      { label: 'CHUVA', icon: 19, cooldown: 9000, anim: 'shoot', frames: SHOT, hit: 8, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, effect: { kind: 'aoe', style: 'rain', at: 'target', radius: 30, damage: 2, knockback: 40, waves: 6, every: 200, color: 0xe8e2d0 } },
+      { label: 'TRIPLO', fx: 'multishot', icon: 8, cooldown: 3500, anim: 'shoot', frames: SHOT, hit: 8, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, projectile: { ...ARROW, pierce: true }, count: 3, spread: 14 },
+      { label: 'PERFURANTE', fx: 'piercing', icon: 18, cooldown: 4500, anim: 'shoot', frames: SHOT.map((f) => f * 1.25), hit: 8, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, projectile: HEAVY_ARROW },
+      { label: 'CHUVA', fx: 'arrowrain', icon: 19, cooldown: 9000, anim: 'shoot', frames: SHOT, hit: 8, damage: 0, range: 0, arcDeg: 0, knockback: 0, lunge: 0, effect: { kind: 'aoe', style: 'rain', at: 'target', radius: 30, damage: 2, knockback: 40, waves: 6, every: 200, color: 0xe8e2d0 } },
     ],
   },
 };

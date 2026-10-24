@@ -7,6 +7,15 @@ const SAVE_KEY = 'vaelmor.inv.v1';
 export interface ItemStack {
   id: string;
   qty: number;
+  /** Aprimoramento individual de equipamentos (+0…+15). */
+  level?: number;
+  /** Falhas acumuladas na tentativa atual (proteção/garantia). */
+  pity?: number;
+}
+
+export interface GearState {
+  level: number;
+  pity: number;
 }
 
 /**
@@ -23,6 +32,8 @@ export class Inventory extends Phaser.Events.EventEmitter {
   equipped: { weapon: WeaponId; look: LookId; armor: OutfitId } = { weapon: 'sword', look: 'sword', armor: 'squire' };
   /** Item exato equipado (a peça rara, com raridade, tom e brilho). */
   gear = { weapon: 'weapon_sword', armor: 'armor_squire' };
+  /** O aprimoramento viaja com a peça quando ela é equipada/tirada. */
+  gearState: Record<'weapon' | 'armor', GearState> = { weapon: { level: 0, pity: 0 }, armor: { level: 0, pity: 0 } };
   /** Requisitos de atributo: devolve o que falta para usar o item ('' = pode). */
   missing: (id: string) => string = () => '';
   /** Carga extra (kg) dada pela Força. */
@@ -47,12 +58,14 @@ export class Inventory extends Phaser.Events.EventEmitter {
     }
     const e = def.equip;
     const old = this.gear[e.kind];
+    const oldState = this.gearState[e.kind];
     if (e.kind === 'weapon') {
       this.equipped.weapon = e.id;
       this.equipped.look = e.look;
     } else this.equipped.armor = e.id;
     this.gear[e.kind] = def.id;
-    this.slots[i] = { id: old, qty: 1 };
+    this.gearState[e.kind] = { level: this.levelOf(s), pity: this.pityOf(s) };
+    this.slots[i] = { id: old, qty: 1, ...(oldState.level ? { level: oldState.level } : {}), ...(oldState.pity ? { pity: oldState.pity } : {}) };
     this.emit('change');
     this.emit('equip', e.kind, e.id, def.id);
     this.save();
@@ -82,7 +95,7 @@ export class Inventory extends Phaser.Events.EventEmitter {
   }
 
   /** Adiciona; devolve quanto coube. Equipamentos não empilham. */
-  add(id: string, qty: number): number {
+  add(id: string, qty: number, level = 0, pity = 0): number {
     let left = qty;
     const stack = ITEMS[id].equip ? 1 : Inventory.STACK;
     for (const s of this.slots) {
@@ -96,7 +109,7 @@ export class Inventory extends Phaser.Events.EventEmitter {
     for (let i = 0; i < this.slots.length && left > 0; i++) {
       if (this.slots[i]) continue;
       const k = Math.min(left, stack);
-      this.slots[i] = { id, qty: k };
+      this.slots[i] = { id, qty: k, ...(ITEMS[id].equip && level ? { level } : {}), ...(ITEMS[id].equip && pity ? { pity } : {}) };
       left -= k;
     }
     if (left !== qty) {
@@ -130,6 +143,26 @@ export class Inventory extends Phaser.Events.EventEmitter {
 
   count(id: string): number {
     return this.slots.reduce((n, s) => n + (s && s.id === id ? s.qty : 0), 0);
+  }
+
+  levelOf(s: ItemStack | null | undefined): number {
+    return Math.max(0, Math.min(15, Math.floor(Number(s?.level) || 0)));
+  }
+
+  pityOf(s: ItemStack | null | undefined): number {
+    return Math.max(0, Math.floor(Number(s?.pity) || 0));
+  }
+
+  /** Remove precisamente deste espaço (importante para peças aprimoradas duplicadas). */
+  removeAt(i: number, qty = 1): number {
+    const s = this.slots[i];
+    if (!s || qty <= 0) return 0;
+    const k = Math.min(qty, s.qty);
+    s.qty -= k;
+    if (!s.qty) this.slots[i] = null;
+    this.emit('change');
+    this.save();
+    return k;
   }
 
   get weight(): number {
@@ -174,7 +207,7 @@ export class Inventory extends Phaser.Events.EventEmitter {
     }
     this.saveAt = now;
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ slots: this.slots, gear: this.gear }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ slots: this.slots, gear: this.gear, gearState: this.gearState }));
     } catch {
       /* sem espaço */
     }
@@ -188,7 +221,8 @@ export class Inventory extends Phaser.Events.EventEmitter {
       if (!raw) return false;
       const d = JSON.parse(raw);
       (d.slots as (ItemStack | null)[]).forEach((st, i) => {
-        if (i < Inventory.SLOTS) this.slots[i] = st && ITEMS[st.id] ? { id: st.id, qty: st.qty } : null;
+        if (i < Inventory.SLOTS)
+          this.slots[i] = st && ITEMS[st.id] ? { id: st.id, qty: st.qty, ...(this.levelOf(st) ? { level: this.levelOf(st) } : {}), ...(this.pityOf(st) ? { pity: this.pityOf(st) } : {}) } : null;
       });
       for (const kind of ['weapon', 'armor'] as const) {
         const id = d.gear?.[kind];
@@ -199,6 +233,8 @@ export class Inventory extends Phaser.Events.EventEmitter {
           this.equipped.weapon = def.equip.id;
           this.equipped.look = def.equip.look;
         } else this.equipped.armor = def.equip.id;
+        const st = d.gearState?.[kind];
+        this.gearState[kind] = { level: this.levelOf(st), pity: this.pityOf(st) };
       }
       return true;
     } catch {

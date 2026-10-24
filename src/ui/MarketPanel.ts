@@ -152,7 +152,7 @@ export class MarketPanel {
     const s = this.selected >= 0 ? inv.slots[this.selected] : null;
     if (s) {
       const d = ITEMS[s.id];
-      const each = w.market.price(s.id, c!);
+      const each = w.market.price(s.id, c!, inv.levelOf(s));
       this.detail.setText(`${d.name}${s.qty > 1 ? ` (${s.qty})` : ''} · ${each} ouro cada${s.qty > 1 ? ` · tudo: ${each * s.qty}` : ''}`).setColor(RARITY[d.tier ?? 0].color);
     } else this.detail.setText('Toque num item para ver quanto vale. Material de outra região vale o dobro.').setColor(COLOR.dim);
     this.sell1.setEnabled(!!s);

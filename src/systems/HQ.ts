@@ -699,15 +699,15 @@ export class HQ extends Phaser.Events.EventEmitter {
       for (let k = 0; k < this.chestSize && left > 0; k++)
         if (!chest[k]) {
           const n = Math.min(left, stack);
-          chest[k] = { id: s.id, qty: n };
+          chest[k] = { id: s.id, qty: n, ...(s.level ? { level: s.level } : {}), ...(s.pity ? { pity: s.pity } : {}) };
           left -= n;
         }
       if (left === s.qty) return 'Baú cheio';
-      inv.remove(s.id, s.qty - left);
+      inv.removeAt(i, s.qty - left);
     } else {
       const c = chest[i];
       if (!c) return '';
-      const got = inv.add(c.id, c.qty);
+      const got = inv.add(c.id, c.qty, c.level, c.pity);
       if (!got) return 'Mochila cheia';
       c.qty -= got;
       if (!c.qty) chest[i] = null;

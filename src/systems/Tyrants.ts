@@ -1,6 +1,7 @@
 import { TILE } from '../config';
 import { rollGear } from '../data/gear';
 import { MOUNTS } from '../data/mounts';
+import { rollJewel } from '../data/enhancement';
 import type { WorldScene } from '../scenes/WorldScene';
 import type { Soldier, SoldierType } from './Army';
 
@@ -19,9 +20,9 @@ const SAVE_KEY = 'vaelmor.tyrants.v1';
 const RESPAWN = 40 * 60000;
 
 /**
- * Tiranos: um chefe único no coração de cada bioma, montado na fera mais
- * poderosa da região e cercado de guarda de elite. Derrotado, deixa a montaria
- * (garantida na primeira vez) e uma peça lendária; volta depois de 40 min.
+ * Masmorras dos Tiranos: um chefe único no coração de cada bioma, montado na
+ * fera mais poderosa da região e cercado de uma guarda de elite. Derrotado,
+ * deixa joias altas, a montaria e uma peça lendária; volta depois de 40 min.
  */
 export class Tyrants {
   /** Quando cada um caiu pela última vez (-1 = nunca). */
@@ -33,7 +34,7 @@ export class Tyrants {
     this.load();
   }
 
-  /** Covil de cada Tirano (px). */
+  /** Entrada/coração da masmorra de cada Tirano (px). */
   lair(i: number) {
     const p = this.scene.map.poi[i] ?? this.scene.map.start;
     return { x: p.x + 40, y: p.y + 30 };
@@ -84,8 +85,10 @@ export class Tyrants {
           this.save();
           if (!s.stable.owned.has(T.mount)) s.stable.give(T.mount);
           else s.hq.addGold(1000);
+          s.time.delayedCall(300, () => s.loot.drop(rollJewel('dungeon', 8 + i), at.x - 12, at.y));
+          s.time.delayedCall(520, () => s.loot.drop(rollJewel('dungeon', 8 + i), at.x + 12, at.y));
           s.clans.log(`${T.name} caiu diante do ${s.clans.player.name}!${first ? ' O povo canta o feito.' : ''}`, true);
-          s.events.emit('area', 'TIRANO DERROTADO!', `${T.name} · deixou ${MOUNTS[T.mount]?.name ?? 'o tesouro'}`);
+          s.events.emit('area', 'MASMORRA CONCLUÍDA!', `${T.name} derrotado · joias ancestrais · ${MOUNTS[T.mount]?.name ?? 'tesouro'}`);
           s.time.delayedCall(60000, () => this.despawn(i));
         },
       },
