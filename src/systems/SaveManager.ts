@@ -56,26 +56,24 @@ function platformOrigin(): string | null {
   }
 }
 
+// A cópia na conta ATHG é feita pelo SDK (ATHG.cloudSync no index.html), que espelha o
+// localStorage e só envia depois de ler o que a conta já tem. Aqui fica o backup local.
 export class SaveManager {
   private timer = 0;
-  private loadRequested = false;
 
   start() {
     this.save();
     this.timer = window.setInterval(() => this.save(), 12_000);
     window.addEventListener('pagehide', this.save);
     document.addEventListener('visibilitychange', this.onVisibility);
-    window.addEventListener('message', this.onMessage);
     this.send('GAME_READY', { version: VERSION });
     this.send('GAME_STARTED', { version: VERSION });
-    this.requestCloudLoad();
   }
 
   stop() {
     window.clearInterval(this.timer);
     window.removeEventListener('pagehide', this.save);
     document.removeEventListener('visibilitychange', this.onVisibility);
-    window.removeEventListener('message', this.onMessage);
   }
 
   private onVisibility = () => document.visibilityState === 'hidden' && this.save();
@@ -99,7 +97,6 @@ export class SaveManager {
       const data = this.collect();
       const snap: Snapshot = { version: VERSION, savedAt: Date.now(), data, checksum: hash(JSON.stringify(data)) };
       localStorage.setItem(KEY, JSON.stringify(snap));
-      this.send('SAVE_GAME', { slot: 'default', data: snap }, `save-${snap.savedAt}`);
     } catch {
       /* o restante do jogo ainda funciona */
     }
@@ -139,37 +136,10 @@ export class SaveManager {
     this.send('ACHIEVEMENT_UNLOCKED', { id });
   }
 
-  private send(type: string, payload: unknown, requestId?: string) {
+  private send(type: string, payload: unknown) {
     const origin = platformOrigin();
-    if (origin && window.parent !== window) window.parent.postMessage({ source: 'athg-game', game: 'vaelmor', type, payload, ...(requestId ? { requestId } : {}) }, origin);
+    if (origin && window.parent !== window) window.parent.postMessage({ source: 'athg-game', game: 'vaelmor', type, payload }, origin);
   }
-
-  private requestCloudLoad() {
-    if (this.loadRequested) return;
-    this.loadRequested = true;
-    this.send('LOAD_GAME', { slot: 'default' }, 'load-default');
-  }
-
-  private onMessage = (event: MessageEvent) => {
-    const origin = platformOrigin();
-    if (!origin || event.origin !== origin || event.source !== window.parent) return;
-    const msg = event.data;
-    if (msg?.source !== 'athg-portal') return;
-    if (msg.type === 'PORTAL_INIT') {
-      this.send('GAME_READY', { version: VERSION });
-      this.loadRequested = false;
-      this.requestCloudLoad();
-      return;
-    }
-    if (msg.type !== 'LOAD_RESULT' || msg.requestId !== 'load-default') return;
-    const data = msg.payload?.data;
-    const snap = typeof data === 'string' ? parse(data) : parse(JSON.stringify(data));
-    const local = parse(localStorage.getItem(KEY));
-    if (!snap || (local && local.savedAt >= snap.savedAt)) return;
-    for (const [k, v] of Object.entries(snap.data)) localStorage.setItem(k, v);
-    localStorage.setItem(KEY, JSON.stringify(snap));
-    location.reload();
-  };
 }
 
 export const saves = new SaveManager();

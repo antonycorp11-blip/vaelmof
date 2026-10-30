@@ -120,6 +120,9 @@
         }
       }
     </style>
+    <!-- ATHG: progresso salvo na conta do jogador (continua em qualquer aparelho). Antes dos scripts do jogo. -->
+    <script src="https://athg.antonycorp11.workers.dev/sdk/athg-sdk.js"></script>
+    <script>window.ATHG && ATHG.cloudSync && ATHG.cloudSync({ exclude: ['vaelmor.save.v2', 'vaelmor.lastError'], dropOnRestore: ['vaelmor.save.v2'] })</script>
   </head>
   <body>
     <div id="game"></div>
